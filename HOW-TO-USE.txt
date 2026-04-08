@@ -1,21 +1,49 @@
-TL DPS Meter 
-============ 
- 
-1. Double-click TL-DPS-Meter.exe 
-2. Browser opens automatically with the dashboard 
-3. Play Throne and Liberty with combat logging enabled 
-4. Press Ctrl+Tab anytime to reset encounter (global hotkey) 
- 
-First Run: 
-- The app will ask for your combat log folder path 
-- Default: %LOCALAPPDATA%\TL\Saved\CombatLogs 
- 
-Global Hotkey: 
-- Default: Ctrl+Tab (resets encounter from anywhere) 
-- Change in Settings if needed 
-- A beep confirms the reset 
- 
-Troubleshooting: 
-- If "Disconnected" in browser, make sure .exe is running 
-- If no data appears, check combat logging is enabled in game 
-- If hotkey doesn't work, it may be used by another application 
+TL DPS Meter — StoopKid Beta
+=============================
+
+Quick Start:
+1. Double-click TL-DPS-Meter.exe
+2. Browser opens automatically
+3. Play TL with combat logging enabled
+4. Press Ctrl+Tab anytime to reset encounter (works in-game)
+
+First Run:
+- Go to Settings and verify your log path
+- Default: %LOCALAPPDATA%\TL\Saved\CombatLogs
+
+Build Testing Workflow:
+1. Hit Reset before attacking
+2. Fight for 60 seconds
+3. Run appears in Session Queue automatically
+4. Tag the run with your build name
+5. Repeat with next build variation
+6. Assign runs to A and B slots, click Open Run Lab
+7. Hit Save All when done
+
+Run Lab:
+- Assign any two queue runs as A and B
+- Key Findings shows what caused the DPS difference
+- Skill Matrix breaks down casts, avg damage, crit/heavy rates per skill
+- Click any skill for a per-cast drilldown
+
+Rotation Tab:
+- Stacked chart shows which skill dealt damage each second
+- Click skill names above the chart to filter/hide specific skills
+- Performance Analysis shows weak window causes and dropped casts
+
+Encounters Tab:
+- Same stacked chart and skill filters as Build Testing
+- Works for any fight length, not just 60s
+
+Interactive Tour:
+- Click the Tour button in the sidebar for a guided walkthrough
+
+Global Hotkey:
+- Default: Ctrl+Tab (resets encounter from anywhere)
+- Change in Settings if needed
+
+Troubleshooting:
+- "Disconnected" in browser → make sure TL-DPS-Meter.exe is running
+- No data → combat logging must be enabled in-game
+- Hotkey conflict → change it in Settings
+- Stats appear blank mid-fight → normal, TL writes logs after combat ends
