@@ -8,3 +8,7 @@ fixtures/_*.json
 # Captured golden fixtures from the old .exe are committed when created (gold_*).
 # Isolated sandbox used to drive the old .exe during oracle capture (Phase 3).
 .oracle_tmp/
+# PyInstaller build outputs (Phase 8) — exe + work dir are artifacts, never tracked.
+# (root .gitignore only anchors the repo-root /dist/, not backend/dist/.)
+dist/
+build/

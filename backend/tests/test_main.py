@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+import time
 from pathlib import Path
 
 import websockets
@@ -107,6 +108,18 @@ def test_backend_binds_and_answers_init_burst(tmp_path):
 
     # Clean teardown: the named loop thread is gone and we are back to baseline
     # (the watcher's observer thread was joined inside _run_app's finally).
+    # Watchdog's observer/emitter threads can take a beat to fully exit under
+    # full-suite load, so allow a short settle window — the intent is "no leak",
+    # not "joined on the exact same tick".
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        settled = (
+            not any(t.name == "dps-backend" and t.is_alive()
+                    for t in threading.enumerate())
+            and threading.active_count() <= before)
+        if settled:
+            break
+        time.sleep(0.02)
     assert not any(
         t.name == "dps-backend" and t.is_alive() for t in threading.enumerate())
     assert threading.active_count() <= before

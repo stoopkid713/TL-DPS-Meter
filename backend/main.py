@@ -16,16 +16,30 @@ which signals the backend's asyncio ``stop_event``; that unwinds
 broadcast loop + WS server), the loop thread exits, and we join it. No orphaned
 threads, no traceback.
 
-Packaging note (Phase 8): :func:`resolve_index_html` uses the dev layout
-(``<repo>/index.html`` with this file at ``<repo>/backend/main.py``). Phase 8 will
-switch the app root to ``sys.executable``'s parent for the frozen build.
+Packaging (Phase 8): two path resolutions that diverge once frozen and are the
+classic invisible-until-packaged trap —
+
+* ``index.html`` is a BUNDLED read-only asset. In the frozen app PyInstaller
+  extracts it under ``sys._MEIPASS``; in dev it lives at ``<repo>/index.html``.
+  :func:`resolve_index_html` returns the right one.
+* The 8 user JSON files are WRITABLE state and must persist NEXT TO the exe so the
+  user can see them — ``APP_DIR = Path(sys.executable).parent`` when frozen, NOT
+  ``_MEIPASS`` (a temp dir wiped on exit). :func:`resolve_data_dir` returns that
+  (``$TLDPS_DATA_DIR`` still overrides; dev keeps the CWD default).
+
+Because the windowed build runs with ``console=False`` (stdout is discarded),
+:func:`setup_logging` routes diagnostics to a rotating JSON-lines file next to the
+exe so there is still a record without a console.
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import sys
 import threading
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
 
@@ -34,17 +48,88 @@ from dps_meter_server import HOST, PORT, _run_app
 log = logging.getLogger("tldps.main")
 
 
-def resolve_index_html() -> Path:
-    """Locate the frontend ``index.html`` (dev layout).
+# --- packaging-aware path resolution ---------------------------------------
+def _is_frozen() -> bool:
+    """True when running inside a PyInstaller-frozen build."""
+    return bool(getattr(sys, "frozen", False))
 
-    Dev: ``<repo>/index.html`` while this module is ``<repo>/backend/main.py``.
-    Phase 8 handles the packaged ``APP_DIR = sys.executable`` parent case.
+
+def app_dir() -> Path:
+    """Directory that holds WRITABLE state (the 8 user JSON files + log).
+
+    Frozen: next to the executable (``sys.executable`` parent) so state persists
+    and stays visible to the user. NOT ``sys._MEIPASS`` (the temp extract dir,
+    wiped on exit). Dev: the repo root (this file is ``<repo>/backend/main.py``).
     """
-    repo_root = Path(__file__).resolve().parent.parent
-    index = repo_root / "index.html"
+    if _is_frozen():
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent.parent
+
+
+def _index_html_path() -> Path:
+    """Pure resolver for the BUNDLED read-only ``index.html`` (no fs check)."""
+    if _is_frozen():
+        # PyInstaller extracts `datas` under _MEIPASS at runtime.
+        return Path(getattr(sys, "_MEIPASS")) / "index.html"
+    return Path(__file__).resolve().parent.parent / "index.html"
+
+
+def resolve_index_html() -> Path:
+    """Locate the frontend ``index.html``, asserting it exists."""
+    index = _index_html_path()
     if not index.is_file():
         raise FileNotFoundError(f"index.html not found at {index}")
     return index
+
+
+def resolve_data_dir() -> Path:
+    """Where persistence reads/writes the JSON state files.
+
+    ``$TLDPS_DATA_DIR`` always wins. Otherwise: next to the exe when frozen, the
+    CWD in dev (preserves the Phase-7 dev behaviour).
+    """
+    override = os.environ.get("TLDPS_DATA_DIR")
+    if override:
+        return Path(override)
+    if _is_frozen():
+        return app_dir()
+    return Path.cwd()
+
+
+# --- logging ----------------------------------------------------------------
+class _JsonFormatter(logging.Formatter):
+    """Minimal structured JSON-lines formatter for the rotating file log."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info:
+            payload["exc"] = self.formatException(record.exc_info)
+        return json.dumps(payload, ensure_ascii=False)
+
+
+def setup_logging() -> Optional[Path]:
+    """Configure root logging. Returns the log-file path when file logging is on.
+
+    Frozen windowed builds have no console (``console=False`` discards stdout), so
+    route to a rotating JSON file next to the exe. In dev a console exists, so log
+    there as before (no repo clutter).
+    """
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    if _is_frozen():
+        log_path = app_dir() / "tl-dps-meter.log"
+        handler = RotatingFileHandler(
+            log_path, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+        handler.setFormatter(_JsonFormatter())
+        root.addHandler(handler)
+        return log_path
+    logging.basicConfig(level=logging.INFO)
+    return None
 
 
 class Backend:
@@ -143,14 +228,16 @@ class Backend:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
-    data_dir = os.environ.get("TLDPS_DATA_DIR", str(Path.cwd()))
+    log_path = setup_logging()
+    data_dir = resolve_data_dir()
     index = resolve_index_html()
+    if log_path is not None:
+        log.info("logging to %s", log_path)
 
     # Bind the WS (port 8765) BEFORE opening the window so the init burst answers.
-    backend = Backend(data_dir, host=HOST, port=PORT).start()
-    log.info("backend bound on ws://%s:%s -> opening window at %s",
-             backend.host, backend.port, index)
+    backend = Backend(str(data_dir), host=HOST, port=PORT).start()
+    log.info("backend bound on ws://%s:%s -> window=%s data_dir=%s",
+             backend.host, backend.port, index, data_dir)
 
     import webview  # lazy: keeps the module headless-importable for tests
 

@@ -10,7 +10,10 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "pyinstaller>=6.20.0",
+    "pytest>=8",
+]
 
 [tool.uv]
 package = false
