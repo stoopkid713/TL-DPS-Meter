@@ -52,6 +52,7 @@ from combat_stats import (
     slice_first_60s,
 )
 from constants import DEFAULT_LOG_SUBDIR, HOST, PORT
+from party_state import PartyState
 
 log = logging.getLogger(__name__)
 
@@ -89,6 +90,7 @@ class DPSMeterServer:
         self.broadcast_interval = broadcast_interval
 
         self.stats = CombatStats()
+        self.party = PartyState()
         self.clients: set[Any] = set()
         self._server: Optional[Any] = None
         self._broadcast_task: Optional[asyncio.Task] = None
@@ -206,11 +208,53 @@ class DPSMeterServer:
 
         Lines are parsed without skill-settings correction (the live serializer
         applies that at broadcast time, exposing both raw and adjusted figures).
+
+        While a party recording is active each accumulated hit is also folded into
+        :attr:`party` and emitted as a ``party_live_hit`` frame — mirroring the old
+        backend's monitor loop (``server.py`` L3370-3399), which recorded the hit
+        and broadcast ``{hit, totals}`` for every DamageDone row while
+        ``encounter_active``. The party stream is the same player-attributed hits
+        that feed the live stats, so no extra caster filter is applied here.
         """
         for line in lines:
             partial = parse_line(line)  # RAW: no skill_settings correction here
-            if partial is not None:
-                self.stats.add_partial(partial)
+            if partial is None:
+                continue
+            self.stats.add_partial(partial)
+            if self.party.encounter_active:
+                self._record_party_hit(partial)
+
+    def _record_party_hit(self, partial: dict) -> None:
+        """Fold one hit into the party accumulator and emit ``party_live_hit``."""
+        self.party.record_hit(
+            target=partial["target"],
+            damage=partial["damage"],
+            is_crit=partial["is_crit"],
+            is_heavy=partial["is_heavy"],
+            hit_time=partial["_timestamp"],
+        )
+        self._emit({
+            "type": "party_live_hit",
+            "hit": {
+                "target": partial["target"],
+                "damage": partial["damage"],
+                "is_crit": partial["is_crit"],
+                "is_heavy": partial["is_heavy"],
+            },
+            "totals": self.party.get_results(),
+        })
+
+    def _emit(self, payload: dict) -> None:
+        """Schedule a broadcast of ``payload`` on the event loop, from any thread.
+
+        ``call_soon_threadsafe`` is safe whether ``ingest_lines`` runs on the loop
+        thread (tests, and the Phase-4 watcher poll) or off it; a no-op before the
+        server has started (``_loop is None``)."""
+        loop = self._loop
+        if loop is None:
+            return
+        loop.call_soon_threadsafe(
+            lambda: asyncio.ensure_future(self._broadcast(payload)))
 
     def _stats_envelope(self) -> dict:
         return {
@@ -218,10 +262,7 @@ class DPSMeterServer:
             "data": self.stats.live(self.skill_settings.get("skills", {})),
             "license": dict(PERPETUAL_LICENSE),
             "log_info": self._log_info(),
-            "party_status": {
-                "encounter_active": False, "party_code": None,
-                "target_count": 0, "total_damage": 0,
-            },
+            "party_status": self.party.get_status(),
         }
 
     def _current_skills(self) -> list[str]:
@@ -605,25 +646,28 @@ def _h_set_target_assignment(s: DPSMeterServer, msg: dict) -> dict:
             "target_name": target_name, "category": category}
 
 
-# --- hotkey / party (stubs until Phases 5/6) -------------------------------
+# --- hotkey / party --------------------------------------------------------
 def _h_test_hotkey(s: DPSMeterServer, msg: dict) -> dict:
     return {"type": "hotkey_test", "success": True}
 
 
 def _h_party_start_recording(s: DPSMeterServer, msg: dict) -> dict:
-    return {"type": "party_recording_started",
-            "status": {"recording": True, "encounter_active": True}}
+    """Arm party recording (optional ``party_code``); reply with live status."""
+    s.party.start_recording(msg.get("party_code"))
+    return {"type": "party_recording_started", "status": s.party.get_status()}
 
 
 def _h_party_stop_recording(s: DPSMeterServer, msg: dict) -> dict:
+    """Disarm recording; reply with the final results + status."""
+    results = s.party.stop_recording()
     return {"type": "party_recording_stopped",
-            "status": {"recording": False, "encounter_active": False},
-            "results": {}}
+            "results": results, "status": s.party.get_status()}
 
 
 def _h_party_reset_stats(s: DPSMeterServer, msg: dict) -> dict:
-    return {"type": "party_stats_reset",
-            "status": {"recording": False, "encounter_active": False}}
+    """Zero the party accumulators (leaves ``encounter_active`` unchanged)."""
+    s.party.reset_stats()
+    return {"type": "party_stats_reset", "status": s.party.get_status()}
 
 
 HANDLERS: dict[str, Callable[[DPSMeterServer, dict], Optional[dict]]] = {
