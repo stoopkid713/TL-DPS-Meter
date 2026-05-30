@@ -105,10 +105,13 @@ def resolve_data_dir() -> Path:
     return Path.cwd()
 
 
-# Functional presets shipped WITH the app (not user fight data): which targets are
-# bosses/adds/archbosses, and the standard dungeon list. Bundled into the exe and
-# seeded into the data dir on first run so a clean install categorizes correctly.
-_PRESET_FILES = ("default_target_assignments.json", "dungeons.json")
+# Functional presets shipped WITH the app (game-fact defaults, NOT user fight data):
+# target categories, standard dungeons, per-skill crit/heavy flags, and the
+# skill->weapon assignments. Bundled into the exe and seeded into the data dir on
+# first run so a clean install is fully functional (categories + Skill Assign +
+# Skill Settings populated), not blank.
+_PRESET_FILES = ("default_target_assignments.json", "dungeons.json",
+                 "skill_settings.json", "weapon_config.json")
 
 
 def _bundle_dir() -> Path:

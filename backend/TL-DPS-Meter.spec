@@ -23,9 +23,11 @@ INDEX_HTML = os.path.join(REPO_ROOT, "index.html")
 ICON = os.path.join(HERE, "assets", "icon.ico")
 VERSION_FILE = os.path.join(HERE, "version_info.txt")
 # Functional presets seeded into the data dir on first run (main.seed_presets):
-# target categories + standard dungeons. NOT user fight data.
+# target categories, dungeons, per-skill crit/heavy flags, skill->weapon assignments.
+# Game-fact defaults — NOT user fight data.
 PRESETS = [os.path.join(REPO_ROOT, n) for n in
-           ("default_target_assignments.json", "dungeons.json")]
+           ("default_target_assignments.json", "dungeons.json",
+            "skill_settings.json", "weapon_config.json")]
 
 # pywebview chooses a GUI backend at runtime (winforms/WebView2 on Windows);
 # pull in all its submodules so the chosen backend is present in the frozen app.

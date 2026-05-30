@@ -57,7 +57,10 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   DataDir: String;
 begin
-  if CurUninstallStep = usUninstall then
+  // Only prompt during an interactive uninstall. A silent uninstall (/VERYSILENT)
+  // must NOT show a MsgBox — it would block forever waiting for a click — so it
+  // leaves user data in place (the safe default).
+  if (CurUninstallStep = usUninstall) and (not UninstallSilent) then
   begin
     DataDir := ExpandConstant('{localappdata}\TL-DPS-Meter');
     if DirExists(DataDir) then

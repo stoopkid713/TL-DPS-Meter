@@ -1,7 +1,11 @@
-# Personal runtime data (use samples/encounters_sample.json for testing)
+# Personal runtime data — mutated by running the app; NOT shipped (the app seeds
+# its presets on first run). Use samples/encounters_sample.json for testing.
+# (Tracked presets that ARE shipped: default_target_assignments.json, dungeons.json,
+#  skill_settings.json, weapon_config.json.)
 encounters.json
 saved_runs.json
 config.json
+target_assignments.json
 
 # Pyinstaller extraction artifacts
 *.exe_extracted/
