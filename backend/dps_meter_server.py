@@ -61,12 +61,13 @@ log = logging.getLogger(__name__)
 # still reports a license object so the frontend's license panel renders.
 PERPETUAL_LICENSE = {"version": "1.0", "days_remaining": None, "expires": None}
 
-# Commands the old exe receives but has no handler for: it drops them silently
-# (confirmed against the live .exe). We do the same to preserve parity rather than
-# emit an `error` that would noise up the frontend console.
+# Commands we deliberately no-op. `set_skill_weapon` has no old handler (the old
+# exe drops it silently — confirmed live), so we match that. The overlay commands
+# DO exist in the old exe (they spawn/kill the separate overlay.exe), but that
+# subsystem is out of the rebuild's scope, so we drop them rather than half-wire it.
 SILENTLY_IGNORED = frozenset({
     "set_skill_weapon",     # superseded by assign_skill / bulk_assign_skills
-    "close_overlay", "open_overlay", "open_logs_folder", "purge_log",  # GUI-only
+    "close_overlay", "open_overlay",  # overlay.exe subsystem — out of rebuild scope
 })
 
 # Approximate split threshold for the (deferred-parity) encounter-history scan.
@@ -670,6 +671,59 @@ def _h_party_reset_stats(s: DPSMeterServer, msg: dict) -> dict:
     return {"type": "party_stats_reset", "status": s.party.get_status()}
 
 
+# --- GUI / system commands -------------------------------------------------
+def _h_open_logs_folder(s: DPSMeterServer, msg: dict) -> Optional[dict]:
+    """Open the combat-log directory in the OS file browser.
+
+    Faithful to the old exe (disasm L18645-18729): ``os.startfile`` on Windows,
+    ``open`` on macOS, ``xdg-open`` on Linux; an ``error`` reply when the directory
+    is missing. On success the old exe sends NO reply (returns ``None``) — dispatch
+    skips the send for ``None``.
+
+    Regression note: this command (and ``purge_log``) were mis-bucketed as silent
+    GUI no-ops in Phase 3; the old exe actually handled both. Restored in the
+    Phase-8 interactive pass after the "Open Logs Folder" button did nothing.
+    """
+    import os
+    import subprocess
+    import sys
+
+    log_dir = s._log_dir()
+    if not log_dir or not Path(log_dir).exists():
+        return {"type": "error", "message": "Logs folder not found"}
+    path = str(log_dir)
+    if sys.platform.startswith("win"):
+        os.startfile(path)  # type: ignore[attr-defined]  # Windows-only API
+    elif sys.platform == "darwin":
+        subprocess.run(["open", path], check=False)
+    else:
+        subprocess.run(["xdg-open", path], check=False)
+    log.info("opened logs folder: %s", path)
+    return None
+
+
+def _h_purge_log(s: DPSMeterServer, msg: dict) -> dict:
+    """Truncate the active combat-log file (newest ``*.txt`` by name); reply log_purged.
+
+    Faithful to the old exe (disasm L18445-18642, error string "No log file found
+    to purge"). The watcher tolerates the truncation: its next poll sees
+    ``size < file_position`` and restarts from byte 0 (``log_watcher.read_new_lines``
+    re-seeks), so no desync. Stats are left intact — the old exe only clears the
+    file, it does not reset the meter.
+    """
+    log_dir = s._log_dir()
+    if not log_dir or not Path(log_dir).is_dir():
+        return {"type": "error", "message": "No log file found to purge"}
+    files = sorted(Path(log_dir).glob("*.txt"))
+    if not files:
+        return {"type": "error", "message": "No log file found to purge"}
+    active = files[-1]  # newest by name — same active-file rule as the watcher
+    with open(active, "w", encoding="utf-8"):
+        pass  # truncate to zero length
+    log.info("purged active log file: %s", active)
+    return {"type": "log_purged"}
+
+
 HANDLERS: dict[str, Callable[[DPSMeterServer, dict], Optional[dict]]] = {
     # init burst (9)
     "get_config": _h_get_config,
@@ -688,6 +742,9 @@ HANDLERS: dict[str, Callable[[DPSMeterServer, dict], Optional[dict]]] = {
     "get_stats": _h_get_stats,
     "get_encounter_details": _h_get_encounter_details,
     "load_encounter_data": _h_load_encounter_data,
+    # GUI / system (restored Phase 8 — were wrongly silent-dropped in Phase 3)
+    "open_logs_folder": _h_open_logs_folder,
+    "purge_log": _h_purge_log,
     # config / player
     "set_config": _h_set_config,
     "set_player": _h_set_player,
