@@ -797,14 +797,37 @@ def _segment_file(lines, assignments: dict) -> list[dict]:
     return segments
 
 
-async def _run_app(data_dir: str) -> None:
-    server = DPSMeterServer(data_dir, host=HOST, port=PORT)
+async def _run_app(
+    data_dir: str,
+    *,
+    host: str = HOST,
+    port: int = PORT,
+    log_dir: str | Path | None = None,
+    on_ready: Optional[Callable[["DPSMeterServer"], None]] = None,
+    stop_event: Optional[asyncio.Event] = None,
+) -> None:
+    """Bind the server, attach the watcher + hotkey, and run until stopped.
+
+    Single source of truth for the runtime wiring shared by the CLI entry point
+    (:func:`main`) and the windowed entry point (``main.py``). Parameters let the
+    caller drive it without touching the contract:
+
+    * ``port=0`` binds an ephemeral port (tests; never the live 8765).
+    * ``log_dir`` overrides the watched combat-log directory (tests point it at a
+      temp dir; the default resolves the real TL CombatLogs folder).
+    * ``on_ready`` is invoked once the WS is bound and the watcher/hotkey are up —
+      the windowed launcher waits on this before opening the native window so the
+      frontend's 9-init burst answers instantly.
+    * ``stop_event`` is awaited instead of running forever; setting it (from any
+      thread via ``loop.call_soon_threadsafe``) triggers the clean-shutdown path.
+    """
+    server = DPSMeterServer(data_dir, host=host, port=port)
     await server.start()
     # Tail the combat log into the server (Phase 4). Import here so the server
     # module has no hard dependency on watchdog when used headless (e.g. tests).
     from log_watcher import LogWatcher
 
-    watcher = LogWatcher(server)
+    watcher = LogWatcher(server, log_dir=log_dir)
     watcher.start()
 
     # Global reset hotkey (Phase 5). Skip when disabled in config.
@@ -816,8 +839,14 @@ async def _run_app(data_dir: str) -> None:
                                 hotkey=server.config.get("hotkey", "ctrl+tab"))
         hotkeys.start()
 
+    if on_ready is not None:
+        on_ready(server)
+
     try:
-        await asyncio.Future()  # run until cancelled
+        if stop_event is not None:
+            await stop_event.wait()
+        else:
+            await asyncio.Future()  # run until cancelled
     finally:
         if hotkeys is not None:
             hotkeys.stop()

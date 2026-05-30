@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "TL-DPS-Meter backend (clean rebuild) — combat-log parser, stats core, WebSocket server"
 requires-python = ">=3.11"
 dependencies = [
+    "pywebview>=6.2.1",
     "watchdog>=6.0.0",
     "websockets>=16.0",
 ]
