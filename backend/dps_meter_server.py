@@ -453,10 +453,34 @@ def _h_get_encounter_details(s: DPSMeterServer, msg: dict) -> dict:
 
 
 def _h_load_encounter_data(s: DPSMeterServer, msg: dict) -> dict:
-    enc_id = msg.get("encounter_id") or msg.get("id")
-    encounters = p.load_encounters(s.data_dir).get("encounters", [])
-    match = next((e for e in encounters if e.get("id") == enc_id), None)
-    return {"type": "encounter_loaded", "data": match}
+    """Load a viewed encounter into the live buffer (disasm ``load_encounter_data``).
+
+    Frontend sends ``{target_name, start_time}``. We re-parse that encounter's window
+    and (1) reply ``encounter_loaded`` with its breakdown, and (2) **load its hits into
+    ``s.stats``** so the frontend's follow-up ``save_encounter`` persists THIS encounter
+    rather than the live session. (The old exe replied with the data but never loaded
+    the buffer — so save-from-history saved the wrong thing; this completes the
+    intended two-step the frontend already drives.)
+    """
+    from datetime import datetime
+
+    target_name = msg.get("target_name")
+    start_time_str = msg.get("start_time")
+    if not target_name or not start_time_str:
+        return {"type": "error", "message": "Missing target_name or start_time"}
+    start_time = datetime.fromisoformat(start_time_str.replace("Z", "+00:00"))
+    skills = p.load_skill_settings(s.data_dir).get("skills", {})
+    active = s._active_log_file()
+    details = encounter_scan.parse_encounter_details(active, target_name, start_time, skills)
+    if not details:
+        return {"type": "error", "message": f"No data found for encounter: {target_name}"}
+    # Replace the live buffer in place (keeps the watcher's reference valid) with the
+    # viewed encounter's canonical hits so the next save_encounter persists it.
+    hits = encounter_scan.parse_encounter_hits(active, target_name, start_time, skills)
+    s.stats.reset()
+    for h in hits:
+        s.stats.add_hit(h)
+    return {"type": "encounter_loaded", "data": details}
 
 
 # --- config / player -------------------------------------------------------

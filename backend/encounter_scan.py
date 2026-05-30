@@ -438,6 +438,46 @@ def parse_encounter_details(log_file_path: Optional[Path], target_name: str,
         return None
 
 
+def parse_encounter_hits(log_file_path: Optional[Path], target_name: str,
+                         start_time: datetime, skill_settings: dict) -> list[dict]:
+    """Canonical hits for one encounter window, rebased to the window's first hit.
+
+    Used by ``load_encounter_data`` to load the *viewed* encounter into the live
+    buffer so a follow-up ``save_encounter`` persists THAT encounter (the frontend's
+    two-step save-from-history flow). Selection matches :func:`parse_encounter_details`
+    exactly — target + ``[start-10s, start+10min]`` + ``damage != 0`` + RAW crit/heavy
+    (``skill_settings`` accepted for signature symmetry but NOT applied, as in
+    ``parse_encounter_details``) — so the saved record reflects exactly the viewed
+    breakdown. Parsed via ``combat_log_parser`` so the hits carry the canonical
+    ``time``/``hit_type`` shape a clean recording uses. ``[]`` on missing file / no match.
+    """
+    from combat_log_parser import finalize_hit, parse_line
+
+    if not log_file_path or not Path(log_file_path).exists():
+        return []
+    win_start = start_time - _DETAILS_WINDOW_BEFORE
+    win_end = start_time + _DETAILS_WINDOW_AFTER
+    partials: list[dict] = []
+    try:
+        with open(log_file_path, "r", encoding="utf-8") as f:
+            for line in f:
+                pr = parse_line(line, skill_settings=None)  # RAW crit/heavy, like parse_encounter_details
+                if pr is None or pr["damage"] == 0:
+                    continue
+                if pr["target"].strip() != target_name:
+                    continue
+                ts = pr["_timestamp"]
+                if ts < win_start or ts > win_end:
+                    continue
+                partials.append(pr)
+    except OSError:
+        return []
+    if not partials:
+        return []
+    start = partials[0]["_timestamp"]
+    return [finalize_hit(pr, start) for pr in partials]
+
+
 def _details_skill_list(skill_damage: dict, skill_counts: dict, skill_crits: dict,
                         skill_heavies: dict, total_damage: int) -> list[dict]:
     """Per-skill breakdown sorted by total damage desc (disasm L842-857 / L884-899).

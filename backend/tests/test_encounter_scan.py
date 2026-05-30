@@ -117,6 +117,59 @@ def test_details_field_set_matches_old_shape():
     assert len(details["top_hits"]) <= 10
 
 
+def test_parse_encounter_hits_canonical_and_matches_details():
+    gold = _gold_history()
+    target = gold[0]  # King Khanzaizin (isolated)
+    start = datetime.fromisoformat(target["start_time"])
+    hits = encounter_scan.parse_encounter_hits(GOLD_LOG, "King Khanzaizin", start, {})
+    assert hits, "expected canonical hits for the window"
+    # canonical hit shape (combat_log_parser), distinct from the details hit_log shape
+    assert set(hits[0].keys()) == {"time", "relative_time", "skill", "target",
+                                   "damage", "is_crit", "is_heavy", "hit_type"}
+    assert hits[0]["relative_time"] == 0.0          # rebased to the window's first hit
+    assert all(h["target"].strip() == "King Khanzaizin" for h in hits)
+    # same selection as the viewed breakdown -> same count + total
+    assert len(hits) == target["hit_count"]
+    assert sum(h["damage"] for h in hits) == target["total_damage"]
+
+
+def test_load_encounter_then_save_persists_viewed_encounter(tmp_path):
+    """The frontend two-step (load_encounter_data -> save_encounter) must persist the
+    VIEWED encounter, not the live session. Drives both backend handlers directly."""
+    import json
+    import shutil
+
+    from dps_meter_server import (DPSMeterServer, _h_load_encounter_data,
+                                  _h_save_encounter)
+
+    logdir = tmp_path / "logs"
+    logdir.mkdir()
+    shutil.copy(GOLD_LOG, logdir / "combat.txt")  # _active_log_file globs *.txt
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    srv = DPSMeterServer(str(data_dir))
+    srv.config = {**srv.config, "log_path": str(logdir)}
+
+    target = _gold_history()[0]  # King Khanzaizin
+
+    loaded = _h_load_encounter_data(
+        srv, {"target_name": "King Khanzaizin", "start_time": target["start_time"]})
+    assert loaded["type"] == "encounter_loaded"
+    assert len(srv.stats.hits) == target["hit_count"]  # buffer now holds the viewed encounter
+
+    saved = _h_save_encounter(srv, {"build_tag": "ViewedSaveTest"})
+    assert saved["type"] == "encounter_saved"
+    rec = saved["encounter"]
+    assert rec["overall"]["total_damage"] == target["total_damage"]
+    assert rec["overall"]["hit_count"] == target["hit_count"]
+    assert rec["primary_target"] == "King Khanzaizin"
+
+    # persisted to disk in the temp data dir (never the repo's encounters.json)
+    on_disk = json.loads((data_dir / "encounters.json").read_text(encoding="utf-8"))
+    assert on_disk["encounters"][0]["overall"]["total_damage"] == target["total_damage"]
+
+
 def test_details_no_match_returns_none():
     gold = _gold_history()
     start = datetime.fromisoformat(gold[0]["start_time"])
