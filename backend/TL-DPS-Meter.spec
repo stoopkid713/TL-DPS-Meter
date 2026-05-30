@@ -20,6 +20,8 @@ from PyInstaller.utils.hooks import collect_submodules
 HERE = SPECPATH                       # backend/ (dir containing this spec)
 REPO_ROOT = os.path.dirname(HERE)     # repo root (holds index.html)
 INDEX_HTML = os.path.join(REPO_ROOT, "index.html")
+ICON = os.path.join(HERE, "assets", "icon.ico")
+VERSION_FILE = os.path.join(HERE, "version_info.txt")
 
 # pywebview chooses a GUI backend at runtime (winforms/WebView2 on Windows);
 # pull in all its submodules so the chosen backend is present in the frozen app.
@@ -53,5 +55,6 @@ exe = EXE(
     runtime_tmpdir=None,
     console=False,                    # windowed GUI: no console window
     disable_windowed_traceback=False,
-    icon=None,
+    icon=ICON,                        # taskbar / Start Menu / ARP / Properties icon
+    version=VERSION_FILE,             # Properties -> Details metadata
 )

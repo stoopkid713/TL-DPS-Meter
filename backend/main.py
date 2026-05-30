@@ -49,20 +49,28 @@ log = logging.getLogger("tldps.main")
 
 
 # --- packaging-aware path resolution ---------------------------------------
+APP_NAME = "TL-DPS-Meter"
+
+
 def _is_frozen() -> bool:
     """True when running inside a PyInstaller-frozen build."""
     return bool(getattr(sys, "frozen", False))
 
 
 def app_dir() -> Path:
-    """Directory that holds WRITABLE state (the 8 user JSON files + log).
+    """Directory that holds WRITABLE state (the 8 user JSON files + rotating log).
 
-    Frozen: next to the executable (``sys.executable`` parent) so state persists
-    and stays visible to the user. NOT ``sys._MEIPASS`` (the temp extract dir,
-    wiped on exit). Dev: the repo root (this file is ``<repo>/backend/main.py``).
+    Frozen: a per-user dir under ``%LOCALAPPDATA%\\TL-DPS-Meter`` (created if
+    missing), so the app works even when installed to a read-only location like
+    Program Files. NOT ``sys.executable``'s parent (read-only under an installer)
+    and NOT ``sys._MEIPASS`` (the temp extract dir, wiped on exit). Dev: the repo
+    root (this file is ``<repo>/backend/main.py``).
     """
     if _is_frozen():
-        return Path(sys.executable).resolve().parent
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home())
+        d = Path(base) / APP_NAME
+        d.mkdir(parents=True, exist_ok=True)
+        return d
     return Path(__file__).resolve().parent.parent
 
 

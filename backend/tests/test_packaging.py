@@ -22,17 +22,22 @@ def _freeze(monkeypatch, exe: Path, meipass: Path) -> None:
     monkeypatch.setattr(main_mod.sys, "executable", str(exe), raising=False)
 
 
-def test_frozen_data_dir_is_exe_parent_not_meipass(monkeypatch, tmp_path):
-    exe = tmp_path / "dist" / "TL-DPS-Meter.exe"
+def test_frozen_data_dir_is_localappdata_not_meipass_or_exe(monkeypatch, tmp_path):
+    exe = tmp_path / "Programs" / "TL-DPS-Meter" / "TL-DPS-Meter.exe"
     meipass = tmp_path / "_MEI12345"
+    local = tmp_path / "LocalAppData"
     _freeze(monkeypatch, exe, meipass)
     monkeypatch.delenv("TLDPS_DATA_DIR", raising=False)
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
 
+    expected = local / main_mod.APP_NAME
     assert main_mod._is_frozen() is True
-    assert main_mod.app_dir() == exe.parent
-    assert main_mod.resolve_data_dir() == exe.parent
-    # the trap: writable state must NOT land in the temp extract dir
+    assert main_mod.app_dir() == expected
+    assert main_mod.resolve_data_dir() == expected
+    assert expected.is_dir()  # created on demand (works under read-only Program Files)
+    # writable state must NOT land in the temp extract dir nor the read-only exe dir
     assert main_mod.resolve_data_dir() != meipass
+    assert main_mod.resolve_data_dir() != exe.parent
 
 
 def test_frozen_index_html_is_meipass(monkeypatch, tmp_path):
