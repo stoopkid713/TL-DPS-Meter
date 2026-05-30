@@ -37,7 +37,10 @@ SIXTY_SECOND_WINDOW = 60.0      # first_60s window length (seconds), boundary in
 
 # gap_stats thresholds (disasm L12300-12480, gap-loop):
 GAP_DEAD_THRESHOLD = 1.0    # gaps longer than this contribute (gap - 1.0) to total_dead_time
-GAP_MAJOR_THRESHOLD = 2.0   # gaps with duration > this are "major" (counted + listed)
+GAP_MAJOR_THRESHOLD = 2.0   # gaps with duration > this are "major" (counted)
+# LIVE broadcast gap_stats `gaps` list keeps records > 1.5s (disasm L12493) — note this
+# is looser than GAP_MAJOR_THRESHOLD, which still governs num_major_gaps in the live path.
+GAP_LIVE_LIST_THRESHOLD = 1.5
 
 # Rounding (disasm: round(...) calls in the stat-block / gap builders).
 ROUND_RATE = 1          # crit_rate / heavy_rate / crit_heavy_rate / percent  -> 1 dp

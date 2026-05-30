@@ -3,7 +3,9 @@ name = "tl-dps-meter-backend"
 version = "0.1.0"
 description = "TL-DPS-Meter backend (clean rebuild) — combat-log parser, stats core, WebSocket server"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "websockets>=16.0",
+]
 
 [dependency-groups]
 dev = ["pytest>=8"]

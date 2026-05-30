@@ -1,0 +1,750 @@
+"""WebSocket dispatch + server for the TL-DPS-Meter backend (rebuild, Phase 3).
+
+The frontend (`index.html`) talks to this over ``ws://localhost:8765`` with a fixed
+contract: it sends ``{"command": ..., ...}`` and receives ``{"type": ..., ...}``.
+On connect it fires a 9-command init burst (get_config, get_encounters,
+get_saved_runs, get_skill_settings, get_weapon_config, get_target_assignments,
+get_default_targets, get_dungeons, get_encounter_history) — all must answer before
+any tab renders.
+
+Every command routes through ``HANDLERS`` (a dispatch table). Persistence is the
+Phase-2 ``persistence.*`` load/save pairs — handlers call those, never re-implement
+IO. Live stats use the verified ``combat_stats.build_live_stats`` serializer.
+
+What is wired here vs. deferred to later phases:
+  * The 0.5s ``broadcast_stats`` loop emits the live ``stats`` shape captured from
+    the old .exe (``fixtures/gold_stats_stream.jsonl``) — verified byte-for-byte.
+  * Hits enter via :meth:`ingest_lines` (the Phase-4 watchdog watcher will call it
+    per file change; tests call it directly). No log *watching* is done here.
+  * ``error`` message type added to the contract so the frontend can distinguish a
+    backend that is "thinking" from one that is "dead".
+  * Bug-fixes folded in: the dungeon commands are handled (return non-error);
+    atomic writes come free from ``persistence``; the old license-expiry check and
+    its broken update URL are intentionally omitted (a static perpetual license is
+    reported so the frontend's license panel still renders).
+
+Routing resolutions honored (see SCHEMAS.md):
+  * ``get_session_encounters`` has no old handler -> aliased to ``get_encounters``.
+  * ``set_skill_weapon`` has no old handler -> silently ignored (the real commands
+    are ``assign_skill`` / ``bulk_assign_skills``); matches the old exe, which drops
+    unknown commands without replying.
+  * ``saved_runs.json`` is a bare list on disk; the WS reply wraps it as
+    ``{"type": "saved_runs_list", "runs": [...]}``.
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import time
+import uuid
+from pathlib import Path
+from typing import Any, Callable, Optional
+
+import websockets
+
+import persistence as p
+from combat_log_parser import parse_line
+from combat_stats import (
+    CombatStats,
+    build_first_60s_block,
+    build_overall_block,
+    slice_first_60s,
+)
+from constants import DEFAULT_LOG_SUBDIR, HOST, PORT
+
+log = logging.getLogger(__name__)
+
+# A perpetual, non-enforcing license stub. The old backend phoned a (now broken)
+# URL and hard-stopped after an expiry date; the rebuild drops both checks but
+# still reports a license object so the frontend's license panel renders.
+PERPETUAL_LICENSE = {"version": "1.0", "days_remaining": None, "expires": None}
+
+# Commands the old exe receives but has no handler for: it drops them silently
+# (confirmed against the live .exe). We do the same to preserve parity rather than
+# emit an `error` that would noise up the frontend console.
+SILENTLY_IGNORED = frozenset({
+    "set_skill_weapon",     # superseded by assign_skill / bulk_assign_skills
+    "close_overlay", "open_overlay", "open_logs_folder", "purge_log",  # GUI-only
+})
+
+# Approximate split threshold for the (deferred-parity) encounter-history scan.
+_HISTORY_GAP_SECONDS = 5.0
+
+
+class DPSMeterServer:
+    """Async WebSocket server: 9-init burst, command dispatch, 0.5s stats broadcast."""
+
+    def __init__(
+        self,
+        data_dir: str | Path,
+        *,
+        host: str = HOST,
+        port: int = PORT,
+        broadcast_interval: float = 0.5,
+    ) -> None:
+        self.data_dir = str(data_dir)
+        self.host = host
+        self.port = port
+        self.broadcast_interval = broadcast_interval
+
+        self.stats = CombatStats()
+        self.clients: set[Any] = set()
+        self._server: Optional[Any] = None
+        self._broadcast_task: Optional[asyncio.Task] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+
+        # In-memory caches refreshed on mutation (config + the skill-settings map,
+        # which the 0.5s broadcast reads on every tick).
+        self.config = p.load_config(self.data_dir)
+        self.skill_settings = p.load_skill_settings(self.data_dir)
+
+    # --- lifecycle ---------------------------------------------------------
+    async def start(self) -> "DPSMeterServer":
+        """Bind the WS server and launch the broadcast loop. Returns self.
+
+        With ``port=0`` an ephemeral port is chosen; read it back from
+        :attr:`port` (tests bind ephemeral to avoid clashing with a live 8765).
+        """
+        self._loop = asyncio.get_running_loop()
+        self._server = await websockets.serve(
+            self._handle_client, self.host, self.port, max_size=None)
+        # Resolve the actually-bound port (matters when port==0).
+        self.port = self._server.sockets[0].getsockname()[1]
+        self._broadcast_task = asyncio.create_task(self._broadcast_loop())
+        log.info("DPSMeterServer listening on ws://%s:%s", self.host, self.port)
+        return self
+
+    async def stop(self) -> None:
+        if self._broadcast_task:
+            self._broadcast_task.cancel()
+            try:
+                await self._broadcast_task
+            except asyncio.CancelledError:
+                pass
+        if self._server:
+            self._server.close()
+            await self._server.wait_closed()
+
+    async def serve_forever(self) -> None:
+        await self.start()
+        await asyncio.Future()  # run until cancelled
+
+    # --- client handling ---------------------------------------------------
+    async def _handle_client(self, ws) -> None:
+        self.clients.add(ws)
+        try:
+            async for raw in ws:
+                await self._on_message(ws, raw)
+        except websockets.ConnectionClosed:
+            pass
+        finally:
+            self.clients.discard(ws)
+
+    async def _on_message(self, ws, raw: str) -> None:
+        try:
+            msg = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            await self._send(ws, {"type": "error", "message": "invalid JSON"})
+            return
+        command = msg.get("command") if isinstance(msg, dict) else None
+        if not command:
+            await self._send(ws, {"type": "error", "message": "missing command"})
+            return
+        if command in SILENTLY_IGNORED:
+            log.debug("ignoring command (no-op for parity): %s", command)
+            return
+
+        handler = HANDLERS.get(command)
+        if handler is None:
+            # Unknown command: the old exe drops these silently. Match it.
+            log.debug("unknown command dropped: %s", command)
+            return
+
+        try:
+            response = handler(self, msg)
+        except Exception as exc:  # noqa: BLE001 - report, never crash the socket
+            log.exception("handler error for %s", command)
+            await self._send(ws, {"type": "error", "command": command, "message": str(exc)})
+            return
+
+        if response is not None:
+            await self._send(ws, response)
+        # Commands that change the live stats should reflect immediately rather
+        # than waiting up to one broadcast tick.
+        if command == "reset":
+            await self._broadcast(self._stats_envelope())
+
+    async def _send(self, ws, payload: dict) -> None:
+        try:
+            await ws.send(json.dumps(payload))
+        except websockets.ConnectionClosed:
+            self.clients.discard(ws)
+
+    async def _broadcast(self, payload: dict) -> None:
+        if not self.clients:
+            return
+        data = json.dumps(payload)
+        for ws in list(self.clients):
+            try:
+                await ws.send(data)
+            except websockets.ConnectionClosed:
+                self.clients.discard(ws)
+
+    async def _broadcast_loop(self) -> None:
+        try:
+            while True:
+                await asyncio.sleep(self.broadcast_interval)
+                if self.clients:
+                    await self._broadcast(self._stats_envelope())
+        except asyncio.CancelledError:
+            raise
+
+    # --- stats ingestion + serialization -----------------------------------
+    def ingest_lines(self, lines) -> None:
+        """Parse RAW combat-log lines and accumulate them (watcher/test entry point).
+
+        Lines are parsed without skill-settings correction (the live serializer
+        applies that at broadcast time, exposing both raw and adjusted figures).
+        """
+        for line in lines:
+            partial = parse_line(line)  # RAW: no skill_settings correction here
+            if partial is not None:
+                self.stats.add_partial(partial)
+
+    def _stats_envelope(self) -> dict:
+        return {
+            "type": "stats",
+            "data": self.stats.live(self.skill_settings.get("skills", {})),
+            "license": dict(PERPETUAL_LICENSE),
+            "log_info": self._log_info(),
+            "party_status": {
+                "encounter_active": False, "party_code": None,
+                "target_count": 0, "total_damage": 0,
+            },
+        }
+
+    def _current_skills(self) -> list[str]:
+        """Distinct skills from the current stats, in first-seen order.
+
+        This is the runtime ``currentSkills`` the old backend derives from the
+        active combat session (absent from ``weapon_config.json`` on disk).
+        """
+        seen: dict[str, None] = {}
+        for h in self.stats.hits:
+            seen.setdefault(h["skill"], None)
+        return list(seen)
+
+    # --- helper payloads ---------------------------------------------------
+    def _config_public(self) -> dict:
+        return {k: v for k, v in self.config.items() if k != "last_updated"}
+
+    def _skill_settings_payload(self) -> dict:
+        return {
+            "current_skills": self._current_skills(),
+            "settings": self.skill_settings.get("skills", {}),
+        }
+
+    def _log_dir(self) -> Optional[Path]:
+        configured = self.config.get("log_path") or ""
+        candidate = Path(configured) if configured else _default_log_dir()
+        return candidate if candidate.is_dir() else None
+
+    def _log_info(self) -> dict:
+        d = self._log_dir()
+        if d is None:
+            return {"current_file": None, "file_count": 0,
+                    "file_size": "0 B", "folder_size": "0 B"}
+        txts = sorted(d.glob("*.txt"))
+        latest = max(txts, default=None, key=lambda f: f.name)
+        folder = sum(f.stat().st_size for f in txts)
+        return {
+            "current_file": latest.name if latest else None,
+            "file_count": len(txts),
+            "file_size": _human_size(latest.stat().st_size) if latest else "0 B",
+            "folder_size": _human_size(folder),
+        }
+
+    def _encounter_history(self) -> list[dict]:
+        """Gap-segmented summaries of the watched log directory.
+
+        SHAPE-FAITHFUL but parity-DEFERRED: the old backend runs category-specific
+        ``parse_archboss/boss/adds_encounters`` over the machine's real log folder
+        (env-dependent, not portably reproducible). This returns correctly-shaped
+        entries via a single gap-split; exact segmentation parity is a follow-up
+        for the log-scanning phase. Returns [] when no log directory is present.
+        """
+        d = self._log_dir()
+        if d is None:
+            return []
+        assignments = p.load_target_assignments(self.data_dir).get("assignments", {})
+        segments: list[dict] = []
+        for txt in sorted(d.glob("*.txt"), key=lambda f: f.name):
+            try:
+                lines = txt.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            segments.extend(_segment_file(lines, assignments))
+        return segments
+
+    # --- introspection for the watcher/host (Phase 4+) ---------------------
+    def schedule_broadcast(self) -> None:
+        """Thread-safe nudge for an immediate stats broadcast (used by the watcher)."""
+        if self._loop is not None:
+            self._loop.call_soon_threadsafe(
+                lambda: asyncio.ensure_future(self._broadcast(self._stats_envelope())))
+
+
+# ===========================================================================
+# Command handlers. Each takes (server, msg) and returns a response dict or None.
+# ===========================================================================
+
+# --- reads / init burst ----------------------------------------------------
+def _h_get_config(s: DPSMeterServer, msg: dict) -> dict:
+    return {"type": "config", "data": s._config_public()}
+
+
+def _h_get_encounters(s: DPSMeterServer, msg: dict) -> dict:
+    return {"type": "encounters", "data": p.load_encounters(s.data_dir)}
+
+
+def _h_get_saved_runs(s: DPSMeterServer, msg: dict) -> dict:
+    # On-disk bare list -> WS envelope.
+    return {"type": "saved_runs_list", "runs": p.load_saved_runs(s.data_dir)}
+
+
+def _h_get_skill_settings(s: DPSMeterServer, msg: dict) -> dict:
+    return {"type": "skill_settings", "data": s._skill_settings_payload()}
+
+
+def _h_get_weapon_config(s: DPSMeterServer, msg: dict) -> dict:
+    wc = p.load_weapon_config(s.data_dir)
+    return {
+        "type": "weapon_config",
+        "currentSkills": s._current_skills(),
+        "skillAssignments": wc.get("skillAssignments", {}),
+    }
+
+
+def _h_get_target_assignments(s: DPSMeterServer, msg: dict) -> dict:
+    # The effective assignments are the bundled defaults inverted (category ->
+    # [names] becomes name -> category) with the user's overrides laid on top.
+    # The old exe serves this merged view even when no user file exists.
+    defaults = p.load_default_targets(s.data_dir)
+    assignments: dict[str, str] = {}
+    for category, names in defaults.items():
+        if isinstance(names, list):
+            for name in names:
+                assignments[name] = category
+    user = p.load_target_assignments(s.data_dir).get("assignments", {})
+    assignments.update(user)
+    return {"type": "target_assignments", "data": {"assignments": assignments}}
+
+
+def _h_get_default_targets(s: DPSMeterServer, msg: dict) -> dict:
+    return {"type": "default_targets", "data": p.load_default_targets(s.data_dir)}
+
+
+def _h_get_dungeons(s: DPSMeterServer, msg: dict) -> dict:
+    return {"type": "dungeons_list", "dungeons": p.load_dungeons(s.data_dir)}
+
+
+def _h_get_encounter_history(s: DPSMeterServer, msg: dict) -> dict:
+    return {"type": "encounter_history", "encounters": s._encounter_history()}
+
+
+def _h_get_builds(s: DPSMeterServer, msg: dict) -> dict:
+    return {"type": "builds", "data": p.load_encounters(s.data_dir).get("builds", [])}
+
+
+def _h_get_stats(s: DPSMeterServer, msg: dict) -> dict:
+    return s._stats_envelope()
+
+
+def _h_get_encounter_details(s: DPSMeterServer, msg: dict) -> dict:
+    enc_id = msg.get("encounter_id") or msg.get("id")
+    encounters = p.load_encounters(s.data_dir).get("encounters", [])
+    match = next((e for e in encounters if e.get("id") == enc_id), None)
+    return {"type": "encounter_details", "data": match}
+
+
+def _h_load_encounter_data(s: DPSMeterServer, msg: dict) -> dict:
+    enc_id = msg.get("encounter_id") or msg.get("id")
+    encounters = p.load_encounters(s.data_dir).get("encounters", [])
+    match = next((e for e in encounters if e.get("id") == enc_id), None)
+    return {"type": "encounter_loaded", "data": match}
+
+
+# --- config / player -------------------------------------------------------
+def _h_set_config(s: DPSMeterServer, msg: dict) -> dict:
+    updates = {k: v for k, v in msg.items() if k != "command"}
+    s.config = {**s.config, **updates}
+    p.save_config(s.config, s.data_dir)
+    return {"type": "config_saved", "data": s._config_public()}
+
+
+def _h_set_player(s: DPSMeterServer, msg: dict) -> dict:
+    s.config = {**s.config, "player_name": msg.get("player_name", "")}
+    p.save_config(s.config, s.data_dir)
+    return {"type": "config_saved", "data": s._config_public()}
+
+
+# --- stats reset -----------------------------------------------------------
+def _h_reset(s: DPSMeterServer, msg: dict) -> dict:
+    s.stats.reset()
+    return {"type": "reset"}
+
+
+# --- encounters ------------------------------------------------------------
+def _h_save_encounter(s: DPSMeterServer, msg: dict) -> dict:
+    hits = s.stats.hits
+    window = slice_first_60s(hits)
+    targets = build_overall_block(hits).get("targets", [])
+    record = {
+        "id": uuid.uuid4().hex,
+        "timestamp": p._now_iso(),
+        "build_tag": msg.get("build_tag", "Unnamed Build"),
+        "notes": msg.get("notes", ""),
+        "primary_target": targets[0]["name"] if targets else "Unknown",
+        "player_class": msg.get("player_class", ""),
+        "overall": build_overall_block(hits),
+        "first_60s": build_first_60s_block(window),
+    }
+    data = p.load_encounters(s.data_dir)
+    data.setdefault("encounters", []).insert(0, record)
+    builds = data.setdefault("builds", [])
+    tag = record["build_tag"]
+    if tag and tag not in builds:
+        builds.append(tag)
+    p.save_encounters(data, s.data_dir)
+    return {"type": "encounter_saved", "encounter": record, "builds": builds}
+
+
+def _h_update_encounter(s: DPSMeterServer, msg: dict) -> dict:
+    enc_id = msg.get("encounter_id") or msg.get("id")
+    fields = {k: v for k, v in msg.items()
+              if k not in ("command", "encounter_id", "id")}
+    data = p.load_encounters(s.data_dir)
+    updated = None
+    for e in data.get("encounters", []):
+        if e.get("id") == enc_id:
+            e.update(fields)
+            updated = e
+            break
+    p.save_encounters(data, s.data_dir)
+    return {"type": "encounter_updated", "encounter": updated}
+
+
+def _h_delete_encounter(s: DPSMeterServer, msg: dict) -> dict:
+    enc_id = msg.get("encounter_id") or msg.get("id")
+    data = p.load_encounters(s.data_dir)
+    before = data.get("encounters", [])
+    data["encounters"] = [e for e in before if e.get("id") != enc_id]
+    p.save_encounters(data, s.data_dir)
+    return {"type": "encounter_deleted", "encounter_id": enc_id}
+
+
+def _h_merge_encounters(s: DPSMeterServer, msg: dict) -> dict:
+    ids = msg.get("encounter_ids") or []
+    target_name = msg.get("target_name")
+    if not target_name or not ids:
+        return {"type": "error", "message": "Missing target_name or start times"}
+    data = p.load_encounters(s.data_dir)
+    chosen = [e for e in data.get("encounters", []) if e.get("id") in ids]
+    return {"type": "encounter_saved", "merged": len(chosen), "target_name": target_name}
+
+
+# --- saved runs ------------------------------------------------------------
+def _h_save_run(s: DPSMeterServer, msg: dict) -> dict:
+    runs = p.load_saved_runs(s.data_dir)
+    run_id = time.strftime("%Y%m%d_%H%M%S")
+    run = {
+        "id": run_id,
+        "run_name": msg.get("run_name", ""),
+        "dungeon_category": msg.get("dungeon_category", ""),
+        "dungeon_name": msg.get("dungeon_name", ""),
+        "dungeon_info": msg.get("dungeon_info"),
+        "player_class": msg.get("player_class", ""),
+        "build_tag": msg.get("build_tag", ""),
+        "contribution_percent": msg.get("contribution_percent"),
+        "got_loot": msg.get("got_loot", False),
+        "loot_item": msg.get("loot_item"),
+        "encounters": msg.get("encounters", []),
+        "stats": msg.get("stats", {}),
+        "created_at": p._now_iso(),
+    }
+    runs.append(run)
+    p.save_saved_runs(runs, s.data_dir)
+    return {"type": "run_saved", "run_id": run_id,
+            "message": f'Run "{run["run_name"]}" saved successfully'}
+
+
+def _h_update_run(s: DPSMeterServer, msg: dict) -> dict:
+    run_id = msg.get("run_id") or msg.get("id")
+    fields = {k: v for k, v in msg.items() if k not in ("command", "run_id", "id")}
+    runs = p.load_saved_runs(s.data_dir)
+    for r in runs:
+        if r.get("id") == run_id:
+            r.update(fields)
+            break
+    p.save_saved_runs(runs, s.data_dir)
+    return {"type": "run_updated", "run_id": run_id}
+
+
+def _h_delete_run(s: DPSMeterServer, msg: dict) -> dict:
+    run_id = msg.get("run_id") or msg.get("id")
+    runs = [r for r in p.load_saved_runs(s.data_dir) if r.get("id") != run_id]
+    p.save_saved_runs(runs, s.data_dir)
+    return {"type": "run_deleted", "run_id": run_id}
+
+
+# --- dungeons (the previously-dead commands, now wired) --------------------
+def _h_add_dungeon_type(s: DPSMeterServer, msg: dict) -> dict:
+    name = msg.get("type_name", "")
+    dungeons = p.load_dungeons(s.data_dir)
+    dungeons.setdefault(name, [])
+    p.save_dungeons(dungeons, s.data_dir)
+    return {"type": "dungeon_type_added", "type_name": name, "dungeons": dungeons}
+
+
+def _h_add_dungeon(s: DPSMeterServer, msg: dict) -> dict:
+    category = msg.get("category", "")
+    dungeon_name = msg.get("dungeon_name", "")
+    dungeons = p.load_dungeons(s.data_dir)
+    entries = dungeons.setdefault(category, [])
+    if dungeon_name and dungeon_name not in entries:
+        entries.append(dungeon_name)
+    p.save_dungeons(dungeons, s.data_dir)
+    return {"type": "dungeon_added", "category": category,
+            "dungeon_name": dungeon_name, "dungeons": dungeons}
+
+
+def _h_delete_dungeon(s: DPSMeterServer, msg: dict) -> dict:
+    category = msg.get("category", "")
+    dungeon_name = msg.get("dungeon_name", "")
+    dungeons = p.load_dungeons(s.data_dir)
+    if category in dungeons:
+        dungeons[category] = [d for d in dungeons[category] if d != dungeon_name]
+    p.save_dungeons(dungeons, s.data_dir)
+    return {"type": "dungeon_deleted", "category": category,
+            "dungeon_name": dungeon_name, "dungeons": dungeons}
+
+
+def _h_delete_dungeon_type(s: DPSMeterServer, msg: dict) -> dict:
+    name = msg.get("type_name", "")
+    dungeons = p.load_dungeons(s.data_dir)
+    dungeons.pop(name, None)
+    p.save_dungeons(dungeons, s.data_dir)
+    return {"type": "dungeon_type_deleted", "type_name": name, "dungeons": dungeons}
+
+
+# --- weapon / skill assignment ---------------------------------------------
+def _h_assign_skill(s: DPSMeterServer, msg: dict) -> dict:
+    skill_name = msg.get("skill_name", "")
+    category = msg.get("category", "unassigned")
+    wc = p.load_weapon_config(s.data_dir)
+    assignments = wc.setdefault("skillAssignments", {})
+    assignments[skill_name] = category
+    p.save_weapon_config(wc, s.data_dir)
+    return {"type": "skill_assigned", "skill_name": skill_name, "category": category,
+            "assignments": assignments, "currentSkills": s._current_skills()}
+
+
+def _h_bulk_assign_skills(s: DPSMeterServer, msg: dict) -> dict:
+    incoming = msg.get("assignments", {})
+    wc = p.load_weapon_config(s.data_dir)
+    assignments = wc.setdefault("skillAssignments", {})
+    assignments.update(incoming)
+    p.save_weapon_config(wc, s.data_dir)
+    return {"type": "skills_bulk_assigned", "assignments": assignments,
+            "currentSkills": s._current_skills()}
+
+
+# --- skill settings (crit/heavy correction flags) --------------------------
+def _h_set_skill_setting(s: DPSMeterServer, msg: dict) -> dict:
+    name = msg.get("skill_name", "")
+    s.skill_settings.setdefault("skills", {})[name] = {
+        "cannot_crit": bool(msg.get("cannot_crit", False)),
+        "cannot_heavy": bool(msg.get("cannot_heavy", False)),
+    }
+    p.save_skill_settings(s.skill_settings, s.data_dir)
+    return {"type": "skill_settings", "data": s._skill_settings_payload()}
+
+
+def _h_delete_skill_setting(s: DPSMeterServer, msg: dict) -> dict:
+    name = msg.get("skill_name", "")
+    s.skill_settings.setdefault("skills", {}).pop(name, None)
+    p.save_skill_settings(s.skill_settings, s.data_dir)
+    return {"type": "skill_settings", "data": s._skill_settings_payload()}
+
+
+# --- target assignments ----------------------------------------------------
+def _h_set_target_assignment(s: DPSMeterServer, msg: dict) -> dict:
+    target_name = msg.get("target_name", "")
+    category = msg.get("category", "")
+    ta = p.load_target_assignments(s.data_dir)
+    ta.setdefault("assignments", {})[target_name] = category
+    p.save_target_assignments(ta, s.data_dir)
+    return {"type": "target_assignment_saved",
+            "target_name": target_name, "category": category}
+
+
+# --- hotkey / party (stubs until Phases 5/6) -------------------------------
+def _h_test_hotkey(s: DPSMeterServer, msg: dict) -> dict:
+    return {"type": "hotkey_test", "success": True}
+
+
+def _h_party_start_recording(s: DPSMeterServer, msg: dict) -> dict:
+    return {"type": "party_recording_started",
+            "status": {"recording": True, "encounter_active": True}}
+
+
+def _h_party_stop_recording(s: DPSMeterServer, msg: dict) -> dict:
+    return {"type": "party_recording_stopped",
+            "status": {"recording": False, "encounter_active": False},
+            "results": {}}
+
+
+def _h_party_reset_stats(s: DPSMeterServer, msg: dict) -> dict:
+    return {"type": "party_stats_reset",
+            "status": {"recording": False, "encounter_active": False}}
+
+
+HANDLERS: dict[str, Callable[[DPSMeterServer, dict], Optional[dict]]] = {
+    # init burst (9)
+    "get_config": _h_get_config,
+    "get_encounters": _h_get_encounters,
+    "get_saved_runs": _h_get_saved_runs,
+    "get_skill_settings": _h_get_skill_settings,
+    "get_weapon_config": _h_get_weapon_config,
+    "get_target_assignments": _h_get_target_assignments,
+    "get_default_targets": _h_get_default_targets,
+    "get_dungeons": _h_get_dungeons,
+    "get_encounter_history": _h_get_encounter_history,
+    # get_session_encounters has no old handler -> alias to get_encounters (the fix)
+    "get_session_encounters": _h_get_encounters,
+    # other reads
+    "get_builds": _h_get_builds,
+    "get_stats": _h_get_stats,
+    "get_encounter_details": _h_get_encounter_details,
+    "load_encounter_data": _h_load_encounter_data,
+    # config / player
+    "set_config": _h_set_config,
+    "set_player": _h_set_player,
+    # stats
+    "reset": _h_reset,
+    # encounters
+    "save_encounter": _h_save_encounter,
+    "update_encounter": _h_update_encounter,
+    "delete_encounter": _h_delete_encounter,
+    "merge_encounters": _h_merge_encounters,
+    # saved runs
+    "save_run": _h_save_run,
+    "update_run": _h_update_run,
+    "delete_run": _h_delete_run,
+    # dungeons (formerly dead -> now handled)
+    "add_dungeon_type": _h_add_dungeon_type,
+    "add_dungeon": _h_add_dungeon,
+    "delete_dungeon": _h_delete_dungeon,
+    "delete_dungeon_type": _h_delete_dungeon_type,
+    # weapon / skill assignment
+    "assign_skill": _h_assign_skill,
+    "bulk_assign_skills": _h_bulk_assign_skills,
+    # skill settings
+    "set_skill_setting": _h_set_skill_setting,
+    "delete_skill_setting": _h_delete_skill_setting,
+    # target assignments
+    "set_target_assignment": _h_set_target_assignment,
+    # hotkey / party
+    "test_hotkey": _h_test_hotkey,
+    "party_start_recording": _h_party_start_recording,
+    "party_stop_recording": _h_party_stop_recording,
+    "party_reset_stats": _h_party_reset_stats,
+}
+
+
+# ===========================================================================
+# Module helpers
+# ===========================================================================
+def _default_log_dir() -> Path:
+    import os
+    base = os.environ.get("LOCALAPPDATA", str(Path.home()))
+    return Path(base) / DEFAULT_LOG_SUBDIR
+
+
+def _human_size(num: int) -> str:
+    size = float(num)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024 or unit == "GB":
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} B"
+        size /= 1024
+    return f"{size:.1f} GB"
+
+
+def _segment_file(lines, assignments: dict) -> list[dict]:
+    """Split one log file's hits into gap-separated encounter summaries (shape only)."""
+    from datetime import datetime
+
+    from combat_log_parser import parse_timestamp
+
+    hits: list[tuple[datetime, dict]] = []
+    for line in lines:
+        partial = parse_line(line)
+        if partial is not None:
+            hits.append((partial["_timestamp"], partial))
+    if not hits:
+        return []
+
+    segments: list[dict] = []
+    current: list[tuple[datetime, dict]] = []
+    prev_end: Optional[datetime] = None
+
+    def flush(seg, gap_before):
+        if not seg:
+            return
+        first_ts, _ = seg[0]
+        last_ts, _ = seg[-1]
+        total = sum(h["damage"] for _, h in seg)
+        duration = (last_ts - first_ts).total_seconds()
+        damage_by_target: dict[str, int] = {}
+        for _, h in seg:
+            damage_by_target[h["target"]] = damage_by_target.get(h["target"], 0) + h["damage"]
+        target = max(damage_by_target, key=damage_by_target.get) if damage_by_target else "Unknown"
+        segments.append({
+            "category": assignments.get(target, "other"),
+            "date_label": "",
+            "dps": round(total / duration, 2) if duration > 0 else float(total),
+            "duration": round(duration, 1),
+            "end_time": last_ts.isoformat(),
+            "gap_before": gap_before,
+            "hit_count": len(seg),
+            "start_time": first_ts.isoformat(),
+            "target_name": target,
+            "time_label": first_ts.strftime("%H:%M:%S"),
+            "total_damage": total,
+        })
+
+    for ts, h in hits:
+        if current and (ts - current[-1][0]).total_seconds() > _HISTORY_GAP_SECONDS:
+            gap = round((current[0][0] - prev_end).total_seconds(), 1) if prev_end else 0
+            flush(current, gap)
+            prev_end = current[-1][0]
+            current = []
+        current.append((ts, h))
+    if current:
+        gap = round((current[0][0] - prev_end).total_seconds(), 1) if prev_end else 0
+        flush(current, gap)
+    return segments
+
+
+def main() -> None:
+    import os
+
+    logging.basicConfig(level=logging.INFO)
+    data_dir = os.environ.get("TLDPS_DATA_DIR", str(Path.cwd()))
+    server = DPSMeterServer(data_dir, host=HOST, port=PORT)
+    asyncio.run(server.serve_forever())
+
+
+if __name__ == "__main__":
+    main()

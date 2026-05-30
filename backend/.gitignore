@@ -6,3 +6,5 @@ __pycache__/
 fixtures/sample_*.json
 fixtures/_*.json
 # Captured golden fixtures from the old .exe are committed when created (gold_*).
+# Isolated sandbox used to drive the old .exe during oracle capture (Phase 3).
+.oracle_tmp/
