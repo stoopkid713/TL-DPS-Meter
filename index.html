@@ -14044,10 +14044,10 @@
             buildsData.forEach(b => {
                 compareRotationData[b.label] = b.bestEncounter?.first_60s?.rotation || [];
             });
-            // Reset hidden skills for removed builds
-            if (!compareRotationData['A']) compareHiddenSkillsA.clear();
-            if (!compareRotationData['B']) compareHiddenSkillsB.clear();
-            if (!compareRotationData['C']) compareHiddenSkillsC.clear();
+            // Reset hidden skills for removed builds (compareRotationData is keyed by label)
+            if (!compareRotationData['Build A']) compareHiddenSkillsA.clear();
+            if (!compareRotationData['Build B']) compareHiddenSkillsB.clear();
+            if (!compareRotationData['Build C']) compareHiddenSkillsC.clear();
 
             const rotChartHtml = buildsData.map(b => `
                 <div data-compare-build="${b.label}" style="margin-bottom:20px;background:rgba(15,23,42,0.4);border:1px solid #1e293b;border-radius:10px;padding:14px 16px;">
@@ -25169,7 +25169,7 @@ ${attemptLine}
 
         function toggleCompareRotationSkill(build, skill) {
             const map = {A:compareHiddenSkillsA, B:compareHiddenSkillsB, C:compareHiddenSkillsC};
-            const s = map[build];
+            const s = map[build.replace('Build ', '')];  // map is keyed by bare letter, build is "Build A"
             if (!s) return;
             if (s.has(skill)) s.delete(skill); else s.add(skill);
             refreshCompareRotationChart(build);
@@ -25177,7 +25177,7 @@ ${attemptLine}
 
         function compareRotationShowAll(build) {
             const map = {A:compareHiddenSkillsA, B:compareHiddenSkillsB, C:compareHiddenSkillsC};
-            const s = map[build]; if(s) s.clear();
+            const s = map[build.replace('Build ', '')]; if(s) s.clear();
             refreshCompareRotationChart(build);
         }
 
@@ -25185,7 +25185,9 @@ ${attemptLine}
             const rot = compareRotationData[build];
             if (!rot) return;
             const map = {A:compareHiddenSkillsA, B:compareHiddenSkillsB, C:compareHiddenSkillsC};
-            renderStackedDpsChart(rot, 60, map[build],
+            // hiddenSkills map is keyed by the bare letter ("A"); `build` is the label ("Build A").
+            // Element IDs below stay keyed by the full label (matches the DOM IDs built at render).
+            renderStackedDpsChart(rot, 60, map[build.replace('Build ', '')] || new Set(),
                 `compareRotChart_${build}`, `compareRotYAxis_${build}`,
                 `compareRotToggles_${build}`, `compareRotLegend_${build}`,
                 `toggleCompareRotationSkill.bind(null,'${build}')`,
