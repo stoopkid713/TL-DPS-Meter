@@ -43,6 +43,7 @@ from typing import Any, Callable, Optional
 
 import websockets
 
+import encounter_scan
 import persistence as p
 from combat_log_parser import parse_line
 from combat_stats import (
@@ -69,10 +70,6 @@ SILENTLY_IGNORED = frozenset({
     "set_skill_weapon",     # superseded by assign_skill / bulk_assign_skills
     "close_overlay", "open_overlay",  # overlay.exe subsystem — out of rebuild scope
 })
-
-# Approximate split threshold for the (deferred-parity) encounter-history scan.
-_HISTORY_GAP_SECONDS = 5.0
-
 
 class DPSMeterServer:
     """Async WebSocket server: 9-init burst, command dispatch, 0.5s stats broadcast."""
@@ -307,27 +304,45 @@ class DPSMeterServer:
             "folder_size": _human_size(folder),
         }
 
-    def _encounter_history(self) -> list[dict]:
-        """Gap-segmented summaries of the watched log directory.
+    def _active_log_file(self) -> Optional[Path]:
+        """The active combat-log file = newest ``*.txt`` by name (old ``self.log_file``).
 
-        SHAPE-FAITHFUL but parity-DEFERRED: the old backend runs category-specific
-        ``parse_archboss/boss/adds_encounters`` over the machine's real log folder
-        (env-dependent, not portably reproducible). This returns correctly-shaped
-        entries via a single gap-split; exact segmentation parity is a follow-up
-        for the log-scanning phase. Returns [] when no log directory is present.
+        Matches the watcher's active-file rule and ``_log_info``'s ``latest``. The
+        encounter-scan path parses this single file, not the whole directory.
         """
         d = self._log_dir()
         if d is None:
-            return []
-        assignments = p.load_target_assignments(self.data_dir).get("assignments", {})
-        segments: list[dict] = []
-        for txt in sorted(d.glob("*.txt"), key=lambda f: f.name):
-            try:
-                lines = txt.read_text(encoding="utf-8", errors="replace").splitlines()
-            except OSError:
-                continue
-            segments.extend(_segment_file(lines, assignments))
-        return segments
+            return None
+        return max(d.glob("*.txt"), default=None, key=lambda f: f.name)
+
+    def _effective_target_assignments(self) -> dict[str, str]:
+        """Merged ``{name: category}`` map: bundled defaults (inverted) + user overrides.
+
+        Mirrors the old ``load_target_assignments`` (disasm L369) — the same merged
+        view served to the frontend by ``get_target_assignments`` and used to route
+        encounter categories (archboss / *_boss / adds / other).
+        """
+        defaults = p.load_default_targets(self.data_dir)
+        assignments: dict[str, str] = {}
+        for category, names in defaults.items():
+            if isinstance(names, list):
+                for name in names:
+                    assignments[name] = category
+        assignments.update(p.load_target_assignments(self.data_dir).get("assignments", {}))
+        return assignments
+
+    def _encounter_history(self) -> list[dict]:
+        """Encounter summaries for the Encounters tab (disasm ``get_encounter_history``).
+
+        Re-parses the active log file via ``encounter_scan.parse_encounters_from_log``
+        (category-specific archboss/boss/adds segmentation) and serializes to the WS
+        entry shape. Returns [] when no log file is present.
+        """
+        encounters = encounter_scan.parse_encounters_from_log(
+            self._active_log_file(),
+            {"assignments": self._effective_target_assignments()},
+        )
+        return encounter_scan.encounter_history_payload(encounters)
 
     # --- introspection for the watcher/host (Phase 4+) ---------------------
     def schedule_broadcast(self) -> None:
@@ -388,15 +403,8 @@ def _h_get_target_assignments(s: DPSMeterServer, msg: dict) -> dict:
     # The effective assignments are the bundled defaults inverted (category ->
     # [names] becomes name -> category) with the user's overrides laid on top.
     # The old exe serves this merged view even when no user file exists.
-    defaults = p.load_default_targets(s.data_dir)
-    assignments: dict[str, str] = {}
-    for category, names in defaults.items():
-        if isinstance(names, list):
-            for name in names:
-                assignments[name] = category
-    user = p.load_target_assignments(s.data_dir).get("assignments", {})
-    assignments.update(user)
-    return {"type": "target_assignments", "data": {"assignments": assignments}}
+    return {"type": "target_assignments",
+            "data": {"assignments": s._effective_target_assignments()}}
 
 
 def _h_get_default_targets(s: DPSMeterServer, msg: dict) -> dict:
@@ -420,10 +428,28 @@ def _h_get_stats(s: DPSMeterServer, msg: dict) -> dict:
 
 
 def _h_get_encounter_details(s: DPSMeterServer, msg: dict) -> dict:
-    enc_id = msg.get("encounter_id") or msg.get("id")
-    encounters = p.load_encounters(s.data_dir).get("encounters", [])
-    match = next((e for e in encounters if e.get("id") == enc_id), None)
-    return {"type": "encounter_details", "data": match}
+    """Re-parse the active log for one encounter window (disasm ``get_encounter_details``).
+
+    The frontend sends ``{target_name, start_time}`` (an ISO timestamp, NOT a saved
+    UUID). We re-scan the active log file for the ``[start_time-10s, +10min]`` window
+    via ``encounter_scan.parse_encounter_details`` and return the live-stats-shaped
+    ``data.hit_log`` the Encounters-row breakdown renders.
+    """
+    from datetime import datetime
+
+    target_name = msg.get("target_name")
+    start_time_str = msg.get("start_time")
+    if not target_name or not start_time_str:
+        return {"type": "error", "message": "Missing target_name or start_time"}
+    start_time = datetime.fromisoformat(start_time_str.replace("Z", "+00:00"))
+    skill_settings = p.load_skill_settings(s.data_dir).get("skills", {})
+    details = encounter_scan.parse_encounter_details(
+        s._active_log_file(), target_name, start_time, skill_settings)
+    if details:
+        details["start_time"] = start_time_str
+        details["target_name"] = target_name
+        return {"type": "encounter_details", "data": details}
+    return {"type": "error", "message": f"No data found for encounter: {target_name}"}
 
 
 def _h_load_encounter_data(s: DPSMeterServer, msg: dict) -> dict:
@@ -796,62 +822,6 @@ def _human_size(num: int) -> str:
             return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} B"
         size /= 1024
     return f"{size:.1f} GB"
-
-
-def _segment_file(lines, assignments: dict) -> list[dict]:
-    """Split one log file's hits into gap-separated encounter summaries (shape only)."""
-    from datetime import datetime
-
-    from combat_log_parser import parse_timestamp
-
-    hits: list[tuple[datetime, dict]] = []
-    for line in lines:
-        partial = parse_line(line)
-        if partial is not None:
-            hits.append((partial["_timestamp"], partial))
-    if not hits:
-        return []
-
-    segments: list[dict] = []
-    current: list[tuple[datetime, dict]] = []
-    prev_end: Optional[datetime] = None
-
-    def flush(seg, gap_before):
-        if not seg:
-            return
-        first_ts, _ = seg[0]
-        last_ts, _ = seg[-1]
-        total = sum(h["damage"] for _, h in seg)
-        duration = (last_ts - first_ts).total_seconds()
-        damage_by_target: dict[str, int] = {}
-        for _, h in seg:
-            damage_by_target[h["target"]] = damage_by_target.get(h["target"], 0) + h["damage"]
-        target = max(damage_by_target, key=damage_by_target.get) if damage_by_target else "Unknown"
-        segments.append({
-            "category": assignments.get(target, "other"),
-            "date_label": "",
-            "dps": round(total / duration, 2) if duration > 0 else float(total),
-            "duration": round(duration, 1),
-            "end_time": last_ts.isoformat(),
-            "gap_before": gap_before,
-            "hit_count": len(seg),
-            "start_time": first_ts.isoformat(),
-            "target_name": target,
-            "time_label": first_ts.strftime("%H:%M:%S"),
-            "total_damage": total,
-        })
-
-    for ts, h in hits:
-        if current and (ts - current[-1][0]).total_seconds() > _HISTORY_GAP_SECONDS:
-            gap = round((current[0][0] - prev_end).total_seconds(), 1) if prev_end else 0
-            flush(current, gap)
-            prev_end = current[-1][0]
-            current = []
-        current.append((ts, h))
-    if current:
-        gap = round((current[0][0] - prev_end).total_seconds(), 1) if prev_end else 0
-        flush(current, gap)
-    return segments
 
 
 async def _run_app(
