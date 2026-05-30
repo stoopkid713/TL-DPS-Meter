@@ -13,3 +13,8 @@ fixtures/gold_*
 # (root .gitignore only anchors the repo-root /dist/, not backend/dist/.)
 dist/
 build/
+# Diagnostics runtime artifacts + local dev scratch tools (debug.py IS tracked).
+tldps-debug*.jsonl
+_monitor.log
+_monitor.py
+_repro_reset.py

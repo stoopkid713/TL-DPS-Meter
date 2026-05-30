@@ -30,6 +30,8 @@ from typing import Optional
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+from debug import trace
+
 log = logging.getLogger(__name__)
 
 
@@ -83,12 +85,18 @@ class LogWatcher:
         ingested (handy for tests).
         """
         latest = self._find_latest_log()
-        if latest is not None and latest != self.current_file:
+        reattach = latest is not None and latest != self.current_file
+        if reattach:
+            trace("watcher.reattach", latest=str(latest), prev=str(self.current_file))
             self._attach(latest, from_start=True)
+        pos_before = self.file_position
         lines = self.read_new_lines()
         if lines:
             self.server.ingest_lines(lines)
             self.server.schedule_broadcast()
+        if reattach or lines:
+            trace("watcher.poll", reattach=reattach, pos_before=pos_before,
+                  pos_after=self.file_position, lines=len(lines))
         return len(lines)
 
     def read_new_lines(self) -> list[str]:
@@ -133,6 +141,25 @@ class LogWatcher:
                 self.file_position = path.stat().st_size
             except OSError:
                 self.file_position = 0
+        trace("watcher.attach", path=str(path), from_start=from_start,
+              file_position=self.file_position)
+
+    def skip_to_end(self) -> None:
+        """Reset's line-in-the-sand: jump the read cursor to the current EOF so the
+        unread backlog is discarded and only NEW lines are tailed from here.
+
+        Wired into both reset paths (hotkey + command). Without it, a reset clears
+        the stats buffer but leaves ``file_position`` lagging, so the next poll
+        re-ingests pre-reset combat and the 60s window clips to it. Runs on the event
+        loop (same as poll/_attach; the reset handlers are loop-side), so there is no
+        cross-thread race on ``file_position``.
+        """
+        latest = self._find_latest_log()
+        if latest is None:
+            return
+        before = self.file_position
+        self._attach(latest, from_start=False)
+        trace("watcher.skip_to_end", pos_before=before, pos_after=self.file_position)
 
     def _find_latest_log(self) -> Optional[Path]:
         """Newest ``*.txt`` in the watched dir by filename (TL names sort by time)."""

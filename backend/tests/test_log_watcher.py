@@ -26,6 +26,12 @@ def _dmg(i: int, dmg: int, *, skill="Star Destroyer", target="Practice Dummy") -
             f"1,0,kMaxDamageByCriticalDecision,Player,{target}")
 
 
+def _dmg_at(dt, dmg: int, *, skill="Star Destroyer", target="Practice Dummy") -> str:
+    """A damage line stamped at a specific wall time (for reset_after_timestamp tests)."""
+    return (f"{dt.strftime('%Y%m%d-%H:%M:%S')}:000,DamageDone,{skill},123,{dmg},"
+            f"1,0,kMaxDamageByCriticalDecision,Player,{target}")
+
+
 def _write(path: pathlib.Path, text: str) -> None:
     with open(path, "a", encoding="utf-8") as f:
         f.write(text)
@@ -202,3 +208,100 @@ async def _wait_for_total(ws, *, at_least, timeout):
             if best >= at_least:
                 return best
     return best
+
+
+# ===========================================================================
+# Regression: reset must draw a line in the sand (2026-05-30 clipped-run bug).
+#
+# The bug: on reset, stats.reset() cleared the buffer but file_position was left
+# lagging behind EOF, so the next poll re-ingested the unread backlog of pre-reset
+# combat and the 60s window clipped to it. The fix wires watcher.skip_to_end() into
+# both reset paths so the read cursor jumps to EOF and old lines can't re-enter.
+# ===========================================================================
+def test_skip_to_end_discards_unread_backlog(tmp_path):
+    logdir = tmp_path / "logs"
+    logdir.mkdir()
+    f = logdir / "TLCombatLog-1.txt"
+    _write(f, HEADER + _dmg(1, 100) + "\n")
+    server = DPSMeterServer(tmp_path, port=0)
+    w = LogWatcher(server, log_dir=logdir)
+    w._attach(f, from_start=True)
+    w.poll()
+    assert _total(server) == 100
+
+    # Backlog: more OLD combat lands in the file but is never polled (the lag).
+    _write(f, _dmg(2, 7777) + "\n" + _dmg(3, 8888) + "\n")
+
+    # Reset draws the line: clear stats AND skip the unread backlog.
+    server.stats.reset()
+    w.skip_to_end()
+    assert _total(server) == 0
+
+    # NEW combat after the line — only THIS may enter the buffer.
+    _write(f, _dmg(4, 500) + "\n")
+    assert w.poll() == 1                 # the new line only, NOT the 2 backlog lines
+    assert _total(server) == 500
+    assert len(server.stats.hits) == 1
+
+
+def test_reset_command_drops_lagged_pre_reset_combat(tmp_path):
+    """The reset COMMAND (_h_reset) records reset_after_timestamp and ignores combat
+    from before it — even when TL flushes that combat to the file AFTER the reset.
+    This is the real clipped-run bug: file-position skipping alone can't fix it
+    because the log lags; the timestamp filter is the guarantee."""
+    from datetime import datetime, timedelta
+    from dps_meter_server import _h_reset
+
+    logdir = tmp_path / "logs"
+    logdir.mkdir()
+    f = logdir / "TLCombatLog-1.txt"
+    _write(f, HEADER)
+    server = DPSMeterServer(tmp_path, port=0)
+    w = LogWatcher(server, log_dir=logdir)
+    server.watcher = w
+    w._attach(f, from_start=True)
+    w.poll()
+
+    now = datetime.now()
+    _h_reset(server, {})                                   # draw the line at `now`
+    assert server.reset_after_timestamp is not None
+
+    # TL flushes PRE-reset combat (5 min ago) to the file only now (the lag)...
+    _write(f, _dmg_at(now - timedelta(minutes=5), 9999) + "\n")
+    # ...then the real POST-reset test lands.
+    _write(f, _dmg_at(now + timedelta(seconds=2), 500) + "\n")
+    w.poll()
+
+    assert _total(server) == 500         # 9999 dropped by timestamp, not file position
+    assert len(server.stats.hits) == 1
+
+
+def test_reset_hotkey_drops_lagged_pre_reset_combat(tmp_path):
+    """The reset HOTKEY path (trigger_reset) must apply the same timestamp filter."""
+    asyncio.run(_reset_hotkey_e2e(tmp_path))
+
+
+async def _reset_hotkey_e2e(tmp_path):
+    from datetime import datetime, timedelta
+
+    logdir = tmp_path / "logs"
+    logdir.mkdir()
+    f = logdir / "TLCombatLog-1.txt"
+    _write(f, HEADER)
+    server = DPSMeterServer(tmp_path, port=0)
+    await server.start()
+    w = LogWatcher(server, log_dir=logdir)
+    server.watcher = w
+    w._attach(f, from_start=True)
+    w.poll()
+    try:
+        now = datetime.now()
+        await server.trigger_reset()                       # hotkey path
+        assert server.reset_after_timestamp is not None
+        _write(f, _dmg_at(now - timedelta(minutes=5), 9999) + "\n")   # late backlog
+        _write(f, _dmg_at(now + timedelta(seconds=2), 500) + "\n")    # real test
+        w.poll()
+        assert _total(server) == 500     # backlog dropped by timestamp
+        assert len(server.stats.hits) == 1
+    finally:
+        await server.stop()

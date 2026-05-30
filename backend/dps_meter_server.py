@@ -38,11 +38,13 @@ import json
 import logging
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 import websockets
 
+import debug
 import encounter_scan
 import persistence as p
 from combat_log_parser import parse_line
@@ -88,6 +90,12 @@ class DPSMeterServer:
         self.broadcast_interval = broadcast_interval
 
         self.stats = CombatStats()
+        # Wall-clock instant of the last reset. Ingested entries older than this are
+        # ignored — the original CK backend's "Ignoring entries before <ts>" mechanism
+        # (server.py reset/reset_file_position). Combat-log timestamps are accurate even
+        # though TL flushes the file minutes late, so this filter — not file position —
+        # is what makes reset a reliable line in the sand. None = accept everything.
+        self.reset_after_timestamp = None
         self.party = PartyState()
         self.clients: set[Any] = set()
         self._server: Optional[Any] = None
@@ -214,13 +222,25 @@ class DPSMeterServer:
         ``encounter_active``. The party stream is the same player-attributed hits
         that feed the live stats, so no extra caster filter is applied here.
         """
+        cutoff = self.reset_after_timestamp
+        added = dropped = 0
         for line in lines:
             partial = parse_line(line)  # RAW: no skill_settings correction here
             if partial is None:
                 continue
+            # Line-in-the-sand: drop entries that happened before the last reset, even
+            # if TL flushes them to the file afterwards (the lagged-backlog clip bug).
+            if cutoff is not None and partial["_timestamp"] < cutoff:
+                dropped += 1
+                continue
             self.stats.add_partial(partial)
+            added += 1
             if self.party.encounter_active:
                 self._record_party_hit(partial)
+        if added or dropped:
+            debug.trace("server.ingest", lines_in=len(lines), added=added, dropped=dropped,
+                        buffer_hits=len(self.stats.hits),
+                        first_ts=self.stats.first_ts, last_ts=self.stats.last_ts)
 
     def _record_party_hit(self, partial: dict) -> None:
         """Fold one hit into the party accumulator and emit ``party_live_hit``."""
@@ -358,7 +378,14 @@ class DPSMeterServer:
         single requester then broadcasts the zeroed frame; this broadcasts the
         `reset` signal to everyone (there is no requester for a hotkey press).
         """
+        debug.trace("server.trigger_reset", path="hotkey",
+                    buffer_hits=len(self.stats.hits),
+                    watcher_pos=getattr(getattr(self, "watcher", None), "file_position", None))
         self.stats.reset()
+        self.reset_after_timestamp = datetime.now()  # ignore combat before this instant
+        w = getattr(self, "watcher", None)
+        if w is not None:
+            w.skip_to_end()  # skip the file backlog we can (perf); the ts filter is the guarantee
         await self._broadcast({"type": "reset"})
         await self._broadcast(self._stats_envelope())
 
@@ -499,11 +526,35 @@ def _h_set_player(s: DPSMeterServer, msg: dict) -> dict:
 
 # --- stats reset -----------------------------------------------------------
 def _h_reset(s: DPSMeterServer, msg: dict) -> dict:
+    debug.trace("server._h_reset", path="command",
+                buffer_hits=len(s.stats.hits),
+                watcher_pos=getattr(getattr(s, "watcher", None), "file_position", None))
     s.stats.reset()
+    s.reset_after_timestamp = datetime.now()  # ignore combat before this instant
+    w = getattr(s, "watcher", None)
+    if w is not None:
+        w.skip_to_end()  # skip the file backlog we can (perf); the ts filter is the guarantee
     return {"type": "reset"}
 
 
 # --- encounters ------------------------------------------------------------
+def _is_dup_save(prev: dict, record: dict, *, window_s: float = 4.0) -> bool:
+    """True when ``record`` looks like a double-fired save of ``prev``: identical
+    overall stats + target, saved within ``window_s`` seconds. Guards against a
+    double-connected frontend creating twin encounters (the duplicate-runs bug)."""
+    pov, rov = prev.get("overall") or {}, record.get("overall") or {}
+    if (pov.get("total_damage") != rov.get("total_damage")
+            or pov.get("hit_count") != rov.get("hit_count")
+            or prev.get("primary_target") != record.get("primary_target")):
+        return False
+    try:
+        delta = (datetime.fromisoformat(record["timestamp"])
+                 - datetime.fromisoformat(prev["timestamp"])).total_seconds()
+    except (KeyError, ValueError, TypeError):
+        return False
+    return 0 <= delta <= window_s
+
+
 def _h_save_encounter(s: DPSMeterServer, msg: dict) -> dict:
     hits = s.stats.hits
     window = slice_first_60s(hits)
@@ -518,8 +569,24 @@ def _h_save_encounter(s: DPSMeterServer, msg: dict) -> dict:
         "overall": build_overall_block(hits),
         "first_60s": build_first_60s_block(window),
     }
+    debug.trace("server.save_encounter", build_tag=msg.get("build_tag"),
+                buffer_hits=len(hits),
+                overall_dur=record["overall"].get("duration"),
+                overall_hits=record["overall"].get("hit_count"),
+                first60_hits=len(window),
+                first60_open=window[0]["skill"] if window else None,
+                first60_anchor=window[0].get("time") if window else None)
     data = p.load_encounters(s.data_dir)
-    data.setdefault("encounters", []).insert(0, record)
+    encs = data.setdefault("encounters", [])
+    # Idempotency guard: a double-connected frontend can fire two save_encounter
+    # commands for the same buffer within milliseconds. If the newest existing
+    # encounter is an identical, just-saved twin, reuse it instead of duplicating.
+    if encs and _is_dup_save(encs[0], record):
+        debug.trace("server.save_encounter.dedup", reused=encs[0].get("id"),
+                    tag=record["build_tag"])
+        return {"type": "encounter_saved", "encounter": encs[0],
+                "builds": data.get("builds", [])}
+    encs.insert(0, record)
     builds = data.setdefault("builds", [])
     tag = record["build_tag"]
     if tag and tag not in builds:
@@ -917,11 +984,20 @@ async def _run_app(
     """
     server = DPSMeterServer(data_dir, host=host, port=port)
     await server.start()
+
+    # Diagnostics (off unless TLDPS_DEBUG=1): configure BEFORE the watcher so the
+    # startup full-history load is traced too. File trace + live WS debug frames.
+    debug.configure(server.data_dir,
+                    sink=lambda rec: server._emit({"type": "debug", "data": rec}))
+    if debug.enabled():
+        log.info("TLDPS_DEBUG on -> tracing to %s", debug.logfile())
+
     # Tail the combat log into the server (Phase 4). Import here so the server
     # module has no hard dependency on watchdog when used headless (e.g. tests).
     from log_watcher import LogWatcher
 
     watcher = LogWatcher(server, log_dir=log_dir)
+    server.watcher = watcher  # let traces read live file_position
     watcher.start()
 
     # Global reset hotkey (Phase 5). Skip when disabled in config.

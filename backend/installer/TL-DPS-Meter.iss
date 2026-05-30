@@ -5,7 +5,7 @@
 ; read-only install dir.
 
 #define MyAppName "TL DPS Meter"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "StoopKid"
 #define MyAppURL "https://github.com/stoopkid713/TL-DPS-Meter"
 #define MyAppExeName "TL-DPS-Meter.exe"

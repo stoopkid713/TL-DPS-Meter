@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from debug import trace
+
 from constants import (
     GAP_DEAD_THRESHOLD,
     GAP_LIVE_LIST_THRESHOLD,
@@ -451,10 +453,12 @@ class CombatStats:
         self.seconds.append(int(elapsed))
 
     def reset(self) -> None:
+        n = len(self.hits)
         self.hits.clear()
         self.seconds.clear()
         self.first_ts = None
         self.last_ts = None
+        trace("stats.reset", hits_before=n, hits_after=0)
 
     def real_duration(self) -> float:
         """Elapsed seconds between first and last hit (0 when fewer than 2 hits)."""

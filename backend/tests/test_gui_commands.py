@@ -128,3 +128,44 @@ def test_reset_data_clears_encounters_and_runs(tmp_path):
     assert p.load_saved_runs(str(tmp_path)) == []
     # settings are intentionally preserved (reset only clears fight data)
     assert p.load_skill_settings(str(tmp_path))["skills"] == {"Fireball": {"cannot_crit": True}}
+
+
+# --- save_encounter duplicate guard (double-connected frontend) -------------
+from datetime import datetime  # noqa: E402
+
+
+def _mk_partial(dmg, skill="Star Destroyer", target="Practice Dummy"):
+    return {"_timestamp": datetime(2026, 5, 30, 17, 0, 0), "time": "17:00:00",
+            "skill": skill, "target": target, "damage": dmg,
+            "is_crit": False, "is_heavy": False, "hit_type": "normal"}
+
+
+def test_double_save_encounter_is_deduped(tmp_path):
+    """Two save_encounter calls for the same buffer moments apart (the twin-runs
+    bug) collapse to ONE stored encounter; the second reuses the first."""
+    import persistence as p
+
+    server = srv.DPSMeterServer(tmp_path, port=0)
+    for d in (100, 200, 300):
+        server.stats.add_partial(_mk_partial(d))
+
+    r1 = srv._h_save_encounter(server, {"build_tag": "__sq_a__"})
+    r2 = srv._h_save_encounter(server, {"build_tag": "__sq_b__"})  # twin, ms later
+
+    encs = p.load_encounters(str(tmp_path)).get("encounters", [])
+    assert len(encs) == 1                                   # second deduped
+    assert r2["encounter"]["id"] == r1["encounter"]["id"]   # reused the first
+
+
+def test_distinct_saves_are_not_deduped(tmp_path):
+    """A genuinely different result (buffer changed) still saves separately."""
+    import persistence as p
+
+    server = srv.DPSMeterServer(tmp_path, port=0)
+    server.stats.add_partial(_mk_partial(100))
+    srv._h_save_encounter(server, {"build_tag": "A"})
+    server.stats.add_partial(_mk_partial(999))              # buffer changed
+    srv._h_save_encounter(server, {"build_tag": "B"})
+
+    encs = p.load_encounters(str(tmp_path)).get("encounters", [])
+    assert len(encs) == 2

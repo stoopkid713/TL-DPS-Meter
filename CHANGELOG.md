@@ -5,6 +5,27 @@ All notable changes are documented here. Format loosely based on
 
 ---
 
+## [1.0.1] - 2026-05-30
+
+### Fixed
+- **Build-test reset now reliably starts a fresh measurement.** TL writes its combat
+  log with a multi-minute lag, so a reset's file-position skip alone let stale pre-reset
+  combat flood back in — the 60s window clipped to an old encounter and your real test
+  was lost. Restored the original "ignore entries before the reset" timestamp filter
+  (plus the file-position skip) on both the reset button and the ctrl+tab hotkey.
+- **Saved runs delete again** — the confirmation now removes the row (a response field
+  mismatch left it on screen even though it was deleted).
+- **No more duplicate saved runs** — a double-connected window could store twin
+  encounters; identical back-to-back saves are now de-duplicated.
+
+### Added
+- **UI zoom** — `Ctrl +` / `Ctrl −` / `Ctrl 0` (or Settings → Display); scales the whole
+  interface and is remembered next launch.
+- **Check for Updates** — Settings → Links compares your version to the latest release.
+- **Diagnostics** — an opt-in internal trace layer (`TLDPS_DEBUG=1`) for faster bug triage.
+
+---
+
 ## [1.0.0] - 2026-05-30
 
 First public release as an owned product.
