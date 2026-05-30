@@ -10,6 +10,19 @@ The current production state is tagged `state-current` on `main`.
 
 ---
 
+## ⬇️ Download & Run
+
+1. **[Download `TL-DPS-Meter.exe`](https://github.com/stoopkid713/TL-DPS-Meter/raw/main/TL-DPS-Meter.exe)** *(right-click → Save link as)*
+2. Drop it in any folder and **double-click** it
+3. Your browser opens automatically — that window **is** the meter
+4. In Throne & Liberty, turn on Combat Logging *(Settings → Shortcuts → Ring Menu → add **"Combat Meter"**)* and activate it from the Ring Menu
+
+**Windows 10/11 · fully portable · nothing to install.** Full walkthrough: [HOW-TO-USE.txt](HOW-TO-USE.txt).
+
+> **Heads-up:** Windows SmartScreen may warn on first launch (unsigned PyInstaller build — see [FAQ](#faq) below). Click **More info → Run anyway**. Throne & Liberty writes combat logs *after* you leave combat, so stats populate when a fight ends, not during.
+
+---
+
 ## What's New in This Fork
 
 ### 🔀 Compare — Cross-Skill Matrix & Key Findings *(added in state-current)*
@@ -103,12 +116,12 @@ Between-run workflow built into Build Testing so you never lose a run:
 
 ## Installation
 
-1. Download the latest release
-2. Extract to any folder
-3. Run `TL-DPS-Meter.exe`
+1. **[Download `TL-DPS-Meter.exe`](https://github.com/stoopkid713/TL-DPS-Meter/raw/main/TL-DPS-Meter.exe)** (right-click → Save link as)
+2. Move it to any folder you like
+3. Double-click `TL-DPS-Meter.exe`
 4. Browser opens automatically
 
-**No installation required** — fully portable.
+**No installation required** — fully portable. A single self-contained executable.
 
 ---
 
