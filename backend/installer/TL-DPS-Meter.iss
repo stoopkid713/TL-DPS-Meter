@@ -66,15 +66,24 @@ begin
     RegQueryStringValue(HKLM, UNINST_KEY, 'UninstallString', Result);
 end;
 
-function RunExistingUninstaller(): Boolean;
+// silent=True for repair (remove old copy quietly, KEEP user data, then reinstall);
+// silent=False for a real uninstall so the interactive uninstaller runs and its
+// "keep or delete your saved data?" prompt (CurUninstallStepChanged, guarded by
+// not UninstallSilent) actually fires.
+function RunExistingUninstaller(silent: Boolean): Boolean;
 var
-  s: String;
-  code: Integer;
+  s, params: String;
+  show, code: Integer;
 begin
   s := RemoveQuotes(GetUninstallString());
-  Result := (s <> '') and
-            Exec(s, '/SILENT /NORESTART /SUPPRESSMSGBOXES', '', SW_HIDE,
-                 ewWaitUntilTerminated, code);
+  if silent then begin
+    params := '/SILENT /NORESTART /SUPPRESSMSGBOXES';
+    show := SW_HIDE;
+  end else begin
+    params := '/NORESTART';        // interactive: shows the uninstall UI + data prompt
+    show := SW_SHOWNORMAL;
+  end;
+  Result := (s <> '') and Exec(s, params, '', show, ewWaitUntilTerminated, code);
 end;
 
 function InitializeSetup(): Boolean;
@@ -86,15 +95,18 @@ begin
   begin
     choice := MsgBox(
       'TL DPS Meter is already installed. What would you like to do?' + #13#10#13#10 +
-      'Yes' + #9 + '— Reinstall / repair (removes the old copy first)' + #13#10 +
+      'Yes' + #9 + '— Reinstall / repair (keeps your saved data)' + #13#10 +
       'No' + #9 + '— Uninstall it and exit' + #13#10 +
       'Cancel' + #9 + '— Do nothing',
       mbConfirmation, MB_YESNOCANCEL);
     case choice of
-      IDYES: RunExistingUninstaller();           // remove old, then continue (repair)
-      IDNO:  begin RunExistingUninstaller(); Result := False; end;  // remove + exit
+      IDYES: RunExistingUninstaller(True);        // quiet remove, keep data, then repair
+      IDNO:  begin
+               RunExistingUninstaller(False);     // interactive uninstall (prompts re: data)
+               Result := False;                   // then exit Setup
+             end;
     else
-      Result := False;                           // cancel: leave everything as-is
+      Result := False;                            // cancel: leave everything as-is
     end;
   end;
 end;
