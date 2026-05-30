@@ -83,3 +83,48 @@ def test_purge_log_no_files_errors(tmp_path):
 def test_purge_log_missing_dir_errors(tmp_path):
     result = srv._h_purge_log(_Stub(tmp_path / "nope"), {})
     assert result == {"type": "error", "message": "No log file found to purge"}
+
+
+# --- data lifecycle: open_data_folder / reset_data -------------------------
+class _DataStub:
+    """Stand-in exposing only ``data_dir`` (what the data commands touch)."""
+
+    def __init__(self, data_dir):
+        self.data_dir = str(data_dir)
+
+
+def test_data_commands_registered():
+    assert "open_data_folder" in srv.HANDLERS
+    assert "reset_data" in srv.HANDLERS
+    assert "open_data_folder" not in srv.SILENTLY_IGNORED
+    assert "reset_data" not in srv.SILENTLY_IGNORED
+
+
+def test_open_data_folder_opens_dir(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(srv, "_open_in_file_browser", lambda p: calls.append(p))
+    result = srv._h_open_data_folder(_DataStub(tmp_path), {})
+    assert result is None                     # no reply on success
+    assert calls == [str(tmp_path)]
+
+
+def test_open_data_folder_missing_dir_errors(tmp_path):
+    result = srv._h_open_data_folder(_DataStub(tmp_path / "nope"), {})
+    assert result == {"type": "error", "message": "Data folder not found"}
+
+
+def test_reset_data_clears_encounters_and_runs(tmp_path):
+    import persistence as p
+
+    p.save_encounters({"encounters": [{"id": "x"}], "builds": ["B"]}, str(tmp_path))
+    p.save_saved_runs([{"run_id": "r"}], str(tmp_path))
+    # a preset/setting that must SURVIVE the reset
+    p.save_skill_settings({"skills": {"Fireball": {"cannot_crit": True}}}, str(tmp_path))
+
+    result = srv._h_reset_data(_DataStub(tmp_path), {})
+    assert result == {"type": "data_reset"}
+    enc = p.load_encounters(str(tmp_path))
+    assert enc["encounters"] == [] and enc["builds"] == []  # cleared (last_updated stamp ok)
+    assert p.load_saved_runs(str(tmp_path)) == []
+    # settings are intentionally preserved (reset only clears fight data)
+    assert p.load_skill_settings(str(tmp_path))["skills"] == {"Fireball": {"cannot_crit": True}}

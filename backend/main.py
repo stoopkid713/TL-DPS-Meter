@@ -37,6 +37,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import sys
 import threading
 from logging.handlers import RotatingFileHandler
@@ -102,6 +103,42 @@ def resolve_data_dir() -> Path:
     if _is_frozen():
         return app_dir()
     return Path.cwd()
+
+
+# Functional presets shipped WITH the app (not user fight data): which targets are
+# bosses/adds/archbosses, and the standard dungeon list. Bundled into the exe and
+# seeded into the data dir on first run so a clean install categorizes correctly.
+_PRESET_FILES = ("default_target_assignments.json", "dungeons.json")
+
+
+def _bundle_dir() -> Path:
+    """Directory holding bundled read-only assets (``_MEIPASS`` frozen, repo in dev)."""
+    if _is_frozen():
+        return Path(getattr(sys, "_MEIPASS"))
+    return Path(__file__).resolve().parent.parent
+
+
+def seed_presets(data_dir: Path) -> None:
+    """Copy bundled functional presets into ``data_dir`` when missing (first run).
+
+    Presets only — user fight data (encounters/saved runs) is intentionally left
+    empty. No-op in dev (the repo already has these next to the data dir); only the
+    frozen install needs seeding.
+    """
+    if not _is_frozen():
+        return
+    src_dir = _bundle_dir()
+    for name in _PRESET_FILES:
+        dst = data_dir / name
+        if dst.exists():
+            continue
+        src = src_dir / name
+        if src.is_file():
+            try:
+                shutil.copy2(src, dst)
+                log.info("seeded preset %s -> %s", name, dst)
+            except OSError as exc:
+                log.warning("failed to seed preset %s: %s", name, exc)
 
 
 # --- logging ----------------------------------------------------------------
@@ -238,6 +275,7 @@ class Backend:
 def main() -> None:
     log_path = setup_logging()
     data_dir = resolve_data_dir()
+    seed_presets(data_dir)  # first-run: copy bundled target/dungeon presets if absent
     index = resolve_index_html()
     if log_path is not None:
         log.info("logging to %s", log_path)

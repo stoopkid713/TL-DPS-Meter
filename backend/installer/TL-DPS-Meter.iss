@@ -49,3 +49,22 @@ Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// On uninstall, offer to also remove the per-user data folder
+// (%LOCALAPPDATA%\TL-DPS-Meter: saved encounters, runs, settings, log).
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  DataDir: String;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    DataDir := ExpandConstant('{localappdata}\TL-DPS-Meter');
+    if DirExists(DataDir) then
+    begin
+      if MsgBox('Also remove your saved data (encounters, runs, settings)?'#13#10#13#10
+                + DataDir, mbConfirmation, MB_YESNO) = IDYES then
+        DelTree(DataDir, True, True, True);
+    end;
+  end;
+end;

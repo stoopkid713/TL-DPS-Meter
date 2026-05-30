@@ -752,6 +752,46 @@ def _h_open_logs_folder(s: DPSMeterServer, msg: dict) -> Optional[dict]:
     return None
 
 
+def _open_in_file_browser(path: str) -> None:
+    """Reveal a directory in the OS file browser (Win/mac/Linux)."""
+    import os
+    import subprocess
+    import sys
+
+    if sys.platform.startswith("win"):
+        os.startfile(path)  # type: ignore[attr-defined]  # Windows-only API
+    elif sys.platform == "darwin":
+        subprocess.run(["open", path], check=False)
+    else:
+        subprocess.run(["xdg-open", path], check=False)
+
+
+def _h_open_data_folder(s: DPSMeterServer, msg: dict) -> Optional[dict]:
+    """Open the app's writable data folder (%LOCALAPPDATA%\\TL-DPS-Meter when installed).
+
+    The state files moved out of sight when the app gained a real installer; this
+    gives users a one-click way to find them. No reply on success (like
+    ``open_logs_folder``)."""
+    d = Path(s.data_dir)
+    if not d.is_dir():
+        return {"type": "error", "message": "Data folder not found"}
+    _open_in_file_browser(str(d))
+    log.info("opened data folder: %s", d)
+    return None
+
+
+def _h_reset_data(s: DPSMeterServer, msg: dict) -> dict:
+    """Clear the accumulating user data — saved encounters + runs — back to empty.
+
+    Leaves functional presets (target categories, dungeons) and tuned settings
+    (skill/weapon/target config) intact. Replies ``data_reset`` so the frontend can
+    re-fetch its lists."""
+    p.save_encounters(dict(p.DEFAULT_ENCOUNTERS), s.data_dir)
+    p.save_saved_runs([], s.data_dir)
+    log.info("reset app data (encounters + saved runs cleared)")
+    return {"type": "data_reset"}
+
+
 def _h_purge_log(s: DPSMeterServer, msg: dict) -> dict:
     """Truncate the active combat-log file (newest ``*.txt`` by name); reply log_purged.
 
@@ -795,6 +835,9 @@ HANDLERS: dict[str, Callable[[DPSMeterServer, dict], Optional[dict]]] = {
     # GUI / system (restored Phase 8 — were wrongly silent-dropped in Phase 3)
     "open_logs_folder": _h_open_logs_folder,
     "purge_log": _h_purge_log,
+    # data lifecycle (new — state moved to %LOCALAPPDATA% with the installer)
+    "open_data_folder": _h_open_data_folder,
+    "reset_data": _h_reset_data,
     # config / player
     "set_config": _h_set_config,
     "set_player": _h_set_player,

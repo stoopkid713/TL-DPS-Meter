@@ -8847,6 +8847,10 @@
             <div class="controls">
                 <button class="btn btn-danger-full" onclick="purgeLogFile()" title="Permanently delete log file contents (disable combat logging in-game first)">🗑️ Purge LogFile</button>
                 <div style="display: flex; gap: 8px;">
+                    <button class="btn-settings" onclick="openDataFolder()" title="Open the app data folder (saved encounters, runs, settings)">🗃️ App Data</button>
+                    <button class="btn-settings" onclick="resetData()" title="Clear all saved encounters and runs" style="color:#f59e0b;">♻️ Reset Data</button>
+                </div>
+                <div style="display: flex; gap: 8px;">
                     <button class="btn-settings" onclick="openSettings()">⚙️ Settings</button>
                     <button class="btn-settings" onclick="openGuide()">📖 Guide</button>
                     <button class="btn-settings" onclick="startTour()" style="color:#a78bfa;">🗺️ Tour</button>
@@ -21957,7 +21961,22 @@ ${attemptLine}
         function openLogsFolder() {
             sendCommand('open_logs_folder');
         }
-        
+
+        function openDataFolder() {
+            sendCommand('open_data_folder');
+        }
+
+        function resetData() {
+            const message = `♻️ Reset App Data\n\n` +
+                `This permanently clears ALL saved encounters and saved runs.\n\n` +
+                `Your settings (skill/weapon/target config) and presets are kept.\n` +
+                `Your combat log files are NOT touched.\n\n` +
+                `This cannot be undone. Continue?`;
+            if (confirm(message)) {
+                sendCommand('reset_data');
+            }
+        }
+
         function updateLogInfo(info) {
             if (!info) return;
             
@@ -22321,6 +22340,13 @@ ${attemptLine}
                     encounters = savedEncounters; // Keep global reference
                     updateLibraryCountsBanner();
                     updateDashboard();
+                }
+                else if (msg.type === 'data_reset') {
+                    // Backend cleared saved encounters + runs; re-fetch the lists.
+                    sendCommand('get_encounters');
+                    sendCommand('get_saved_runs');
+                    sendCommand('get_encounter_history');
+                    alert('✅ App data reset — saved encounters and runs cleared.');
                 }
                 else if (msg.type === 'encounter_saved') {
                     savedEncounters.unshift(msg.encounter);

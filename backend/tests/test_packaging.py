@@ -69,3 +69,42 @@ def test_dev_env_override(monkeypatch, tmp_path):
     monkeypatch.setattr(main_mod.sys, "frozen", False, raising=False)
     monkeypatch.setenv("TLDPS_DATA_DIR", str(tmp_path))
     assert main_mod.resolve_data_dir() == tmp_path
+
+
+# --- first-run preset seeding ----------------------------------------------
+def _bundle_with_presets(tmp_path) -> Path:
+    meipass = tmp_path / "_MEI"
+    meipass.mkdir()
+    (meipass / "default_target_assignments.json").write_text(
+        '{"archboss": ["Test Boss"]}', encoding="utf-8")
+    (meipass / "dungeons.json").write_text('{"Test Dungeon": []}', encoding="utf-8")
+    return meipass
+
+
+def test_seed_presets_copies_when_frozen(monkeypatch, tmp_path):
+    meipass = _bundle_with_presets(tmp_path)
+    _freeze(monkeypatch, tmp_path / "x.exe", meipass)
+    data = tmp_path / "data"
+    data.mkdir()
+    main_mod.seed_presets(data)
+    assert (data / "default_target_assignments.json").is_file()
+    assert (data / "dungeons.json").is_file()
+
+
+def test_seed_presets_does_not_overwrite_user_files(monkeypatch, tmp_path):
+    meipass = _bundle_with_presets(tmp_path)
+    _freeze(monkeypatch, tmp_path / "x.exe", meipass)
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "default_target_assignments.json").write_text("USER", encoding="utf-8")
+    main_mod.seed_presets(data)
+    assert (data / "default_target_assignments.json").read_text(encoding="utf-8") == "USER"
+    assert (data / "dungeons.json").is_file()  # the missing one is still seeded
+
+
+def test_seed_presets_noop_in_dev(monkeypatch, tmp_path):
+    monkeypatch.setattr(main_mod.sys, "frozen", False, raising=False)
+    data = tmp_path / "data"
+    data.mkdir()
+    main_mod.seed_presets(data)
+    assert list(data.iterdir()) == []  # dev relies on the repo files, not seeding
