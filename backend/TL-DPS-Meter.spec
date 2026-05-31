@@ -29,6 +29,16 @@ PRESETS = [os.path.join(REPO_ROOT, n) for n in
            ("default_target_assignments.json", "dungeons.json",
             "skill_settings.json", "weapon_config.json")]
 
+# The Tauri party overlay (a separate process spawned by the open_overlay command).
+# Bundled so the frozen app can find it at _MEIPASS/tldps-overlay.exe — see
+# dps_meter_server._resolve_overlay_exe. Prefer the release build; fall back to debug.
+_OVERLAY_CANDIDATES = [
+    os.path.join(REPO_ROOT, "overlay", "src-tauri", "target", "release", "tldps-overlay.exe"),
+    os.path.join(REPO_ROOT, "overlay", "src-tauri", "target", "debug", "tldps-overlay.exe"),
+]
+OVERLAY_EXE = next((p for p in _OVERLAY_CANDIDATES if os.path.isfile(p)), None)
+OVERLAY_DATAS = [(OVERLAY_EXE, ".")] if OVERLAY_EXE else []
+
 # pywebview chooses a GUI backend at runtime (winforms/WebView2 on Windows);
 # pull in all its submodules so the chosen backend is present in the frozen app.
 hiddenimports = collect_submodules("webview")
@@ -37,7 +47,7 @@ a = Analysis(
     ["main.py"],
     pathex=[HERE],
     binaries=[],
-    datas=[(INDEX_HTML, "."), *[(p, ".") for p in PRESETS]],  # -> _MEIPASS/ at runtime
+    datas=[(INDEX_HTML, "."), *[(p, ".") for p in PRESETS], *OVERLAY_DATAS],  # -> _MEIPASS/ at runtime
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

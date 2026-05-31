@@ -65,12 +65,11 @@ log = logging.getLogger(__name__)
 PERPETUAL_LICENSE = {"version": "1.0", "days_remaining": None, "expires": None}
 
 # Commands we deliberately no-op. `set_skill_weapon` has no old handler (the old
-# exe drops it silently — confirmed live), so we match that. The overlay commands
-# DO exist in the old exe (they spawn/kill the separate overlay.exe), but that
-# subsystem is out of the rebuild's scope, so we drop them rather than half-wire it.
+# exe drops it silently — confirmed live), so we match that.
+# (open_overlay / close_overlay ARE handled now — they spawn/kill the Tauri overlay,
+#  Workstream B — see _h_open_overlay below.)
 SILENTLY_IGNORED = frozenset({
     "set_skill_weapon",     # superseded by assign_skill / bulk_assign_skills
-    "close_overlay", "open_overlay",  # overlay.exe subsystem — out of rebuild scope
 })
 
 class DPSMeterServer:
@@ -97,6 +96,7 @@ class DPSMeterServer:
         # is what makes reset a reliable line in the sand. None = accept everything.
         self.reset_after_timestamp = None
         self.party = PartyState()
+        self._overlay_proc: Optional[Any] = None  # spawned tldps-overlay.exe (Tauri)
         self.clients: set[Any] = set()
         self._server: Optional[Any] = None
         self._broadcast_task: Optional[asyncio.Task] = None
@@ -124,6 +124,7 @@ class DPSMeterServer:
         return self
 
     async def stop(self) -> None:
+        _kill_overlay(self)  # don't orphan the overlay window when the app closes
         if self._broadcast_task:
             self._broadcast_task.cancel()
             try:
@@ -806,6 +807,63 @@ def _h_client_debug(s: DPSMeterServer, msg: dict) -> None:
     return None
 
 
+# --- party overlay (separate Tauri process, Workstream B) ------------------
+def _resolve_overlay_exe() -> Optional[Path]:
+    """Locate the bundled/built ``tldps-overlay.exe`` (the Tauri overlay).
+
+    Frozen: bundled next to the app (PyInstaller extracts datas to ``_MEIPASS``).
+    Dev: the cargo build output under ``overlay/src-tauri/target/{release,debug}``.
+    Returns None if not found (open_overlay then replies with an error)."""
+    import sys
+    if getattr(sys, "frozen", False):
+        cand = Path(getattr(sys, "_MEIPASS", "")) / "tldps-overlay.exe"
+        return cand if cand.is_file() else None
+    repo = Path(__file__).resolve().parent.parent
+    for sub in ("release", "debug"):
+        cand = repo / "overlay" / "src-tauri" / "target" / sub / "tldps-overlay.exe"
+        if cand.is_file():
+            return cand
+    return None
+
+
+def _kill_overlay(s: DPSMeterServer) -> None:
+    """Terminate the spawned overlay process if it's still running (best-effort)."""
+    proc = getattr(s, "_overlay_proc", None)
+    if proc is not None and proc.poll() is None:
+        try:
+            proc.terminate()
+        except OSError:
+            pass
+    s._overlay_proc = None
+
+
+def _h_open_overlay(s: DPSMeterServer, msg: dict) -> dict:
+    """Spawn the Tauri overlay as a separate process for the current party.
+
+    Relaunches if one is already open (so it always reflects the current code/name).
+    The overlay connects to the room as a read-only spectator using ``--code``/``--name``."""
+    exe = _resolve_overlay_exe()
+    if exe is None:
+        return {"type": "overlay_error", "error": "overlay executable not found"}
+    _kill_overlay(s)  # relaunch with the current code/name
+    code = str(msg.get("code") or "")
+    name = str(msg.get("name") or "Overlay")
+    import subprocess
+    try:
+        s._overlay_proc = subprocess.Popen([str(exe), "--code", code, "--name", name])
+    except OSError as exc:
+        log.warning("failed to launch overlay: %s", exc)
+        return {"type": "overlay_error", "error": str(exc)}
+    log.info("overlay launched: %s --code %s --name %s", exe, code, name)
+    return {"type": "overlay_opened", "code": code}
+
+
+def _h_close_overlay(s: DPSMeterServer, msg: dict) -> dict:
+    """Kill the spawned overlay process (the overlay's own ✕ also closes it)."""
+    _kill_overlay(s)
+    return {"type": "overlay_closed"}
+
+
 # --- GUI / system commands -------------------------------------------------
 def _h_open_logs_folder(s: DPSMeterServer, msg: dict) -> Optional[dict]:
     """Open the combat-log directory in the OS file browser.
@@ -956,6 +1014,8 @@ HANDLERS: dict[str, Callable[[DPSMeterServer, dict], Optional[dict]]] = {
     "party_stop_recording": _h_party_stop_recording,
     "party_reset_stats": _h_party_reset_stats,
     "client_debug": _h_client_debug,
+    "open_overlay": _h_open_overlay,
+    "close_overlay": _h_close_overlay,
 }
 
 

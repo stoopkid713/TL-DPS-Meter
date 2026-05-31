@@ -45,6 +45,7 @@ SETUP = DIST / "TL-DPS-Meter-Setup.exe"
 PORTABLE_ZIP = DIST / "TL-DPS-Meter-portable.zip"
 PORTABLE_MARKER = "TL-DPS-Meter.portable"  # must match main.PORTABLE_MARKER
 HOWTO = HERE.parent / "HOW-TO-USE.txt"
+OVERLAY_DIR = HERE.parent / "overlay" / "src-tauri"  # Tauri party overlay (Rust)
 
 
 def build_exe() -> int:
@@ -73,6 +74,41 @@ def build_exe() -> int:
         return 1
 
     print(f"BUILD OK -> {EXE} ({EXE.stat().st_size / 1_000_000:.1f} MB)")
+    return 0
+
+
+def _find_cargo() -> Optional[str]:
+    """Locate cargo (PATH, then the default rustup install dir)."""
+    c = shutil.which("cargo")
+    if c:
+        return c
+    cand = Path(os.path.expanduser("~")) / ".cargo" / "bin" / "cargo.exe"
+    return str(cand) if cand.is_file() else None
+
+
+def build_overlay() -> int:
+    """Build the Tauri party overlay (release). The spec bundles the resulting
+    tldps-overlay.exe into the app (-> _MEIPASS) so open_overlay can launch it.
+
+    Non-fatal: warns and continues if the overlay project or cargo is missing, or if
+    the Rust build fails — the main app still builds, just without a bundled overlay."""
+    if not (OVERLAY_DIR / "Cargo.toml").is_file():
+        print(f"overlay project not found — skipping overlay build: {OVERLAY_DIR}", file=sys.stderr)
+        return 0
+    cargo = _find_cargo()
+    if not cargo:
+        print("cargo not found — skipping overlay build (overlay won't be bundled).\n"
+              "  Install Rust:  winget install -e --id Rustlang.Rustup")
+        return 0
+    cmd = [cargo, "build", "--release"]
+    print("running:", " ".join(cmd), f"(cwd: {OVERLAY_DIR})")
+    proc = subprocess.run(cmd, cwd=str(OVERLAY_DIR))
+    if proc.returncode != 0:
+        print("OVERLAY BUILD FAILED — continuing without a bundled overlay", file=sys.stderr)
+        return 0  # non-fatal
+    rel = OVERLAY_DIR / "target" / "release" / "tldps-overlay.exe"
+    if rel.is_file():
+        print(f"OVERLAY OK -> {rel} ({rel.stat().st_size / 1_000_000:.1f} MB)")
     return 0
 
 
@@ -130,6 +166,9 @@ def build_installer() -> int:
 
 
 def main(argv: list[str]) -> int:
+    rc = build_overlay()   # build + bundle the Tauri overlay first (non-fatal)
+    if rc != 0:
+        return rc
     rc = build_exe()
     if rc != 0:
         return rc
