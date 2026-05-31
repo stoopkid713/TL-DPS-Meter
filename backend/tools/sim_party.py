@@ -82,25 +82,58 @@ def scaled(targets: list[dict], frac: float, mult: float) -> list[dict]:
     return out
 
 
-async def member(host: str, code: str, idx: int, targets: list[dict], rounds: int, delay: float):
+async def member(host: str, code: str, idx: int, targets: list[dict],
+                 rounds: int, delay: float, now: bool):
+    """A persistent simulated member that behaves like a real client.
+
+    Stays connected and reacts to the LEADER's encounter:
+      - on encounter_start (leader hit Start): reset and hydrate live over `rounds`
+      - on encounter_end (leader hit Stop): post the final full snapshot
+    So when you Start an encounter in the app, the bots fill the board live and stay
+    through End — across as many Start/Stop cycles as you run. (--now ignores the leader
+    and posts immediately, for a quick standalone board check.) Ctrl+C to stop the bots."""
     uid = f"sim{idx}"
     name = f"Bot{idx}"
     mult = round(1.0 - 0.15 * (idx - 1), 3)  # Bot1 hardest, descending
     url = f"{host}/party/{code}?user_id={uid}&username={name}&leader=0"
+    st = {"active": now, "frac": 0.0}
     try:
         async with websockets.connect(url, max_size=None) as ws:
-            print(f"  {name} connected (x{mult})")
-            for r in range(1, rounds + 1):
-                frac = r / rounds
+            print(f"  {name} connected (x{mult})" + ("" if now else " - waiting for leader Start..."))
+
+            async def post(frac):
                 await ws.send(json.dumps({"type": "post_fight", "fight_ts": FIGHT_TS,
                                           "targets": scaled(targets, frac, mult)}))
-                await asyncio.sleep(delay)
-            await asyncio.sleep(2.0)  # linger so the final board is visible
-            try:
-                await ws.send(json.dumps({"type": "leave"}))
-            except Exception:
-                pass
-            print(f"  {name} done")
+
+            async def reader():
+                async for raw in ws:
+                    try:
+                        m = json.loads(raw)
+                    except Exception:
+                        continue
+                    t = m.get("type")
+                    if t == "welcome" and m.get("encounter_active") and not now:
+                        st["active"], st["frac"] = True, 0.0
+                    elif t == "encounter_start" and not now:
+                        st["active"], st["frac"] = True, 0.0
+                        if idx == 1:
+                            print("  >> leader started — bots hydrating")
+                    elif t == "encounter_end" and not now:
+                        st["active"] = False
+                        await post(1.0)  # final full snapshot
+                        if idx == 1:
+                            print("  >> leader ended — bots posted final")
+
+            async def poster():
+                while True:
+                    await asyncio.sleep(delay)
+                    if st["active"] and st["frac"] < 1.0:
+                        st["frac"] = min(1.0, st["frac"] + 1.0 / rounds)
+                        await post(st["frac"])
+
+            await asyncio.gather(reader(), poster())
+    except (asyncio.CancelledError, KeyboardInterrupt):
+        pass
     except Exception as exc:
         print(f"  {name} error: {exc}", file=sys.stderr)
 
@@ -115,12 +148,17 @@ async def main_async(args) -> int:
     if not targets:
         print("No DamageDone hits parsed from that log.", file=sys.stderr)
         return 2
-    print(f"driving {args.members} members -> {args.host}/party/{args.code} "
-          f"({args.rounds} rounds, {args.delay}s apart)")
-    await asyncio.gather(*[
-        member(args.host, args.code.upper(), i, targets, args.rounds, args.delay)
-        for i in range(1, args.members + 1)
-    ])
+    mode = "post NOW (ignoring leader)" if args.now else "waiting for the leader to Start"
+    print(f"connecting {args.members} members -> {args.host}/party/{args.code.upper()} - {mode}")
+    if not args.now:
+        print("  (now hit Start in the app; hit Stop to finalize. Ctrl+C here to remove the bots.)")
+    try:
+        await asyncio.gather(*[
+            member(args.host, args.code.upper(), i, targets, args.rounds, args.delay, args.now)
+            for i in range(1, args.members + 1)
+        ])
+    except KeyboardInterrupt:
+        pass
     print("done.")
     return 0
 
@@ -133,8 +171,13 @@ def main() -> int:
     ap.add_argument("--rounds", type=int, default=5)
     ap.add_argument("--delay", type=float, default=1.5)
     ap.add_argument("--host", default=DEFAULT_HOST)
+    ap.add_argument("--now", action="store_true",
+                    help="post immediately, ignoring leader Start/Stop (quick standalone board check)")
     args = ap.parse_args()
-    return asyncio.run(main_async(args))
+    try:
+        return asyncio.run(main_async(args))
+    except KeyboardInterrupt:
+        return 0
 
 
 if __name__ == "__main__":
