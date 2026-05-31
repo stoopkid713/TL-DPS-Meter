@@ -1,0 +1,89 @@
+CombatLogVersion,4
+20260531-11:49:15:589,DamageDone,Dimensional Bomb,964356779,1897,1,1,kMaxDamageByCriticalDecision,Player,Enchanted Arkeum Wizard
+20260531-11:49:17:651,DamageDone,Stellar Dash,980721914,3659,0,1,kNormalHit,Player,Enchanted Arkeum Healer
+20260531-11:49:20:064,DamageDone,Supernova Collapse,979944156,0,0,0,kNormalHit,Player,Arkeum Soldier
+20260531-11:49:23:042,DamageDone,Supernova Collapse,979944156,1122,0,1,kNormalHit,Player,Enchanted Arkeum Arbiter
+20260531-11:49:24:570,DamageDone,Supernova Collapse,979944156,701,0,0,kNormalHit,Player,Enchanted Arkeum Arbiter
+20260531-11:49:49:898,DamageDone,Stellar Dash,980721914,2140,1,0,kMaxDamageByCriticalDecision,Player,Enchanted Arkeum Arbiter
+20260531-11:49:51:948,DamageDone,Dimensional Bomb,964291252,856,0,0,kNormalHit,Player,Elite Arkeum Shadowmancer
+20260531-11:49:53:999,DamageDone,Star Destroyer,981032927,4241,0,1,kNormalHit,Player,Elite Arkeum Shadowmancer
+20260531-11:49:55:794,DamageDone,Starcalling,980702821,16407,1,1,kMaxDamageByCriticalDecision,Player,Enchanted Arkeum Arbiter
+20260531-11:49:57:060,DamageDone,Star Destroyer,981032927,1325,0,0,kNormalHit,Player,Elite Arkeum Shadowmancer
+20260531-11:49:58:746,DamageDone,Stellar Dash,981111140,2105,0,0,kNormalHit,Player,Elite Arkeum Shadowmancer
+20260531-11:50:01:136,DamageDone,Stellar Echo,980990826,522,0,0,kNormalHit,Player,Elite Arkeum Shadowmancer
+20260531-11:50:03:004,DamageDone,Star Destroyer,981032927,7256,0,1,kNormalHit,Player,Elite Arkeum Shadowmancer
+20260531-11:50:05:553,DamageDone,Star Destroyer,981032927,9940,1,1,kMaxDamageByCriticalDecision,Player,Elite Arkeum Shadowmancer
+20260531-11:50:07:320,DamageDone,Stellar Dash,980721914,11106,0,0,kNormalHit,Player,Elite Arkeum Shadowmancer
+20260531-11:50:45:949,DamageDone,Stellar Echo,980990826,730,0,1,kNormalHit,Player,Elite Arkeum Riot Squad Captain
+20260531-11:50:48:540,DamageDone,Dimensional Bomb,964356779,1824,1,0,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:50:49:285,DamageDone,Supernova Collapse,979944156,2143,0,1,kNormalHit,Player,Arkeum Soldier
+20260531-11:50:49:768,DamageDone,Stellar Echo,980990826,3375,1,1,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:50:50:417,DamageDone,Supernova Collapse,979944156,12844,1,1,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:50:51:008,DamageDone,Supernova Collapse,979944156,5002,1,0,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:50:52:229,DamageDone,Supernova Collapse,979944156,1701,1,0,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:50:52:901,DamageDone,Starcalling,980702821,28418,1,1,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:50:53:451,DamageDone,Supernova Collapse,979944156,5002,1,0,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:50:54:130,DamageDone,Stellar Echo,980990826,1000,1,0,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:50:55:949,DamageDone,Supernova Collapse,979944156,5002,1,0,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:50:56:835,DamageDone,Stellar Echo,980990826,1000,1,0,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:51:29:311,DamageDone,Stellar Echo,980990826,433,0,0,kNormalHit,Player,Lucien
+20260531-11:51:30:572,DamageDone,Touch of Despair,964158879,1710,0,0,kNormalHit,Player,Lucien
+20260531-11:51:32:207,DamageDone,Stellar Echo,980990826,316,0,0,kNormalHit,Player,Lucien
+20260531-11:51:34:918,DamageDone,Abyssal Burst,966941381,25808,0,0,kNormalHit,Player,Lucien
+20260531-11:51:37:467,DamageDone,Stellar Echo,980990826,710,0,0,kNormalHit,Player,Lucien
+20260531-11:51:38:585,DamageDone,Dimensional Bomb,964356779,1833,1,0,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:51:40:856,DamageDone,Dimensional Bomb,964684477,524,1,1,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:51:47:004,DamageDone,Enraged Tevent's Hunger,945471180,409,0,0,kNormalHit,Player,Lucien
+20260531-11:52:00:953,DamageDone,Dimensional Bomb,964291252,351,1,1,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:52:02:914,DamageDone,Enraged Tevent's Hunger,945471180,1844,0,0,kNormalHit,Player,Lucien
+20260531-11:52:06:130,DamageDone,Dimensional Bomb,964356779,2422,0,1,kNormalHit,Player,Lucien
+20260531-11:52:07:713,DamageDone,Enraged Tevent's Hunger,945471180,2938,0,0,kNormalHit,Player,Lucien
+20260531-11:52:09:473,DamageDone,Dimensional Bomb,964225722,818,0,0,kNormalHit,Player,Lucien
+20260531-11:52:13:173,DamageDone,Starcalling,980702821,23290,0,1,kNormalHit,Player,Lucien
+20260531-11:52:15:286,DamageDone,Enraged Tevent's Hunger,945471180,1310,0,0,kNormalHit,Player,Lucien
+20260531-11:52:19:503,DamageDone,Starcalling,980702821,7666,0,0,kNormalHit,Player,Lucien
+20260531-11:52:21:092,DamageDone,Stellar Echo,980990826,1477,1,1,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:52:24:155,DamageDone,Dimensional Bomb,964356779,3244,1,1,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:52:26:278,DamageDone,Enraged Tevent's Hunger,945471180,789,0,0,kNormalHit,Player,Lucien
+20260531-11:52:28:946,DamageDone,Dimensional Bomb,964225722,1707,0,1,kNormalHit,Player,Lucien
+20260531-11:52:30:852,DamageDone,Enraged Tevent's Hunger,945471180,2151,0,0,kNormalHit,Player,Lucien
+20260531-11:52:34:699,DamageDone,Copy Satellite,981417584,6353,1,1,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:52:36:434,DamageDone,Enraged Tevent's Hunger,945471180,1458,0,0,kNormalHit,Player,Lucien
+20260531-11:52:39:159,DamageDone,Enraged Tevent's Hunger,945471180,256,0,0,kNormalHit,Player,Lucien
+20260531-11:52:41:744,DamageDone,Abyssal Burst,966941381,19324,0,0,kNormalHit,Player,Lucien
+20260531-11:52:43:912,DamageDone,Corrupting Hit,967072496,2724,0,0,kNormalHit,Player,Lucien
+20260531-11:52:46:094,DamageDone,Corrupting Hit,967072496,9256,0,0,kNormalHit,Player,Lucien
+20260531-11:55:26:270,DamageDone,Starcalling,980702821,8110,1,0,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:55:29:489,DamageDone,Stellar Echo,980990826,3097,1,1,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:55:30:719,DamageDone,Supernova Collapse,979944156,4907,1,0,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:55:31:264,DamageDone,Supernova Collapse,979944156,11633,1,1,kMaxDamageByCriticalDecision,Player,Arkeum Soldier
+20260531-11:55:31:997,DamageDone,Supernova Collapse,979944156,3756,1,1,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:55:33:218,DamageDone,Supernova Collapse,979944156,4907,1,0,kMaxDamageByCriticalDecision,Player,Elite Arkeum Riot Squad Captain
+20260531-11:55:34:293,DamageDone,Stellar Dash,980571642,1997,0,0,kNormalHit,Player,Elite Arkeum Riot Squad Captain
+20260531-11:56:00:618,DamageDone,Starcalling,980702821,30240,1,1,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:56:01:609,DamageDone,Stellar Dash,981111140,9809,1,1,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:56:03:789,DamageDone,Star Destroyer,981032927,11660,1,1,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:56:05:800,DamageDone,Star Destroyer,981032927,3402,0,1,kNormalHit,Player,Lucien
+20260531-11:56:07:777,DamageDone,Star Destroyer,981032927,6758,0,1,kNormalHit,Player,Lucien
+20260531-11:56:09:776,DamageDone,Star Destroyer,981032927,2258,0,0,kNormalHit,Player,Lucien
+20260531-11:56:12:492,DamageDone,Corrupting Hit,967072496,670,0,0,kNormalHit,Player,Lucien
+20260531-11:56:15:317,DamageDone,Touch of Despair,964158879,1199,0,0,kNormalHit,Player,Lucien
+20260531-11:56:19:176,DamageDone,Abyssal Burst,966941381,1931,0,0,kNormalHit,Player,Lucien
+20260531-11:56:23:970,DamageDone,Stellar Dash,980721914,451,0,1,kNormalHit,Player,Lucien
+20260531-11:56:28:824,DamageDone,Stellar Echo,980990826,154,0,1,kNormalHit,Player,Lucien
+20260531-11:56:30:924,DamageDone,Touch of Despair,964158879,631,0,0,kNormalHit,Player,Lucien
+20260531-11:56:32:549,DamageDone,Star Destroyer,981032927,1147,1,1,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:56:36:053,DamageDone,Curse Explosion,962849462,8432,1,0,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:56:38:400,DamageDone,Stellar Echo,980990826,1326,1,0,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:56:39:658,DamageDone,Stellar Echo,980990826,955,0,1,kNormalHit,Player,Lucien
+20260531-11:56:41:466,DamageDone,Supernova Collapse,979944156,1757,0,1,kNormalHit,Player,Lucien
+20260531-11:56:42:684,DamageDone,Supernova Collapse,979944156,13413,1,1,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:56:43:964,DamageDone,Supernova Collapse,979944156,4449,1,1,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:56:45:029,DamageDone,Stellar Dash,980721914,10175,1,1,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:56:46:207,DamageDone,Supernova Collapse,979944156,5221,1,0,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:56:48:233,DamageDone,Supernova Collapse,979944156,11359,1,1,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:56:50:424,DamageDone,Dimensional Bomb,964684477,2533,0,1,kNormalHit,Player,Lucien
+20260531-11:56:52:519,DamageDone,Dimensional Bomb,964225722,2521,0,1,kNormalHit,Player,Lucien
+20260531-11:56:53:687,DamageDone,Dimensional Bomb,964684477,1833,1,0,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:56:58:948,DamageDone,Stellar Echo,980990826,1019,1,0,kMaxDamageByCriticalDecision,Player,Lucien
+20260531-11:57:01:413,DamageDone,Touch of Despair,964158879,2484,0,0,kNormalHit,Player,Lucien
