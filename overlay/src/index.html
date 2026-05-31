@@ -90,6 +90,38 @@
         .lock-indicator { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; display: none; z-index: 1000; pointer-events: none; }
         .lock-indicator.show { display: block; animation: fadeOut 1.5s forwards; }
         @keyframes fadeOut { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
+
+        /* ---- Member drill-down (C3) ------------------------------------------- */
+        /* Clickable row hint */
+        .result-row.clickable { cursor: pointer; }
+        .result-row.clickable:hover { background: rgba(34, 211, 238, 0.1); border: 1px solid rgba(34, 211, 238, 0.25); }
+
+        /* Detail header */
+        .ov-detail-header { display: flex; align-items: center; gap: 8px; padding: 5px 4px 8px; margin-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .ov-detail-back { background: rgba(34, 211, 238, 0.15); border: 1px solid rgba(34, 211, 238, 0.3); color: #22d3ee; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-family: inherit; }
+        .ov-detail-back:hover { background: rgba(34, 211, 238, 0.25); }
+        .ov-detail-name { font-size: 12px; font-weight: 600; color: #e2e8f0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ov-detail-loading { display: flex; align-items: center; justify-content: center; flex: 1; color: #64748b; font-size: 12px; padding: 20px 0; }
+
+        /* pr-skill-list (compact skill table from PartyRender.skillTableHtml compact:true) */
+        .pr-skill-list { display: flex; flex-direction: column; gap: 4px; }
+        .pr-skill-row { display: grid; grid-template-columns: 1fr 60px 34px 32px; align-items: center; gap: 4px; padding: 4px 6px; background: rgba(0,0,0,0.25); border-radius: 4px; font-size: 11px; }
+        .pr-skill-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #e2e8f0; }
+        .pr-skill-bar { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+        .pr-skill-bar span { display: block; height: 100%; background: linear-gradient(90deg, #22d3ee, #a78bfa); border-radius: 2px; }
+        .pr-skill-dmg { text-align: right; color: #22d3ee; font-weight: 600; white-space: nowrap; }
+        .pr-skill-pct { text-align: right; color: #64748b; white-space: nowrap; }
+
+        /* pr-rot (compact rotation chart from PartyRender.rotationChartHtml compact:true) */
+        .pr-rot { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+        .pr-rot-meta { font-size: 10px; color: #64748b; padding: 0 2px; }
+        .pr-rot-chart.compact { display: flex; align-items: flex-end; gap: 1px; height: 36px; padding: 0 2px; background: rgba(0,0,0,0.2); border-radius: 4px; overflow: hidden; }
+        .pr-rot-bar { flex: 1; min-width: 1px; background: rgba(34, 211, 238, 0.6); border-radius: 1px 1px 0 0; transition: height 0.2s; }
+        .pr-rot-bar.gap { background: rgba(239, 68, 68, 0.35); }
+        .pr-rot-axis { display: flex; justify-content: space-between; font-size: 9px; color: #475569; padding: 0 2px; }
+
+        /* pr-empty fallback */
+        .pr-empty { color: #64748b; font-size: 11px; text-align: center; padding: 12px 0; }
     </style>
 </head>
 <body class="">
@@ -176,6 +208,119 @@ const PartyRender = {
     d.textContent = t == null ? '' : t;
     return d.innerHTML;
   },
+
+  // ===== Phase 3 / C2 — shared member-drill-down render (skill table + rotation) =====
+  // Both surfaces feed these the raw ``rotation`` hit list the room serves via
+  // ``get_member_detail`` (solo-hit shape: {relative_time, skill, damage, is_crit,
+  // is_heavy}). SELF-CONTAINED on purpose — no dependency on the base app's globals
+  // (``groupBySkill`` / ``calculateRotationStats`` / ``formatNumber``), so the overlay
+  // (which has only PartyRender) renders identically. Variant via ``opts.compact``.
+
+  // Raw hits -> per-skill rows (mirrors the solo skill block + groupBySkill), damage desc.
+  aggregateSkills(rotation) {
+    const rows = {};
+    let total = 0;
+    (rotation || []).forEach((h) => {
+      const name = (h && h.skill) || 'Unknown';
+      const r = rows[name] || (rows[name] = { name: name, damage: 0, hits: 0, crits: 0, heavies: 0 });
+      const dmg = Number(h && h.damage) || 0;
+      r.damage += dmg; r.hits += 1;
+      if (h && h.is_crit) r.crits += 1;
+      if (h && h.is_heavy) r.heavies += 1;
+      total += dmg;
+    });
+    const list = Object.keys(rows).map((k) => rows[k]).sort((a, b) => b.damage - a.damage);
+    list.forEach((r) => {
+      r.percent = total > 0 ? +(r.damage / total * 100).toFixed(1) : 0;
+      r.crit_rate = r.hits > 0 ? +(r.crits / r.hits * 100).toFixed(1) : 0;
+      r.heavy_rate = r.hits > 0 ? +(r.heavies / r.hits * 100).toFixed(1) : 0;
+    });
+    return list;
+  },
+
+  // 60s rotation stats (port of the solo ``calculateRotationStats``) — self-contained.
+  rotationStats(rotation) {
+    if (!rotation || !rotation.length) return null;
+    const dps = {};
+    for (let i = 0; i <= 60; i++) dps[i] = 0;
+    rotation.forEach((h) => {
+      const s = Math.floor((h && h.relative_time) || 0);
+      if (s >= 0 && s <= 60) dps[s] += Number(h && h.damage) || 0;
+    });
+    const first = Math.floor((rotation[0] && rotation[0].relative_time) || 0);
+    const last = Math.floor((rotation[rotation.length - 1] && rotation[rotation.length - 1].relative_time) || 0);
+    let peak = 0;
+    for (let i = 0; i <= 55; i++) {
+      let sum = 0;
+      for (let j = i; j < i + 5; j++) sum += dps[j] || 0;
+      if (sum / 5 > peak) peak = sum / 5;
+    }
+    const active = Object.keys(dps).filter((i) => dps[i] > 0 && +i >= first && +i <= last).length;
+    const totalSec = Math.max(1, last - first + 1);
+    return { dpsPerSecond: dps, peakDps: peak, activityRate: active / totalSec * 100, firstHitTime: first, lastHitTime: last };
+  },
+
+  // Skill-table HTML for a member's rotation. ``opts.compact`` => overlay variant.
+  skillTableHtml(rotation, opts) {
+    opts = opts || {};
+    const skills = PartyRender.aggregateSkills(rotation);
+    if (!skills.length) return '<div class="pr-empty">No skill data</div>';
+    let max = 1;
+    skills.forEach((s) => { if (s.damage > max) max = s.damage; });
+    const esc = PartyRender.escapeHtml;
+    if (opts.compact) {
+      // overlay: name · bar · compact dmg · %
+      const rows = skills.map((s) => {
+        const w = (s.damage / max * 100).toFixed(1);
+        return '<div class="pr-skill-row">'
+          + '<span class="pr-skill-name" title="' + esc(s.name) + '">' + esc(s.name) + '</span>'
+          + '<span class="pr-skill-bar"><span style="width:' + w + '%"></span></span>'
+          + '<span class="pr-skill-dmg">' + PartyRender.fmtDmg(s.damage) + '</span>'
+          + '<span class="pr-skill-pct">' + s.percent + '%</span>'
+          + '</div>';
+      }).join('');
+      return '<div class="pr-skill-list">' + rows + '</div>';
+    }
+    // base: full 9-col table mirroring the solo skill table (reuses the solo num/bar classes).
+    const body = skills.map((s) => {
+      const w = (s.damage / max * 100).toFixed(1);
+      return '<tr><td>' + esc(s.name) + '</td>'
+        + '<td class="num cyan">' + PartyRender.fmtNum(s.damage) + '</td>'
+        + '<td><div class="damage-bar-container"><div class="damage-bar" style="width:' + w + '%"></div></div></td>'
+        + '<td class="num">' + s.hits + '</td>'
+        + '<td class="num yellow">' + s.crits + '</td>'
+        + '<td class="num yellow">' + s.crit_rate + '%</td>'
+        + '<td class="num orange">' + s.heavies + '</td>'
+        + '<td class="num orange">' + s.heavy_rate + '%</td>'
+        + '<td class="num purple">' + s.percent + '%</td></tr>';
+    }).join('');
+    return '<table class="pr-skill-table"><thead><tr>'
+      + '<th>Skill</th><th>Damage</th><th></th><th>Hits</th><th>Crits</th><th>Crit%</th>'
+      + '<th>Heavy</th><th>Heavy%</th><th>%</th></tr></thead><tbody>' + body + '</tbody></table>';
+  },
+
+  // Rotation chart HTML (61 one-second bars, 0..60s). ``opts.compact`` => overlay variant.
+  rotationChartHtml(rotation, opts) {
+    opts = opts || {};
+    const stats = PartyRender.rotationStats(rotation);
+    if (!stats) return '<div class="pr-empty">No rotation data</div>';
+    let max = 1;
+    for (let i = 0; i <= 60; i++) { if ((stats.dpsPerSecond[i] || 0) > max) max = stats.dpsPerSecond[i]; }
+    let bars = '';
+    for (let i = 0; i <= 60; i++) {
+      const d = stats.dpsPerSecond[i] || 0;
+      const h = max > 0 ? (d / max * 100) : 0;
+      let cls = 'normal';
+      if (d === 0 && i >= stats.firstHitTime && i <= stats.lastHitTime) cls = 'gap';
+      bars += '<div class="pr-rot-bar ' + cls + '" style="height:' + Math.max(h, 1) + '%"></div>';
+    }
+    return '<div class="pr-rot">'
+      + '<div class="pr-rot-meta">Activity ' + stats.activityRate.toFixed(0) + '% · Peak 5s '
+        + PartyRender.fmtNum(Math.round(stats.peakDps)) + '</div>'
+      + '<div class="pr-rot-chart' + (opts.compact ? ' compact' : '') + '">' + bars + '</div>'
+      + '<div class="pr-rot-axis"><span>0s</span><span>15s</span><span>30s</span><span>45s</span><span>60s</span></div>'
+      + '</div>';
+  },
 };
     /* @end:party_render */
     // Overlay glue -> single source above (keeps existing call sites; logic lives in PartyRender).
@@ -188,6 +333,8 @@ const PartyRender = {
         connected: false, encounterActive: false, scoreboard: null, isLocked: false,
         // Phase 2 (A5): multi-encounter stepping.
         encounters: [], activeId: null, viewingId: null, boards: {},
+        // Phase 3 (C3): member drill-down.
+        detail: null, memberDetails: {},
     };
     let ws = null, wantOpen = false, reconnectTimer = null;
 
@@ -243,6 +390,14 @@ const PartyRender = {
                 }
                 case 'encounter_start': state.encounterActive = true; updateStatus('recording', '● REC'); break;
                 case 'encounter_end': state.encounterActive = false; updateStatus('connected', 'Connected'); break;
+                case 'member_detail': {
+                    const cacheKey = m.encounter_id + ':' + m.user_id;
+                    state.memberDetails[cacheKey] = { skills: m.skills || null, rotation: m.rotation || null };
+                    if (state.detail && state.detail.encounter_id === m.encounter_id && state.detail.user_id === m.user_id) {
+                        renderOvDetail();
+                    }
+                    break;
+                }
             }
         };
         ws.onerror = () => { ovlog('ws-error'); };
@@ -288,6 +443,7 @@ const PartyRender = {
     }
 
     function render() {
+        if (state.detail) { renderOvDetail(); return; }
         const container = document.getElementById('results');
         // Resolve the viewed encounter's board (explicit selection, else active).
         const viewId = state.viewingId || state.activeId;
@@ -320,13 +476,16 @@ const PartyRender = {
         document.getElementById('bossTotal').textContent = formatDamage(sb.total_damage || 0) + ' total';
 
         let html = '';
+        const encId = sb.encounter_id || viewId || '';
         entries.forEach((e) => {
             const rank = e.rank || 1;
             const pct = (typeof e.contribution === 'number') ? e.contribution : 0;
             const isSelf = e.username === playerName;
             let rankClass = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
+            const clickable = e.has_detail ? 'clickable' : '';
+            const onclick = e.has_detail ? ' onclick="ovOpenDetail(\'' + encId + '\',\'' + e.user_id + '\')"' : '';
             html += `
-                <div class="result-row ${isSelf ? 'self' : ''}">
+                <div class="result-row ${isSelf ? 'self' : ''} ${clickable}"${onclick}>
                     <div class="rank ${rankClass}">${rank}</div>
                     <div class="player-info">
                         <div class="player-name">${escapeHtml(e.username)}<span class="pct">${pct.toFixed(0)}%</span></div>
@@ -338,6 +497,52 @@ const PartyRender = {
         });
         container.innerHTML = html;
         document.getElementById('playerCount').textContent = `${entries.length} player${entries.length !== 1 ? 's' : ''}`;
+    }
+
+    function ovOpenDetail(encId, userId) {
+        // Resolve username from the viewed board's entries.
+        var boardKey = encId;
+        var board = state.boards[boardKey] || state.scoreboard;
+        var username = userId;
+        if (board && Array.isArray(board.entries)) {
+            for (var i = 0; i < board.entries.length; i++) {
+                if (board.entries[i].user_id === userId) { username = board.entries[i].username; break; }
+            }
+        }
+        state.detail = { encounter_id: encId, user_id: userId, username: username };
+        var cacheKey = encId + ':' + userId;
+        if (!state.memberDetails[cacheKey] && ws && ws.readyState === WebSocket.OPEN) {
+            ovlog('member-detail-request', { encounter_id: encId, user_id: userId });
+            ws.send(JSON.stringify({ type: 'get_member_detail', encounter_id: encId, user_id: userId }));
+        }
+        renderOvDetail();
+    }
+
+    function ovCloseDetail() {
+        state.detail = null;
+        render();
+    }
+
+    function renderOvDetail() {
+        var container = document.getElementById('results');
+        var d = state.detail;
+        if (!d) { render(); return; }
+        var cacheKey = d.encounter_id + ':' + d.user_id;
+        var cached = state.memberDetails[cacheKey];
+        var header = '<div class="ov-detail-header">'
+            + '<button class="ov-detail-back" onclick="ovCloseDetail()">&#8249; Back</button>'
+            + '<span class="ov-detail-name">' + escapeHtml(d.username) + '</span>'
+            + '</div>';
+        var body;
+        if (!cached) {
+            body = '<div class="ov-detail-loading">Loading…</div>';
+        } else if (!cached.rotation || !cached.rotation.length) {
+            body = '<div class="pr-empty">No detailed breakdown available</div>';
+        } else {
+            body = PartyRender.skillTableHtml(cached.rotation, { compact: true })
+                 + PartyRender.rotationChartHtml(cached.rotation, { compact: true });
+        }
+        container.innerHTML = header + body;
     }
 
     // formatNumber / formatDamage / escapeHtml now come from PartyRender (single source, aliased above).
