@@ -22508,6 +22508,41 @@ ${attemptLine}
                         partyDebug('party.post_fight.skipped', { targets: nTargets, wsOpen: wsOpen, code: partyState.party_code || null });
                     }
                 }
+                else if (msg.type === 'party_final') {
+                    // Keystone bridge (2026-05-31): the backend auto-closed an encounter (45s idle
+                    // timeout or manual stop) and sent the full breakdown. Post the authoritative
+                    // board to the room FIRST (so the submission row exists), THEN ship the rich
+                    // detail (skills+rotation, incl crit/heavy) via final_detail so drill-down
+                    // populates. Order matters — the worker's final_detail only sets has_detail if
+                    // the submission row already exists.
+                    if (partyLiveHitDebounce) { clearTimeout(partyLiveHitDebounce); partyLiveHitDebounce = null; }
+                    flushPartyResults();
+                    const d = msg.detail || {};
+                    const encId = msg.encounter_id || (msg.fight_ts ? String(msg.fight_ts) : undefined);
+                    const wsOpen = !!(partyWS && partyWS.readyState === WebSocket.OPEN);
+                    const nTargets = (d.targets || []).length;
+                    if (encId && wsOpen && partyState.party_code && nTargets) {
+                        try {
+                            partyWS.send(JSON.stringify({
+                                type: 'post_fight', v: 2,
+                                fight_ts: msg.fight_ts || Date.now(),
+                                encounter_id: encId,
+                                targets: d.targets,
+                                summary: { total_damage: d.total_damage, duration: d.duration },
+                                skills: d.skills || null,
+                                rotation: d.rotation || null
+                            }));
+                            partyWS.send(JSON.stringify({
+                                type: 'final_detail', encounter_id: encId, detail: d
+                            }));
+                            partyDebug('party.final.sent', { encounter_id: encId, targets: nTargets, skills: (d.skills || []).length });
+                        } catch (err) {
+                            partyDebug('party.final.error', { err: String(err) });
+                        }
+                    } else {
+                        partyDebug('party.final.skipped', { targets: nTargets, wsOpen: wsOpen, code: partyState.party_code || null });
+                    }
+                }
                 else if (msg.type === 'party_stats') {
                     // Current party stats (without stopping)
                     console.log('[Party] Stats:', msg.results);
@@ -22546,7 +22581,13 @@ ${attemptLine}
                             if (partyLiveHitDebounce) { clearTimeout(partyLiveHitDebounce); partyLiveHitDebounce = null; }
                             try {
                                 postEncounter(true);  // C1b: final post carries the hit slice
-                                partyDebug('party.live_post.final', { encounter_id: totals.encounter_id, targets: totals.targets.length });
+                                // Keystone (2026-05-31): if the boundary frame carries the rich
+                                // detail (skills incl crit/heavy), ship it so drill-down populates.
+                                if (msg.detail) {
+                                    const encId = totals.encounter_id || (totals.fight_ts ? String(totals.fight_ts) : undefined);
+                                    partyWS.send(JSON.stringify({ type: 'final_detail', encounter_id: encId, detail: msg.detail }));
+                                }
+                                partyDebug('party.live_post.final', { encounter_id: totals.encounter_id, targets: totals.targets.length, detail: !!msg.detail });
                             } catch (err) {
                                 partyDebug('party.live_post.error', { err: String(err) });
                             }
@@ -23374,10 +23415,11 @@ ${attemptLine}
                     renderPartyMembers();
                     renderEncounterSwitcher();
                     renderPartyResults();
-                    // Late join into an in-progress encounter: arm local recording.
-                    if (m.encounter_active && !partyState.encounter_active) {
-                        handleEncounterStart(m);
-                    }
+                    // Auto-record (keystone, 2026-05-31): arm local recording for the whole party
+                    // session the moment we're in the room — no manual Start button. The room now
+                    // treats encounter_start as a no-op, so this replaces the old broadcast chain.
+                    // The backend session-arms on this, then auto-arms each fight on first combat hit.
+                    armPartyRecording();
                     updatePartyUI();
                     break;
                 case 'roster':
@@ -24034,6 +24076,20 @@ ${attemptLine}
             updatePartyUI();
         }
         
+        // Auto-record (keystone, 2026-05-31): arm the local backend's party recording session.
+        // Replaces the old manual leader "Start" → encounter_start broadcast chain (the room now
+        // treats encounter_start as a no-op). Every member arms their OWN local backend on join;
+        // the backend then auto-arms each fight on its first combat hit. Idempotent — safe to re-send
+        // on every (re)connect.
+        function armPartyRecording() {
+            if (!partyState.party_code) return;
+            partyState.encounter_active = true; // session armed (drives the recording indicator)
+            try { sendCommand('party_start_recording', { party_code: partyState.party_code }); }
+            catch (err) { console.warn('[Party] Error arming recording:', err); }
+            partyDebug('party.auto_arm', { code: partyState.party_code });
+            updatePartyUI();
+        }
+
         // Handle clear results broadcast
         function handleClearResults(payload) {
             console.log('[Party] Results cleared via broadcast');
@@ -24276,10 +24332,11 @@ ${attemptLine}
                     waitingMsg.style.display = 'none';
                     if (syncBtn) syncBtn.style.display = 'inline-block';
                     
-                    // Update encounter buttons (only if not in countdown)
+                    // Auto-record (keystone, 2026-05-31): recording arms automatically on join and
+                    // each fight records itself — no manual Start/End. Hide the legacy buttons.
                     if (!countdownTimer) {
-                        startBtn.style.display = partyState.encounter_active ? 'none' : 'block';
-                        endBtn.style.display = partyState.encounter_active ? 'block' : 'none';
+                        startBtn.style.display = 'none';
+                        endBtn.style.display = 'none';
                         countdownDiv.style.display = 'none';
                     }
                 } else {
