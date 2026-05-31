@@ -24,6 +24,11 @@
 
 const CODE_RE = /^[A-Z0-9]{4,8}$/;
 const MAX_MEMBERS = 12;
+// Ghost eviction: members offline longer than this window are pruned from the roster.
+// Chosen to survive a typical game crash + re-launch cycle (~5 min) without leaving ghosts
+// that persist forever. The timer only fires when a NEW member joins or a post_fight arrives,
+// so it never runs on an idle room.
+const GHOST_EVICT_MS = 5 * 60 * 1000; // 5 minutes
 
 // Wire protocol version (F2). `welcome` announces it; `post_fight` carries it. A missing `v`
 // on an incoming post_fight = a legacy Phase-1 client (stored as v:1) — still slotted in, so an
@@ -185,7 +190,15 @@ export class PartyRoom {
     server.serializeAttachment({ user_id, username, is_leader, code, is_spectator });
 
     if (!is_spectator) {
-      members[user_id] = { username, is_leader, joined_at: Date.now() };
+      // Reclaim the same slot on reconnect (stable identity — contract item 4).
+      // joined_at is preserved from the original join; last_seen is updated each reconnect.
+      const existing = members[user_id];
+      members[user_id] = {
+        username,
+        is_leader,
+        joined_at: existing ? existing.joined_at : Date.now(),
+        last_seen: Date.now(),
+      };
       await this.ctx.storage.put("members", members);
     }
 
@@ -235,11 +248,49 @@ export class PartyRoom {
 
       case "post_fight": // member's full per-target breakdown for one fight
         if (Array.isArray(msg.targets)) {
+          await this._evictGhosts(); // lazy ghost sweep before mutating roster views
           await this.postFight(att.user_id, att.username, msg.fight_ts, msg.targets, msg);
           this.broadcast(await this.buildScoreboard());
           this.broadcast(await this.buildEncounters());
         }
         return;
+
+      // Contract item 3: backend sends {type:"final_detail", encounter_id:<fight_ts>, detail:{...}}
+      // over the WS of the member whose detail this is.  We write the detail blob onto the
+      // EXISTING encounter row (identified by fight_ts) without creating a new encounter.
+      // `encounter_id` MUST equal the fight_ts string the backend used when posting frames.
+      case "final_detail": {
+        const eid = msg.encounter_id != null ? String(msg.encounter_id) : null;
+        if (eid && msg.detail != null) {
+          this._ensureTables();
+          // Confirm the encounter row exists before writing — never create a new one.
+          const exists = [...this.ctx.storage.sql.exec(
+            "SELECT id FROM encounters WHERE id = ?", eid
+          )];
+          if (exists.length) {
+            this.ctx.storage.sql.exec(
+              "INSERT OR REPLACE INTO member_detail (encounter_id, user_id, blob) VALUES (?, ?, ?)",
+              eid, att.user_id, JSON.stringify(msg.detail)
+            );
+            // Mark the submission as having detail so the UI drill-down button activates.
+            this.ctx.storage.sql.exec(
+              "UPDATE submissions SET has_detail = 1 WHERE encounter_id = ? AND user_id = ?",
+              eid, att.user_id
+            );
+            logEvent("final_detail_written", {
+              encounter_id: eid, user_id: att.user_id, username: att.username,
+            });
+            // Re-broadcast scoreboard so has_detail flag reaches the UI immediately.
+            this.broadcast(await this.buildScoreboard());
+            this.broadcast(await this.buildEncounters());
+          } else {
+            logEvent("final_detail_no_encounter", {
+              encounter_id: eid, user_id: att.user_id,
+            });
+          }
+        }
+        return;
+      }
 
       case "clear": // leader empties the active board for a fresh pull (keeps the encounter)
         if (att.is_leader) {
@@ -254,41 +305,65 @@ export class PartyRoom {
         }
         return;
 
-      case "encounter_start": // leader: file the current board, arm a fresh encounter for everyone
-        if (att.is_leader) {
-          this._ensureTables();
-          const prev = await this.ctx.storage.get("active_encounter_id");
-          if (prev) {
-            // FILE the closing board (mark ended = 1, don't wipe)
-            this.ctx.storage.sql.exec("UPDATE encounters SET ended = 1 WHERE id = ?", prev);
+      // Contract item 2: encounter_start / encounter_end are legacy manual-boundary signals.
+      // The manual Start/End UI is being removed; these messages are tolerated harmlessly.
+      // They MUST NOT mint a new encounter id (that was the click-time / orphan-encounter bug).
+      case "encounter_start":
+        logEvent("encounter_start_noop", { by: att.username, user_id: att.user_id });
+        return; // no-op
+
+      case "encounter_end":
+        logEvent("encounter_end_noop", { by: att.username, user_id: att.user_id });
+        return; // no-op
+
+      // Also tolerate the legacy party_start_recording message shape (no-op).
+      case "party_start_recording":
+        logEvent("party_start_recording_noop", { by: att.username, user_id: att.user_id });
+        return; // no-op
+
+      // Contract item 5: kick — leader removes a named member from roster + submissions.
+      case "kick": {
+        const target_uid = msg.user_id ? String(msg.user_id) : null;
+        if (att.is_leader && target_uid && target_uid !== att.user_id) {
+          // Close any live socket for the kicked member.
+          for (const kws of this.ctx.getWebSockets(target_uid)) {
+            try { kws.close(1000, "kicked"); } catch (_) {}
           }
-          const id = String(Date.now()); // leader-armed encounter id (F1b B1)
-          this.ctx.storage.sql.exec(
-            "INSERT OR REPLACE INTO encounters (id, started_at, ended) VALUES (?, ?, 0)",
-            id, Date.now()
-          );
-          await this.ctx.storage.put("active_encounter_id", id);
-          await this.ctx.storage.put("encounter_active", true);
-          logEvent("encounter_start", { by: att.username, user_id: att.user_id, encounter_id: id });
-          this.broadcast({ type: "encounter_start", by: att.username, encounter_id: id });
+          await this.removeMember(target_uid);
+          logEvent("kick", { by: att.username, kicked: target_uid });
+          this.broadcast({ type: "member_kicked", user_id: target_uid, by: att.user_id });
+          this.broadcast(await this.buildRoster());
+          this.broadcast(await this.buildEncounters());
+        }
+        return;
+      }
+
+      // Contract item 5: reset_roster — leader clears all members + submissions, room stays alive.
+      case "reset_roster": {
+        if (att.is_leader) {
+          // Close all non-leader sockets.
+          for (const rws of this.ctx.getWebSockets()) {
+            const ratt = rws.deserializeAttachment() || {};
+            if (ratt.user_id !== att.user_id) {
+              try { rws.close(1000, "roster_reset"); } catch (_) {}
+            }
+          }
+          this._ensureTables();
+          this.ctx.storage.sql.exec("DELETE FROM submissions");
+          this.ctx.storage.sql.exec("DELETE FROM member_detail");
+          // Keep only the leader in the members map.
+          const allMembers = (await this.ctx.storage.get("members")) || {};
+          const leaderEntry = allMembers[att.user_id];
+          const freshMembers = leaderEntry ? { [att.user_id]: leaderEntry } : {};
+          await this.ctx.storage.put("members", freshMembers);
+          logEvent("reset_roster", { by: att.username, user_id: att.user_id });
+          this.broadcast({ type: "roster_reset", by: att.user_id });
+          this.broadcast(await this.buildRoster());
           this.broadcast(await this.buildScoreboard());
           this.broadcast(await this.buildEncounters());
         }
         return;
-
-      case "encounter_end": // leader: everyone stop recording + post their fight
-        if (att.is_leader) {
-          this._ensureTables();
-          const id = await this.ctx.storage.get("active_encounter_id");
-          if (id) {
-            this.ctx.storage.sql.exec("UPDATE encounters SET ended = 1 WHERE id = ?", id);
-          }
-          await this.ctx.storage.put("encounter_active", false);
-          logEvent("encounter_end", { by: att.username, user_id: att.user_id, encounter_id: id || null });
-          this.broadcast({ type: "encounter_end", by: att.username, encounter_id: id || null });
-          this.broadcast(await this.buildEncounters());
-        }
-        return;
+      }
 
       case "leave":
         logEvent("leave", { user_id: att.user_id, username: att.username });
@@ -304,6 +379,12 @@ export class PartyRoom {
   async webSocketClose(ws) {
     const att = ws.deserializeAttachment() || {};
     if (att.is_spectator) return; // not a member — nothing to update
+    // Stamp last_seen so the eviction window starts from now (contract item 4).
+    const members = (await this.ctx.storage.get("members")) || {};
+    if (members[att.user_id]) {
+      members[att.user_id].last_seen = Date.now();
+      await this.ctx.storage.put("members", members);
+    }
     logEvent("member_offline", { user_id: att.user_id, username: att.username });
     this.broadcast(await this.buildRoster());
     this.broadcastExcept(att.user_id, { type: "member_offline", user_id: att.user_id });
@@ -311,6 +392,32 @@ export class PartyRoom {
 
   async webSocketError(ws) {
     try { await this.webSocketClose(ws); } catch (_) {}
+  }
+
+  // --- ghost eviction (contract item 4) ---
+  // Removes members whose last_seen is older than GHOST_EVICT_MS AND who have no live WS.
+  // Called lazily (on join, post_fight) so it never fires on an idle room.
+  async _evictGhosts() {
+    const members = (await this.ctx.storage.get("members")) || {};
+    const online = new Set(
+      this.ctx.getWebSockets().map((ws) => (ws.deserializeAttachment() || {}).user_id)
+    );
+    const cutoff = Date.now() - GHOST_EVICT_MS;
+    const evicted = [];
+    for (const [uid, m] of Object.entries(members)) {
+      if (!online.has(uid) && (m.last_seen || m.joined_at || 0) < cutoff) {
+        evicted.push(uid);
+        delete members[uid];
+      }
+    }
+    if (evicted.length) {
+      await this.ctx.storage.put("members", members);
+      for (const uid of evicted) {
+        logEvent("ghost_evicted", { user_id: uid });
+        this.broadcast({ type: "member_left", user_id: uid });
+      }
+    }
+    return evicted.length;
   }
 
   // --- SQLite table setup ---
@@ -386,23 +493,35 @@ export class PartyRoom {
   }
 
   // --- state mutations ---
-  // Slot this member's latest fight into an encounter. SLOTTING PRECEDENCE (A4):
-  //   1. If the active encounter is OPEN (not `ended`) -> slot here regardless of the post's
-  //      own encounter_id. This is what merges a multi-PC board: in a coordinated party every
-  //      member's post lands in the one open active encounter, and a continuous boss kill has
-  //      no boundary so the active stays open the whole fight.
-  //   2. Else honor the post's `encounter_id` (create it if new, make it active). This is the
-  //      open-world / solo path where the client gap-segments locally: each segment posts a
-  //      distinct id, so duplicate bosses & multi-boss runs become distinct encounters.
-  //   3. Else (legacy client, no id, no active) the room server-assigns one (F1b fallback).
-  // A post flagged `final` (A3: the client closing a segment at a boundary) marks the encounter
-  // `ended`, so the NEXT fight rolls forward to a new encounter instead of merging. Single-WS
-  // FIFO guarantees a final(A) is delivered before the next encounter's post(B) on that socket,
-  // so B never pollutes A's board. The room (not the client) still picks the boss at build time.
+  // Slot this member's latest fight into an encounter. SLOTTING PRECEDENCE (contract item 1+2):
+  //   1. The canonical encounter key is ALWAYS `fight_ts` (the real fight-start timestamp from
+  //      the backend). The worker NEVER mints a click-time Date.now() id as the encounter key.
+  //   2. If a post carries `encounter_id` (= fight_ts), that IS the key — look it up or create it.
+  //   3. If there is already an OPEN active encounter AND the post's fight_ts matches it, merge
+  //      (multi-PC party convergence: all members' posts for the same fight share the same key).
+  //   4. Legacy fallback (no fight_ts, no encounter_id): use String(fight_ts || Date.now()) so
+  //      old clients still get bucketed rather than crashing, but this path should not be hit by
+  //      any v2+ client.
+  // A post flagged `final` marks the encounter `ended` so the NEXT fight creates a new row.
+  // The room (not the client) still picks the boss at build time.
   async postFight(user_id, username, fight_ts, targets, payload = {}) {
     this._ensureTables();
-    const activeId = await this.ctx.storage.get("active_encounter_id");
+
+    // Update last_seen so this active poster doesn't get ghost-evicted.
+    const members = (await this.ctx.storage.get("members")) || {};
+    if (members[user_id]) {
+      members[user_id].last_seen = Date.now();
+      await this.ctx.storage.put("members", members);
+    }
+
+    // Contract item 1: encounter_id from payload IS the fight_ts — honor it verbatim.
+    // Fall back to the fight_ts parameter, then to server time only as a last resort.
+    const postedId = payload.encounter_id != null
+      ? String(payload.encounter_id)
+      : fight_ts != null ? String(fight_ts) : null;
     const ts = Number(fight_ts) || Date.now();
+
+    const activeId = await this.ctx.storage.get("active_encounter_id");
 
     // Check if the active encounter is open (not ended) without loading all submissions.
     let activeEnded = true;
@@ -410,35 +529,38 @@ export class PartyRoom {
       const rows = [...this.ctx.storage.sql.exec("SELECT ended FROM encounters WHERE id = ?", activeId)];
       activeEnded = !rows.length || !!rows[0].ended;
     }
-    const activeOpen = !!(activeId && !activeEnded);
-    const postedId = payload.encounter_id != null ? String(payload.encounter_id) : null;
+    // Merge into the open active encounter ONLY if the fight_ts matches (same fight).
+    // If the posted id differs from the active id it's a NEW fight — don't merge across fights.
+    const activeOpen = !!(activeId && !activeEnded && postedId && activeId === postedId);
 
     let id;
     if (activeOpen) {
-      id = activeId; // (1) merge into the open active encounter
+      id = activeId; // (1) merge — same fight_ts, active encounter is still open
     } else if (postedId) {
       // Check if this encounter exists already
       const existing = [...this.ctx.storage.sql.exec("SELECT ended FROM encounters WHERE id = ?", postedId)];
       if (existing.length) {
-        id = postedId; // (2a) an existing encounter named by the client
+        id = postedId; // (2a) existing encounter named by fight_ts
         if (!existing[0].ended) await this.ctx.storage.put("active_encounter_id", id);
       } else {
-        id = postedId; // (2b) a fresh client-segmented encounter
+        id = postedId; // (2b) lazy-create: first submission for this fight_ts
         this.ctx.storage.sql.exec(
           "INSERT OR REPLACE INTO encounters (id, started_at, ended) VALUES (?, ?, 0)",
           id, ts
         );
         await this.ctx.storage.put("active_encounter_id", id);
-        logEvent("encounter_from_post", { encounter_id: id, by: user_id });
+        logEvent("encounter_from_fight_ts", { encounter_id: id, fight_ts: ts, by: user_id });
       }
     } else {
-      id = String(Date.now()); // (3) F1b fallback: server-assigned (no leader, no client id)
+      // (3) Legacy fallback: no fight_ts, no encounter_id — server-assign using wall clock.
+      // Should only be hit by pre-v2 clients; v2+ always carry fight_ts.
+      id = String(Date.now());
       this.ctx.storage.sql.exec(
         "INSERT OR REPLACE INTO encounters (id, started_at, ended) VALUES (?, ?, 0)",
         id, Date.now()
       );
       await this.ctx.storage.put("active_encounter_id", id);
-      logEvent("encounter_autostart", { encounter_id: id, by: user_id });
+      logEvent("encounter_autostart_legacy", { encounter_id: id, by: user_id });
     }
 
     const v = Number(payload.v) || 1; // missing v = legacy Phase-1 client
