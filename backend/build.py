@@ -47,6 +47,55 @@ PORTABLE_MARKER = "TL-DPS-Meter.portable"  # must match main.PORTABLE_MARKER
 HOWTO = HERE.parent / "HOW-TO-USE.txt"
 OVERLAY_DIR = HERE.parent / "overlay" / "src-tauri"  # Tauri party overlay (Rust)
 
+# F5 — shared party-render module. /party_render.js is the SINGLE SOURCE for the party
+# scoreboard's category labels + formatters; it is inlined into the @inject:party_render region
+# of both the base app and the overlay so they never drift. Edit party_render.js, not the copies.
+PARTY_RENDER_SRC = HERE.parent / "party_render.js"
+INJECT_TARGETS = [HERE.parent / "index.html", HERE.parent / "overlay" / "src" / "index.html"]
+INJECT_START = "@inject:party_render"
+INJECT_END = "@end:party_render"
+
+
+def _party_render_block() -> str:
+    """The injectable body of party_render.js: from the first `const PartyRender` line to EOF
+    (drops the file's own header comment), normalized to LF, trailing newline."""
+    with open(PARTY_RENDER_SRC, "r", encoding="utf-8", newline="") as fh:
+        text = fh.read().replace("\r\n", "\n")
+    idx = text.index("const PartyRender")
+    return text[idx:].rstrip("\n") + "\n"
+
+
+def inline_party_render() -> int:
+    """Inline party_render.js (single source) into the @inject:party_render region of each target
+    HTML, so base + overlay always carry the current shared module. Preserves each file's existing
+    newline style (so the 1.2MB index.html isn't reflowed). Non-fatal: warns + continues."""
+    if not PARTY_RENDER_SRC.is_file():
+        print(f"party_render.js not found — skipping inline: {PARTY_RENDER_SRC}", file=sys.stderr)
+        return 0
+    block = _party_render_block()
+    for target in INJECT_TARGETS:
+        if not target.is_file():
+            print(f"inline target missing — skipping: {target}", file=sys.stderr)
+            continue
+        with open(target, "r", encoding="utf-8", newline="") as fh:
+            raw = fh.read()  # preserve \r\n vs \n
+        nl = "\r\n" if "\r\n" in raw else "\n"
+        s = raw.find(INJECT_START)
+        e = raw.find(INJECT_END)
+        if s == -1 or e == -1 or e < s:
+            print(f"inject markers not found in {target.name} — skipping", file=sys.stderr)
+            continue
+        s_line_end = raw.index(nl, s) + len(nl)       # just after the @inject marker line
+        e_line_start = raw.rfind(nl, 0, e) + len(nl)  # start of the @end marker line
+        new = raw[:s_line_end] + block.replace("\n", nl) + raw[e_line_start:]
+        if new != raw:
+            with open(target, "w", encoding="utf-8", newline="") as fh:
+                fh.write(new)
+            print(f"inlined party_render.js -> {target.name}")
+        else:
+            print(f"party_render.js already current in {target.name}")
+    return 0
+
 
 def build_exe() -> int:
     if not SPEC.is_file():
@@ -166,6 +215,7 @@ def build_installer() -> int:
 
 
 def main(argv: list[str]) -> int:
+    inline_party_render()  # refresh the shared party_render.js into base + overlay (non-fatal)
     rc = build_overlay()   # build + bundle the Tauri overlay first (non-fatal)
     if rc != 0:
         return rc

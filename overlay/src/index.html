@@ -140,11 +140,45 @@
     const playerName = decodeURIComponent(params.get('name') || 'Overlay');
     const userId = 'ov_' + Math.random().toString(36).slice(2, 10);
 
-    const BOSS_CAT_LABELS = {
-        archboss: '👑 Archboss', field_boss: '🌍 Field Boss', world_boss: '🌍 World Boss',
-        raid_boss: '⚔️ Raid Boss', dungeon_boss: '🏰 Dungeon Boss', boss: '💀 Boss',
-        mini_boss: '☠️ Mini Boss', unknown: '🎯 Boss'
-    };
+    /* @inject:party_render — GENERATED from /party_render.js by build.py inline_party_render(); edit the SOURCE, not here */
+const PartyRender = {
+  // Pretty labels for the room's boss_category (server-side detected).
+  CATEGORY_LABELS: {
+    archboss: '👑 Archboss',
+    field_boss: '🌍 Field Boss',
+    world_boss: '🌍 World Boss',
+    raid_boss: '⚔️ Raid Boss',
+    dungeon_boss: '🏰 Dungeon Boss',
+    boss: '💀 Boss',
+    mini_boss: '☠️ Mini Boss',
+    unknown: '🎯 Boss',
+  },
+  catLabel(cat) {
+    return PartyRender.CATEGORY_LABELS[cat] || PartyRender.CATEGORY_LABELS.unknown;
+  },
+  // Plain grouped integer (e.g. 1,234,567). Used for DPS + the base view's damage column.
+  fmtNum(n) {
+    return Math.round(Number(n) || 0).toLocaleString();
+  },
+  // Compact damage (1.2M / 34.5K) — the overlay's tight layout.
+  fmtDmg(n) {
+    n = Number(n) || 0;
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    return Math.round(n).toLocaleString();
+  },
+  escapeHtml(t) {
+    const d = document.createElement('div');
+    d.textContent = t == null ? '' : t;
+    return d.innerHTML;
+  },
+};
+    /* @end:party_render */
+    // Overlay glue -> single source above (keeps existing call sites; logic lives in PartyRender).
+    const BOSS_CAT_LABELS = PartyRender.CATEGORY_LABELS;
+    const formatNumber = PartyRender.fmtNum;
+    const formatDamage = PartyRender.fmtDmg;
+    const escapeHtml = PartyRender.escapeHtml;
 
     const state = { connected: false, encounterActive: false, scoreboard: null, isLocked: false };
     let ws = null, wantOpen = false, reconnectTimer = null;
@@ -241,9 +275,7 @@
         document.getElementById('playerCount').textContent = `${entries.length} player${entries.length !== 1 ? 's' : ''}`;
     }
 
-    function formatNumber(n) { return Math.round(n).toLocaleString(); }
-    function formatDamage(n) { if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'; if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'; return Math.round(n).toLocaleString(); }
-    function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t || ''; return d.innerHTML; }
+    // formatNumber / formatDamage / escapeHtml now come from PartyRender (single source, aliased above).
 
     // ---- lock (click-through) + close — Rust owns the real click-through ----
     function applyLockUI(isLocked) {

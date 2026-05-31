@@ -24012,17 +24012,43 @@ ${attemptLine}
             renderPartyResults();
         }
         
-        // Pretty labels for the room's boss_category.
-        const PARTY_BOSS_CATEGORY_LABELS = {
-            archboss: '👑 Archboss',
-            field_boss: '🌍 Field Boss',
-            world_boss: '🌍 World Boss',
-            raid_boss: '⚔️ Raid Boss',
-            dungeon_boss: '🏰 Dungeon Boss',
-            boss: '💀 Boss',
-            mini_boss: '☠️ Mini Boss',
-            unknown: '🎯 Boss'
-        };
+        // Shared party scoreboard constants + formatters — SINGLE SOURCE is /party_render.js,
+        // inlined here (and into the overlay) by build.py. Base uses PartyRender.CATEGORY_LABELS;
+        // the base's own app-wide formatNumber/escapeHtml are intentionally left as-is.
+        /* @inject:party_render — GENERATED from /party_render.js by build.py inline_party_render(); edit the SOURCE, not here */
+const PartyRender = {
+  // Pretty labels for the room's boss_category (server-side detected).
+  CATEGORY_LABELS: {
+    archboss: '👑 Archboss',
+    field_boss: '🌍 Field Boss',
+    world_boss: '🌍 World Boss',
+    raid_boss: '⚔️ Raid Boss',
+    dungeon_boss: '🏰 Dungeon Boss',
+    boss: '💀 Boss',
+    mini_boss: '☠️ Mini Boss',
+    unknown: '🎯 Boss',
+  },
+  catLabel(cat) {
+    return PartyRender.CATEGORY_LABELS[cat] || PartyRender.CATEGORY_LABELS.unknown;
+  },
+  // Plain grouped integer (e.g. 1,234,567). Used for DPS + the base view's damage column.
+  fmtNum(n) {
+    return Math.round(Number(n) || 0).toLocaleString();
+  },
+  // Compact damage (1.2M / 34.5K) — the overlay's tight layout.
+  fmtDmg(n) {
+    n = Number(n) || 0;
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    return Math.round(n).toLocaleString();
+  },
+  escapeHtml(t) {
+    const d = document.createElement('div');
+    d.textContent = t == null ? '' : t;
+    return d.innerHTML;
+  },
+};
+        /* @end:party_render */
 
         function renderPartyResults() {
             const container = document.getElementById('partyResultsContainer');
@@ -24043,7 +24069,7 @@ ${attemptLine}
             // The room already chose THE BOSS, filtered trash, ranked members, and computed
             // each member's contribution %. We just render the one boss section.
             const bossName = escapeHtml(sb.boss || 'Boss');
-            const catLabel = PARTY_BOSS_CATEGORY_LABELS[sb.boss_category] || PARTY_BOSS_CATEGORY_LABELS.unknown;
+            const catLabel = PartyRender.catLabel(sb.boss_category);
             const totalDamage = sb.total_damage || 0;
 
             const rowsHtml = entries.map((e) => {
