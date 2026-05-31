@@ -9,7 +9,9 @@
 //   tldps-overlay.exe --code ABCD --name "Player"
 
 use std::io::Write as _;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
@@ -17,19 +19,30 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 /// Click-through state. true = locked = clicks pass through to the game.
 struct LockState(AtomicBool);
 
-/// Append one timestamped line to `overlay-debug.log` next to the exe (best-effort).
-/// This is the overlay's own debug log — it's a separate process from the main app, so
-/// it can't write to the Python tldps-debug.jsonl.
+/// Stable path for `overlay-debug.log`, set from `--logdir` (the app's data dir) so the
+/// overlay's log perma-writes ALONGSIDE the app's tldps-debug.jsonl — instead of vanishing in
+/// the bundled exe's _MEIPASS temp dir. Falls back to next-to-exe (standalone TEST-OVERLAY.bat).
+static LOG_PATH: OnceLock<PathBuf> = OnceLock::new();
+
+fn overlay_log_path() -> PathBuf {
+    if let Some(p) = LOG_PATH.get() {
+        return p.clone();
+    }
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("overlay-debug.log")))
+        .unwrap_or_else(|| PathBuf::from("overlay-debug.log"))
+}
+
+/// Append one timestamped line to the overlay debug log (best-effort). The overlay is a
+/// separate process from the app, so it can't write the Python tldps-debug.jsonl — this is
+/// its own perma-written log, unified into the app's data dir via --logdir.
 fn overlay_log(line: &str) {
     let ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis())
         .unwrap_or(0);
-    let path = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|d| d.join("overlay-debug.log")))
-        .unwrap_or_else(|| std::path::PathBuf::from("overlay-debug.log"));
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(overlay_log_path()) {
         let _ = writeln!(f, "{} {}", ms, line);
     }
 }
@@ -75,6 +88,7 @@ pub fn run() {
     let args: Vec<String> = std::env::args().collect();
     let mut code = String::new();
     let mut name = String::from("Overlay");
+    let mut logdir = String::new();
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -90,9 +104,19 @@ pub fn run() {
                     i += 1;
                 }
             }
+            "--logdir" => {
+                if i + 1 < args.len() {
+                    logdir = args[i + 1].clone();
+                    i += 1;
+                }
+            }
             _ => {}
         }
         i += 1;
+    }
+    // Perma-write the overlay log into the app's data dir (passed by open_overlay), not _MEIPASS.
+    if !logdir.is_empty() {
+        let _ = LOG_PATH.set(PathBuf::from(&logdir).join("overlay-debug.log"));
     }
     let url_path = format!(
         "index.html?code={}&name={}",

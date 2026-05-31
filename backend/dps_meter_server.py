@@ -850,7 +850,10 @@ def _h_open_overlay(s: DPSMeterServer, msg: dict) -> dict:
     name = str(msg.get("name") or "Overlay")
     import subprocess
     try:
-        s._overlay_proc = subprocess.Popen([str(exe), "--code", code, "--name", name])
+        # --logdir unifies the overlay's debug log into the app's data dir (perma-write,
+        # not the bundled exe's _MEIPASS temp). See debug protocol in the tldps skill.
+        s._overlay_proc = subprocess.Popen(
+            [str(exe), "--code", code, "--name", name, "--logdir", str(s.data_dir)])
     except OSError as exc:
         log.warning("failed to launch overlay: %s", exc)
         return {"type": "overlay_error", "error": str(exc)}
