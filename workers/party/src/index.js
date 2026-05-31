@@ -2,15 +2,29 @@
 //
 // Model (see ../../../TL-DPS-Meter-oracle/docs/WORKSTREAM-B-PARTY-REBOOT.md):
 //   - One PartyRoom Durable Object instance per party code = the authoritative room.
-//   - POST-COMBAT: members POST a completed boss-fight result; the room merges results
-//     into a ranked boss scoreboard and broadcasts it. NO per-hit streaming.
+//   - POST-COMBAT: each member POSTs its full per-target breakdown for a fight; the room
+//     identifies THE BOSS (server-side), filters trash, merges everyone's damage-to-the-boss
+//     into a ranked scoreboard, and broadcasts it. NO per-hit streaming.
+//   - Boss detection lives HERE (not the client) so it's a single source of truth, uses
+//     cross-party convergence (the target the whole party hammered), and is updatable by a
+//     `wrangler deploy` — no app reship when T&L adds bosses.
 //   - Presence = the set of connected WebSockets. Reconnect-safe via WS Hibernation.
-//   - Bounded to small parties (<=12). The room is the single source of truth.
+//   - Bounded to small parties (<=12).
 //
 // Wire protocol — see README.md.
 
 const CODE_RE = /^[A-Z0-9]{4,8}$/;
 const MAX_MEMBERS = 12;
+
+// Optional, deployable boss-name -> category map. Detection works WITHOUT this (pure
+// convergence picks the boss); this only adds a category label and disambiguates when a
+// known boss is present. Keyed by normalized (lowercased/trimmed) target name. Extend it
+// and `wrangler deploy` — no client update needed.
+const KNOWN_BOSSES = {
+  tevent: "archboss",
+  // add more as needed: "morokai": "archboss", "<field boss>": "field_boss", ...
+};
+const norm = (s) => String(s || "").trim().toLowerCase();
 
 export default {
   async fetch(request, env) {
@@ -52,8 +66,6 @@ export class PartyRoom {
 
     if (!user_id) return new Response("missing user_id", { status: 400 });
 
-    // Enforce the <=12 cap by distinct member ids (a reconnect of an existing
-    // member doesn't count against the cap).
     const members = (await this.ctx.storage.get("members")) || {};
     if (!members[user_id] && Object.keys(members).length >= MAX_MEMBERS) {
       return new Response("party full", { status: 403 });
@@ -71,7 +83,6 @@ export class PartyRoom {
     members[user_id] = { username, is_leader, joined_at: Date.now() };
     await this.ctx.storage.put("members", members);
 
-    // Snapshot to the joiner, then notify the room.
     server.send(JSON.stringify({
       type: "welcome",
       you: { user_id, username, is_leader },
@@ -95,16 +106,16 @@ export class PartyRoom {
         ws.send(JSON.stringify({ type: "pong" }));
         return;
 
-      case "post_result":
-        if (msg.result) {
-          await this.postResult(att.user_id, att.username, msg.result);
+      case "post_fight": // member's full per-target breakdown for one fight
+        if (Array.isArray(msg.targets)) {
+          await this.postFight(att.user_id, att.username, msg.fight_ts, msg.targets);
           this.broadcast(await this.buildScoreboard());
         }
         return;
 
       case "clear": // leader starts a fresh board (new pull)
         if (att.is_leader) {
-          await this.ctx.storage.put("results", {});
+          await this.ctx.storage.put("fights", {});
           this.broadcast(await this.buildScoreboard());
         }
         return;
@@ -120,8 +131,6 @@ export class PartyRoom {
 
   async webSocketClose(ws) {
     const att = ws.deserializeAttachment() || {};
-    // Offline, but keep their last result on the board until they explicitly leave
-    // or the room is cleared. Just refresh presence.
     this.broadcast(await this.buildRoster());
     this.broadcastExcept(att.user_id, { type: "member_offline", user_id: att.user_id });
   }
@@ -131,55 +140,80 @@ export class PartyRoom {
   }
 
   // --- state mutations ---
-  async postResult(user_id, username, r) {
-    const results = (await this.ctx.storage.get("results")) || {};
-    results[user_id] = {
+  // Store this member's latest fight: their full per-target breakdown. The room (not the
+  // client) decides which target is the boss at scoreboard-build time.
+  async postFight(user_id, username, fight_ts, targets) {
+    const fights = (await this.ctx.storage.get("fights")) || {};
+    fights[user_id] = {
       user_id,
       username,
-      boss: String(r.boss || "Unknown").slice(0, 80),
-      boss_category: String(r.boss_category || "other").slice(0, 32),
-      total_damage: Number(r.total_damage) || 0,
-      dps: Number(r.dps) || 0,
-      duration: Number(r.duration) || 0,
-      hits: Number(r.hits) || 0,
-      crit_rate: Number(r.crit_rate) || 0,
-      heavy_rate: Number(r.heavy_rate) || 0,
-      // fight_ts: the encounter's timestamp (epoch ms) — groups stragglers from the
-      // SAME boss kill onto one board and prevents an old straggler from flipping the
-      // active board. Falls back to now() if the client omits it.
-      fight_ts: Number(r.fight_ts) || Date.now(),
+      fight_ts: Number(fight_ts) || Date.now(),
       posted_at: Date.now(),
+      targets: targets.slice(0, 64).map((t) => ({
+        target: String(t.target || "Unknown").slice(0, 80),
+        total_damage: Number(t.total_damage) || 0,
+        dps: Number(t.dps) || 0,
+        duration: Number(t.duration) || 0,
+        hits: Number(t.hits) || 0,
+        crit_rate: Number(t.crit_rate) || 0,
+        heavy_rate: Number(t.heavy_rate) || 0,
+      })),
     };
-    await this.ctx.storage.put("results", results);
+    await this.ctx.storage.put("fights", fights);
   }
 
   async removeMember(user_id) {
     const members = (await this.ctx.storage.get("members")) || {};
-    const results = (await this.ctx.storage.get("results")) || {};
+    const fights = (await this.ctx.storage.get("fights")) || {};
     delete members[user_id];
-    delete results[user_id];
+    delete fights[user_id];
     await this.ctx.storage.put("members", members);
-    await this.ctx.storage.put("results", results);
+    await this.ctx.storage.put("fights", fights);
+  }
+
+  // --- boss detection (server-side, cross-party convergence) ---
+  // The boss is the target the party converged on: highest aggregate damage across all
+  // members' latest submissions. A KNOWN_BOSSES entry is preferred when present (and adds a
+  // category label). Trash/adds are everything that isn't the chosen boss -> excluded.
+  detectBoss(submissions) {
+    const agg = {}; // normalized target -> { name, damage }
+    for (const sub of submissions) {
+      for (const t of sub.targets) {
+        const key = norm(t.target);
+        if (!agg[key]) agg[key] = { name: t.target, damage: 0 };
+        agg[key].damage += t.total_damage;
+      }
+    }
+    const keys = Object.keys(agg);
+    if (!keys.length) return null;
+    const knownKeys = keys.filter((k) => KNOWN_BOSSES[k]);
+    const pool = knownKeys.length ? knownKeys : keys;
+    pool.sort((a, b) => agg[b].damage - agg[a].damage);
+    const bossKey = pool[0];
+    return { name: agg[bossKey].name, category: KNOWN_BOSSES[bossKey] || "unknown" };
   }
 
   // --- views ---
-  // Active board = the boss with the most recent fight_ts. Stragglers from the same
-  // kill share fight_ts -> one board. PHASE-1 SIMPLIFICATION: cross-member clock skew
-  // can misgroup edge cases; per-boss history/session view is Phase 2.
   async buildScoreboard() {
-    const results = (await this.ctx.storage.get("results")) || {};
-    const entries = Object.values(results);
-    if (!entries.length) {
-      return { type: "scoreboard", boss: null, entries: [], total_damage: 0, updated_at: Date.now() };
+    const fights = (await this.ctx.storage.get("fights")) || {};
+    const submissions = Object.values(fights);
+    const boss = this.detectBoss(submissions);
+    if (!boss) {
+      return { type: "scoreboard", boss: null, boss_category: null, entries: [], total_damage: 0, updated_at: Date.now() };
     }
-    const activeTs = Math.max(...entries.map((e) => e.fight_ts));
-    const activeBoss = entries.find((e) => e.fight_ts === activeTs).boss;
-    const board = entries.filter((e) => e.boss === activeBoss);
+    const bossKey = norm(boss.name);
+    // Each member's damage to THE BOSS (trash filtered by definition).
+    const board = [];
+    for (const sub of submissions) {
+      const hit = sub.targets.find((t) => norm(t.target) === bossKey);
+      if (hit) board.push({ ...hit, user_id: sub.user_id, username: sub.username });
+    }
     const total = board.reduce((s, e) => s + e.total_damage, 0);
     board.sort((a, b) => b.total_damage - a.total_damage);
     return {
       type: "scoreboard",
-      boss: activeBoss,
+      boss: boss.name,
+      boss_category: boss.category,
       total_damage: total,
       updated_at: Date.now(),
       entries: board.map((e, i) => ({

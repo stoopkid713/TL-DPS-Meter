@@ -2,10 +2,16 @@
 
 Cloudflare **Durable Object** party relay for TL-DPS-Meter — the owned replacement for the
 dead CK-Supabase party feature. One `PartyRoom` instance per party code is the **authoritative
-room**: members POST completed **boss-fight results** and the room broadcasts a merged, ranked
-**boss scoreboard**. Post-combat model (T&L logs flush on combat-exit) — no per-hit streaming.
+room**: members POST their **per-target breakdown** for a fight, and the room **identifies the
+boss server-side**, filters trash, and broadcasts a merged, ranked **boss scoreboard**.
+Post-combat model (T&L logs flush on combat-exit) — no per-hit streaming.
 
 Full design: `TL-DPS-Meter-oracle/docs/WORKSTREAM-B-PARTY-REBOOT.md`.
+
+## Why boss detection lives in the worker
+Single source of truth (every member sees the same boss/board), **cross-party convergence**
+(the boss is the target the whole party hammered — a better signal than any one client has),
+and **server-side updatable** (new T&L bosses → one `wrangler deploy`, no app reship).
 
 ## Wire protocol
 
@@ -13,29 +19,27 @@ Full design: `TL-DPS-Meter-oracle/docs/WORKSTREAM-B-PARTY-REBOOT.md`.
 ```
 wss://<host>/party/<CODE>?user_id=<id>&username=<name>&leader=<0|1>
 ```
-- `<CODE>` — 4–8 char uppercase alphanumeric party code.
-- Cap: **12 distinct members** per room (reconnects don't count against it).
+- `<CODE>` — 4–8 char uppercase alphanumeric party code. Cap: **12 distinct members** (reconnects free).
 
 **Client → room** (JSON text frames):
 | type | payload | meaning |
 |---|---|---|
-| `post_result` | `{ result: {...} }` | post a completed boss-fight result (see below) |
+| `post_fight` | `{ fight_ts, targets: [...] }` | post the full per-target breakdown for one completed fight |
 | `clear` | — | leader-only: wipe the board for a fresh pull |
-| `leave` | — | leave the party (removes member + their result) |
+| `leave` | — | leave the party (removes member + their data) |
 | `ping` | — | keepalive → room replies `pong` |
 
-`result` shape:
+`post_fight` shape (the client dumps ALL targets it damaged — the room picks the boss):
 ```jsonc
 {
-  "boss": "Tevent",            // target name
-  "boss_category": "archboss", // archboss|field_boss|raid_boss|dungeon_boss|...
-  "total_damage": 256000,
-  "dps": 4100.0,
-  "duration": 62.9,
-  "hits": 412,
-  "crit_rate": 42.7,
-  "heavy_rate": 18.3,
-  "fight_ts": 1735600000000   // encounter timestamp (epoch ms) — groups same-kill stragglers
+  "type": "post_fight",
+  "fight_ts": 1735600000000,        // encounter timestamp (epoch ms)
+  "targets": [
+    { "target": "Tevent", "total_damage": 300000, "dps": 4700, "duration": 63,
+      "hits": 400, "crit_rate": 42.7, "heavy_rate": 18.3 },
+    { "target": "Trash Goblin", "total_damage": 50000, "dps": 800, "duration": 63,
+      "hits": 120, "crit_rate": 30, "heavy_rate": 10 }
+  ]
 }
 ```
 
@@ -44,19 +48,21 @@ wss://<host>/party/<CODE>?user_id=<id>&username=<name>&leader=<0|1>
 |---|---|
 | `welcome` | `{ you, roster:[...], scoreboard:{...} }` — sent to the joiner |
 | `roster` | `{ members:[{user_id, username, is_leader, online}] }` |
-| `scoreboard` | `{ boss, total_damage, updated_at, entries:[{rank, user_id, username, total_damage, dps, duration, hits, crit_rate, heavy_rate, contribution}] }` |
+| `scoreboard` | `{ boss, boss_category, total_damage, updated_at, entries:[{rank, user_id, username, total_damage, dps, duration, hits, crit_rate, heavy_rate, contribution}] }` |
 | `member_joined` / `member_left` / `member_offline` | `{ user_id, username? }` |
 | `pong` | — |
 
-The **active board** is the boss with the most recent `fight_ts`; same-kill stragglers share
-`fight_ts` and merge onto one board. (Phase-1 simplification — per-boss history is Phase 2.)
+**Boss detection:** the room aggregates damage per target across all members' latest
+submissions and picks the boss = highest-aggregate-damage target (a `KNOWN_BOSSES` entry is
+preferred when present and supplies the `boss_category`). Everything that isn't the boss is
+trash → excluded from the board. (Phase-1: per-boss history/session view is Phase 2.)
 
 ## Local dev (no Cloudflare account needed)
 ```
 cd workers/party
 wrangler dev          # runs the DO locally in miniflare
+node _test-room.mjs   # 2-client integration test (with trash targets)
 ```
-Then open a WS to `ws://localhost:8787/party/TEST?user_id=u1&username=Alice`.
 
 ## Validate config/build (no auth)
 ```
@@ -67,8 +73,7 @@ wrangler deploy --dry-run
 1. **Cloudflare account** (the business account, now under the personal email).
 2. **Durable Objects:** SQLite-backed DOs are intended to be **free-tier eligible** — verify;
    only enable Workers Paid ($5/mo) if the dashboard says it's required for this worker.
-3. **CF API token** with "Edit Workers" scope → store as the GitHub Actions secret
-   `CLOUDFLARE_API_TOKEN` (the CI workflow uses it for `wrangler deploy`).
+3. **CF API token** ("Edit Workers" scope) → GitHub Actions secret `CLOUDFLARE_API_TOKEN`.
 
 ## Deploy
 `wrangler deploy` (manual) or push to `main` (CI auto-deploys — see `.github/workflows/`).
