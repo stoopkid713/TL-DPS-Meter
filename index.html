@@ -22274,6 +22274,9 @@ ${attemptLine}
                                 type: 'post_fight',
                                 v: 2,
                                 fight_ts: msg.results.fight_ts || Date.now(),
+                                // Per-encounter id (Phase 2 / A3) — the room slots the
+                                // submission under this encounter. Fall back to fight_ts.
+                                encounter_id: msg.results.encounter_id || (msg.results.fight_ts ? String(msg.results.fight_ts) : undefined),
                                 targets: msg.results.targets,
                                 summary: { total_damage: msg.results.total_damage, duration: msg.results.duration },
                                 skills: null,    // Phase 3 fills these (per-skill / rotation);
@@ -22306,24 +22309,43 @@ ${attemptLine}
                     const totals = msg.totals;
                     if (totals && totals.targets && totals.targets.length &&
                         partyWS && partyWS.readyState === WebSocket.OPEN && partyState.party_code) {
-                        if (partyLiveHitDebounce) clearTimeout(partyLiveHitDebounce);
-                        partyLiveHitDebounce = setTimeout(() => {
-                            partyLiveHitDebounce = null;
+                        const postEncounter = () => {
+                            partyWS.send(JSON.stringify({
+                                type: 'post_fight',
+                                v: 2,
+                                fight_ts: totals.fight_ts || Date.now(),
+                                // Per-encounter id (Phase 2 / A3): which encounter this board
+                                // belongs to. The backend tags it; fall back to fight_ts.
+                                encounter_id: totals.encounter_id || (totals.fight_ts ? String(totals.fight_ts) : undefined),
+                                targets: totals.targets,
+                                summary: { total_damage: totals.total_damage, duration: totals.duration },
+                                skills: null,
+                                rotation: null
+                            }));
+                        };
+                        if (msg.final) {
+                            // A boundary just closed this encounter — post its authoritative
+                            // board NOW (don't debounce; the next encounter is already arming).
+                            if (partyLiveHitDebounce) { clearTimeout(partyLiveHitDebounce); partyLiveHitDebounce = null; }
                             try {
-                                partyWS.send(JSON.stringify({
-                                    type: 'post_fight',
-                                    v: 2,
-                                    fight_ts: totals.fight_ts || Date.now(),
-                                    targets: totals.targets,
-                                    summary: { total_damage: totals.total_damage, duration: totals.duration },
-                                    skills: null,
-                                    rotation: null
-                                }));
-                                partyDebug('party.live_post', { targets: totals.targets.length });
+                                postEncounter();
+                                partyDebug('party.live_post.final', { encounter_id: totals.encounter_id, targets: totals.targets.length });
                             } catch (err) {
                                 partyDebug('party.live_post.error', { err: String(err) });
                             }
-                        }, 1200);
+                        } else {
+                            // Live hydration: coalesce the flush-burst into ONE post.
+                            if (partyLiveHitDebounce) clearTimeout(partyLiveHitDebounce);
+                            partyLiveHitDebounce = setTimeout(() => {
+                                partyLiveHitDebounce = null;
+                                try {
+                                    postEncounter();
+                                    partyDebug('party.live_post', { encounter_id: totals.encounter_id, targets: totals.targets.length });
+                                } catch (err) {
+                                    partyDebug('party.live_post.error', { err: String(err) });
+                                }
+                            }, 1200);
+                        }
                     }
                 }
                 else if (msg.type === 'party_stats_reset') {

@@ -96,6 +96,10 @@ class DPSMeterServer:
         # is what makes reset a reliable line in the sand. None = accept everything.
         self.reset_after_timestamp = None
         self.party = PartyState()
+        # Snapshot of the merged target→category map for the active party recording,
+        # so per-hit boundary detection (A3) doesn't rebuild it from disk every hit.
+        # Populated when recording starts; None falls back to a lazy build.
+        self._party_assignments: Optional[dict[str, str]] = None
         self._overlay_proc: Optional[Any] = None  # spawned tldps-overlay.exe (Tauri)
         self.clients: set[Any] = set()
         self._server: Optional[Any] = None
@@ -247,25 +251,57 @@ class DPSMeterServer:
                         buffer_hits=len(self.stats.hits),
                         first_ts=str(self.stats.first_ts), last_ts=str(self.stats.last_ts))
 
+    def _party_category(self, target: str) -> str:
+        """Category for ``target`` from the recording's cached assignments (A3).
+
+        Lazily snapshots the merged map if a recording armed without one (e.g. a
+        direct ``record_hit`` path in tests). Falls back to ``"other"`` for any
+        unmapped target — the same default the file-history path uses.
+        """
+        if self._party_assignments is None:
+            self._party_assignments = self._effective_target_assignments()
+        return self._party_assignments.get(target, "other")
+
     def _record_party_hit(self, partial: dict) -> None:
-        """Fold one hit into the party accumulator and emit ``party_live_hit``."""
+        """Fold one hit into the party accumulator and emit ``party_live_hit``.
+
+        Phase 2 / A3: pass the target's category so the accumulator can segment on a
+        gap/wipe boundary (rule #3). The emitted ``totals`` carry the **current**
+        encounter's ``encounter_id`` so the frontend posts each fight under the right
+        id. When a boundary closes the previous encounter, emit a ``final`` frame for
+        it first so its board is posted authoritatively before the new one hydrates.
+        """
+        category = self._party_category(partial["target"])
+        prev = self.party.current
         self.party.record_hit(
             target=partial["target"],
             damage=partial["damage"],
             is_crit=partial["is_crit"],
             is_heavy=partial["is_heavy"],
             hit_time=partial["_timestamp"],
+            category=category,
         )
-        self._emit({
-            "type": "party_live_hit",
-            "hit": {
-                "target": partial["target"],
-                "damage": partial["damage"],
-                "is_crit": partial["is_crit"],
-                "is_heavy": partial["is_heavy"],
-            },
-            "totals": self.party.get_results(),
-        })
+        cur = self.party.current
+
+        hit = {
+            "target": partial["target"],
+            "damage": partial["damage"],
+            "is_crit": partial["is_crit"],
+            "is_heavy": partial["is_heavy"],
+        }
+
+        # Boundary crossed: the previous encounter just closed. Emit its final board
+        # (flagged so the frontend posts it immediately, bypassing the live debounce)
+        # before the new encounter starts hydrating.
+        if prev is not None and cur is not prev:
+            closed = prev.results()
+            closed["encounter_id"] = prev.encounter_id
+            self._emit({"type": "party_live_hit", "hit": hit,
+                        "totals": closed, "final": True})
+
+        totals = self.party.get_results()
+        totals["encounter_id"] = cur.encounter_id if cur else None
+        self._emit({"type": "party_live_hit", "hit": hit, "totals": totals})
 
     def _emit(self, payload: dict) -> None:
         """Schedule a broadcast of ``payload`` on the event loop, from any thread.
@@ -793,12 +829,15 @@ def _h_test_hotkey(s: DPSMeterServer, msg: dict) -> dict:
 def _h_party_start_recording(s: DPSMeterServer, msg: dict) -> dict:
     """Arm party recording (optional ``party_code``); reply with live status."""
     s.party.start_recording(msg.get("party_code"))
+    # Snapshot the category map once for this recording's boundary detection (A3).
+    s._party_assignments = s._effective_target_assignments()
     return {"type": "party_recording_started", "status": s.party.get_status()}
 
 
 def _h_party_stop_recording(s: DPSMeterServer, msg: dict) -> dict:
-    """Disarm recording; reply with the final results + status."""
+    """Disarm recording; reply with the final results + status (current encounter)."""
     results = s.party.stop_recording()
+    results["encounter_id"] = s.party.current.encounter_id if s.party.current else None
     return {"type": "party_recording_stopped",
             "results": results, "status": s.party.get_status()}
 
