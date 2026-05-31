@@ -22930,8 +22930,8 @@ ${attemptLine}
             if (window.ckOverlay?.togglePartyOverlay) {
                 window.ckOverlay.togglePartyOverlay({ code, name, leader: isLeader });
             } else {
-                // Server doesn't track toggle state, just open
-                sendCommand('open_overlay', { code, name, leader: isLeader });
+                // Server tracks the overlay process and toggles it (open if closed, close if open).
+                sendCommand('toggle_overlay', { code, name, leader: isLeader });
             }
         }
 

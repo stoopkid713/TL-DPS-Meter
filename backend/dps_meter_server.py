@@ -864,6 +864,17 @@ def _h_close_overlay(s: DPSMeterServer, msg: dict) -> dict:
     return {"type": "overlay_closed"}
 
 
+def _h_toggle_overlay(s: DPSMeterServer, msg: dict) -> dict:
+    """True toggle for the 'Toggle Overlay' button: close it if it's currently open,
+    otherwise open it. (If the user closed it via its own ✕, the process is gone and
+    this opens a fresh one.)"""
+    proc = getattr(s, "_overlay_proc", None)
+    if proc is not None and proc.poll() is None:
+        _kill_overlay(s)
+        return {"type": "overlay_closed"}
+    return _h_open_overlay(s, msg)
+
+
 # --- GUI / system commands -------------------------------------------------
 def _h_open_logs_folder(s: DPSMeterServer, msg: dict) -> Optional[dict]:
     """Open the combat-log directory in the OS file browser.
@@ -1016,6 +1027,7 @@ HANDLERS: dict[str, Callable[[DPSMeterServer, dict], Optional[dict]]] = {
     "client_debug": _h_client_debug,
     "open_overlay": _h_open_overlay,
     "close_overlay": _h_close_overlay,
+    "toggle_overlay": _h_toggle_overlay,
 }
 
 
