@@ -1,15 +1,21 @@
-"""Multi-client party simulator (dev tool, gitignored).
+"""Multi-client party simulator (tracked dev tool).
 
 Mimic N party members hitting the LIVE Cloudflare room from ONE machine, fed by a real
 combat log — so we can test the merged board + live hydration without a second PC.
 
-Three modes (all feed the bots from a real combat log; members are scaled so they rank
-distinctly):
+Three log-fed modes (members are scaled so they rank distinctly):
   --live    LIVE-tail your log: while the run is active the bots post your GROWING totals as
             TL flushes new lines — so data lands when YOUR fights do. Closest to real players
             fighting alongside you. (Recommended.)
   (default) reactive: replay a one-time log snapshot in climbing slices when the leader Starts.
   --now     post a snapshot immediately, ignoring leader Start/Stop (quick board check).
+
+Plus a scripted multi-boss verification harness (no log needed):
+  --multiboss  drive Tevent #1 -> Morokai -> Tevent #2 (a wipe-retry of the same boss) as THREE
+               distinct per-encounter posts (Phase 2 / A6), then assert the room enumerates 3
+               encounters (duplicate boss kept distinct) with merged boards. Prints PASS/FAIL and
+               exits non-zero on failure. If no party code is given it generates a fresh one and
+               prints it — join that code in the app to watch the encounter switcher populate.
 
 Watch it: open the real app (or the overlay) joined to the SAME party code → Bot1..BotN
 appear alongside you and hydrate as you fight (live mode) or on Start (reactive).
@@ -27,7 +33,9 @@ import argparse
 import asyncio
 import json
 import os
+import random
 import sys
+import time
 from pathlib import Path
 
 import websockets
@@ -199,7 +207,140 @@ async def member(host: str, code: str, idx: int, base: list[dict], rounds: int,
         print(f"  {name} error: {exc}", file=sys.stderr)
 
 
+# ---------------------------------------------------------------------------
+# --multiboss: scripted per-encounter verification harness (Phase 2 / A6)
+# ---------------------------------------------------------------------------
+# Three encounters in order: Tevent (kill) -> Morokai (kill) -> Tevent again (wipe-retry).
+# Each carries a dominant boss + a trash target (so trash-filtering is exercised too). The two
+# Tevent attempts get DISTINCT encounter_ids => the room must keep them as separate encounters.
+MULTIBOSS_SCENARIO = [
+    ("Tevent",  [300000, 100000], 40000),   # A#1
+    ("Morokai", [250000,  90000], 30000),   # B
+    ("Tevent",  [280000, 110000], 50000),   # A#2 (wipe-retry of A)
+]
+
+
+def _gen_code() -> str:
+    return "MB" + "".join(random.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(2))
+
+
+def _mb_targets(boss: str, boss_dmg: int, trash_dmg: int) -> list[dict]:
+    return [
+        {"target": boss, "total_damage": boss_dmg, "dps": round(boss_dmg / 60, 1),
+         "duration": 60, "hits": 300, "crit_rate": 40, "heavy_rate": 18},
+        {"target": "Trash Pack", "total_damage": trash_dmg, "dps": round(trash_dmg / 60, 1),
+         "duration": 60, "hits": 80, "crit_rate": 25, "heavy_rate": 8},
+    ]
+
+
+async def _mb_post(ws, eid: str, targets: list[dict], final: bool) -> None:
+    summary = {"total_damage": sum(t["total_damage"] for t in targets),
+               "duration": max((t["duration"] for t in targets), default=0)}
+    await ws.send(json.dumps({"type": "post_fight", "v": 2, "fight_ts": int(eid),
+                              "encounter_id": eid, "final": final,
+                              "targets": targets, "summary": summary,
+                              "skills": None, "rotation": None}))
+
+
+async def run_multiboss(host: str, code: str, members: int, delay: float) -> int:
+    members = max(2, min(members, 6))
+    print(f"MULTIBOSS -> {host}/party/{code}  ({members} bots)")
+    print("  scripted: Tevent #1 -> Morokai -> Tevent #2 (wipe-retry) = 3 encounters")
+    print(f"  join '{code}' in the app to watch the switcher populate.")
+
+    conns = []
+    for i in range(1, members + 1):
+        ws = await websockets.connect(
+            f"{host}/party/{code}?user_id=mb{i}&username=Bot{i}&leader=0", max_size=None)
+        conns.append(ws)
+
+    boards: dict[str, dict] = {}                  # encounter_id -> latest scoreboard
+    encs = {"list": [], "active_id": None}
+    stop = {"v": False}
+
+    async def reader():
+        try:
+            async for raw in conns[0]:
+                try:
+                    m = json.loads(raw)
+                except Exception:
+                    continue
+                if m.get("type") == "scoreboard" and m.get("encounter_id"):
+                    boards[m["encounter_id"]] = m
+                elif m.get("type") == "encounters":
+                    encs["list"] = m.get("list", [])
+                    encs["active_id"] = m.get("active_id")
+                if stop["v"]:
+                    break
+        except Exception:
+            pass
+
+    rtask = asyncio.create_task(reader())
+
+    base = int(time.time() * 1000)
+    ids: list[str] = []
+    for k, (boss, dmgs, trash) in enumerate(MULTIBOSS_SCENARIO):
+        eid = str(base + k * 60000)             # distinct, ascending, plausible (epoch-ms)
+        ids.append(eid)
+        # every bot posts its share (opens/merges into the active encounter), then bot1
+        # posts a `final` to FILE it so the next boss rolls to a fresh encounter.
+        for i, ws in enumerate(conns):
+            bd = dmgs[i] if i < len(dmgs) else dmgs[-1] // 2
+            await _mb_post(ws, eid, _mb_targets(boss, bd, trash), final=False)
+            await asyncio.sleep(0.15)
+        await _mb_post(conns[0], eid, _mb_targets(boss, dmgs[0], trash), final=True)
+        print(f"  posted encounter {k + 1}/3: {boss} (id ...{eid[-4:]})")
+        await asyncio.sleep(delay)
+
+    await asyncio.sleep(1.0)                     # let the final `encounters` broadcast land
+    stop["v"] = True
+    rtask.cancel()
+
+    # --- assertions ---
+    ok = True
+
+    def check(c, label):
+        nonlocal ok
+        print(("PASS" if c else "FAIL") + " - " + label)
+        if not c:
+            ok = False
+
+    lst = encs["list"]
+    got_ids = [e.get("encounter_id") for e in lst]
+    bosses = sorted(e.get("boss") for e in lst if e.get("boss"))
+    check(len(lst) == 3, f"exactly 3 encounters (got {len(lst)})")
+    check(bosses.count("Tevent") == 2 and bosses.count("Morokai") == 1,
+          f"2 Tevent + 1 Morokai (duplicate boss kept distinct); got {bosses}")
+    check(ids[0] in got_ids and ids[2] in got_ids and ids[0] != ids[2],
+          "Tevent #1 and #2 are distinct encounters")
+    for e in lst:
+        check(e.get("entries_n") == members, f"{e.get('boss')} board has {members} members")
+    for e in lst:
+        sb = boards.get(e.get("encounter_id"))
+        if sb and sb.get("entries"):
+            s = sum(x.get("contribution", 0) for x in sb["entries"])
+            check(abs(s - 100) <= 1.0, f"{e.get('boss')} contributions sum ~100 (got {s})")
+        else:
+            check(False, f"{e.get('boss')} board cached for assertion")
+
+    for ws in conns:
+        try:
+            await ws.close()
+        except Exception:
+            pass
+    print("\n" + ("MULTIBOSS PASS" if ok else "MULTIBOSS FAILURES")
+          + f"  (encounters persist in room {code} for app review)")
+    return 0 if ok else 1
+
+
 async def main_async(args) -> int:
+    if args.multiboss:
+        code = (args.code or _gen_code()).upper()
+        return await run_multiboss(args.host, code, args.members, args.delay)
+    if not args.code:
+        print("A party code is required (create/join it in the app first).", file=sys.stderr)
+        return 2
+
     log_path = Path(args.log) if args.log else find_default_log()
     if not log_path or not log_path.is_file():
         print("No combat log found. Pass --log <path to a TLCombatLog-*.txt>.", file=sys.stderr)
@@ -235,7 +376,9 @@ async def main_async(args) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Simulate N party members against the live room.")
-    ap.add_argument("code", help="party code to join (create/join it in the app first)")
+    ap.add_argument("code", nargs="?", default="",
+                    help="party code to join (create/join it in the app first; "
+                         "optional with --multiboss, which generates one)")
     ap.add_argument("--members", type=int, default=4)
     ap.add_argument("--log", default="")
     ap.add_argument("--rounds", type=int, default=5, help="reactive mode: slices to climb over")
@@ -245,6 +388,8 @@ def main() -> int:
                     help="LIVE-tail the log: bots mirror your real combat as it flushes (most realistic)")
     ap.add_argument("--now", action="store_true",
                     help="post a snapshot immediately, ignoring leader Start/Stop (quick board check)")
+    ap.add_argument("--multiboss", action="store_true",
+                    help="scripted 3-encounter verification (Tevent #1 / Morokai / Tevent #2) + assertions")
     args = ap.parse_args()
     try:
         return asyncio.run(main_async(args))
