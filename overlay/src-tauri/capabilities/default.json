@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Overlay window: core defaults (events for lock-changed) + global shortcut.",
+  "windows": ["overlay"],
+  "permissions": [
+    "core:default",
+    "global-shortcut:default"
+  ]
+}

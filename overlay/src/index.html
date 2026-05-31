@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Party DPS Overlay</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* Transparent root so the Tauri/WebView2 window shows through where we don't paint.
+           The visible panel is .overlay's own translucent background. */
+        html, body { background: transparent; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: #e2e8f0;
+            height: 100vh;
+            overflow: hidden;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        /* "solid background" fallback (research §3): if a machine hits the WebView2/Chromium
+           black-box transparency bug, body.solid-bg paints an opaque panel so it's still usable. */
+        body.solid-bg { background: #0b1220; }
+
+        .overlay {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 10px;
+            background: rgba(15, 23, 42, 0.82);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            border-radius: 10px;
+        }
+
+        /* Header — draggable region (Tauri data-tauri-drag-region) */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 8px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+        .title { font-size: 13px; font-weight: 600; color: #94a3b8; display: flex; align-items: center; gap: 6px; }
+        .party-code { background: rgba(34, 211, 238, 0.2); color: #22d3ee; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+        .status { display: flex; align-items: center; gap: 5px; font-size: 10px; color: #94a3b8; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; }
+        .status-dot.connected { background: #22c55e; box-shadow: 0 0 6px rgba(34, 197, 94, 0.5); }
+        .status-dot.recording { background: #ef4444; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .controls { display: flex; gap: 3px; }
+        .controls button { background: rgba(255,255,255,0.1); border: none; color: #94a3b8; width: 24px; height: 24px; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+        .controls button:hover { background: rgba(255,255,255,0.2); color: #e2e8f0; }
+
+        /* Boss header (replaces the old per-target filter — the room picks THE boss) */
+        .boss-bar { display: flex; align-items: center; gap: 6px; padding: 5px 8px; margin-bottom: 8px; background: rgba(0,0,0,0.25); border-radius: 5px; font-size: 12px; }
+        .boss-cat { color: #fbbf24; font-weight: 600; white-space: nowrap; }
+        .boss-name { color: #e2e8f0; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .boss-total { color: #64748b; font-size: 11px; white-space: nowrap; }
+
+        .results { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
+        .result-row { display: grid; grid-template-columns: 24px 1fr 60px 55px; gap: 6px; align-items: center; padding: 7px 8px; background: rgba(0,0,0,0.3); border-radius: 5px; }
+        .result-row.self { background: rgba(34, 211, 238, 0.15); border: 1px solid rgba(34, 211, 238, 0.3); }
+        .rank { font-weight: 700; font-size: 13px; color: #64748b; text-align: center; }
+        .rank.gold { color: #fbbf24; } .rank.silver { color: #94a3b8; } .rank.bronze { color: #cd7f32; }
+        .player-info { min-width: 0; }
+        .player-name { font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pct { color: #64748b; font-weight: 400; font-size: 11px; margin-left: 4px; }
+        .damage-bar { height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; margin-top: 3px; overflow: hidden; }
+        .damage-bar-fill { height: 100%; background: linear-gradient(90deg, #22d3ee, #a78bfa); border-radius: 2px; transition: width 0.3s ease; }
+        .result-row.self .damage-bar-fill { background: linear-gradient(90deg, #22d3ee, #06b6d4); }
+        .dps { text-align: right; font-weight: 700; font-size: 13px; color: #22d3ee; }
+        .damage { text-align: right; font-size: 11px; color: #94a3b8; }
+
+        .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; color: #64748b; font-size: 12px; text-align: center; gap: 6px; }
+        .empty-icon { font-size: 28px; opacity: 0.5; }
+
+        .footer { display: flex; justify-content: space-between; align-items: center; padding-top: 6px; margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 10px; color: #64748b; }
+        .lock-hint { background: rgba(34, 211, 238, 0.15); padding: 2px 6px; border-radius: 3px; color: #22d3ee; }
+
+        .lock-indicator { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; display: none; z-index: 1000; pointer-events: none; }
+        .lock-indicator.show { display: block; animation: fadeOut 1.5s forwards; }
+        @keyframes fadeOut { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
+    </style>
+</head>
+<body class="">
+    <div class="overlay">
+        <div class="header" data-tauri-drag-region>
+            <div class="title" data-tauri-drag-region>
+                👥 <span class="party-code" id="partyCode">----</span>
+            </div>
+            <div class="header-right">
+                <div class="status">
+                    <span class="status-dot" id="statusDot"></span>
+                    <span id="statusText">Connecting...</span>
+                </div>
+                <div class="controls">
+                    <button onclick="toggleLock()" title="Toggle click-through (Ctrl+Shift+O)" id="lockBtn">🔒</button>
+                    <button onclick="closeOverlay()" title="Close overlay">✕</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- The room chooses THE boss server-side; we just label it. -->
+        <div class="boss-bar" id="bossBar" style="display:none;">
+            <span class="boss-cat" id="bossCat">🎯 Boss</span>
+            <span class="boss-name" id="bossName">—</span>
+            <span class="boss-total" id="bossTotal"></span>
+        </div>
+
+        <div class="results" id="results">
+            <div class="empty"><div class="empty-icon">⏳</div><div>Waiting for data...</div></div>
+        </div>
+
+        <div class="footer">
+            <span id="playerCount">0 players</span>
+            <span class="lock-hint" id="lockHint">Ctrl+Shift+O to lock</span>
+        </div>
+    </div>
+
+    <div class="lock-indicator" id="lockIndicator"></div>
+
+    <script>
+    // ===== Owned-room spectator overlay (Workstream B) =====
+    // Read-only WS to the Cloudflare PartyRoom; the room sends the merged boss scoreboard.
+    // Runs in Tauri (transparent window + Rust click-through) OR a plain browser (for testing).
+    const PARTY_WS_BASE = 'wss://tldps-party.kyle-526.workers.dev';
+
+    const params = new URLSearchParams(window.location.search);
+    const partyCode = (params.get('code') || '').toUpperCase();
+    const playerName = decodeURIComponent(params.get('name') || 'Overlay');
+    const userId = 'ov_' + Math.random().toString(36).slice(2, 10);
+
+    const BOSS_CAT_LABELS = {
+        archboss: '👑 Archboss', field_boss: '🌍 Field Boss', world_boss: '🌍 World Boss',
+        raid_boss: '⚔️ Raid Boss', dungeon_boss: '🏰 Dungeon Boss', boss: '💀 Boss',
+        mini_boss: '☠️ Mini Boss', unknown: '🎯 Boss'
+    };
+
+    const state = { connected: false, encounterActive: false, scoreboard: null, isLocked: false };
+    let ws = null, wantOpen = false, reconnectTimer = null;
+
+    document.getElementById('partyCode').textContent = partyCode || '----';
+
+    // ---- Tauri / browser bridge (graceful in a plain browser) ----
+    const TAURI = window.__TAURI__ || null;
+    function tauriInvoke(cmd) { try { if (TAURI?.core?.invoke) return TAURI.core.invoke(cmd); } catch (e) {} return null; }
+
+    function connect() {
+        if (!partyCode) { updateStatus('error', 'No party code'); return; }
+        wantOpen = true;
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+        if (ws) { try { ws.onclose = null; ws.close(); } catch (e) {} ws = null; }
+        const qs = new URLSearchParams({ user_id: userId, username: playerName, leader: '0', spectator: '1' });
+        try { ws = new WebSocket(`${PARTY_WS_BASE}/party/${encodeURIComponent(partyCode)}?${qs.toString()}`); }
+        catch (e) { updateStatus('error', 'Error'); return; }
+
+        ws.onopen = () => { state.connected = true; updateStatus(state.encounterActive ? 'recording' : 'connected', state.encounterActive ? '● REC' : 'Connected'); };
+        ws.onmessage = (ev) => {
+            let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+            switch (m.type) {
+                case 'welcome':
+                    state.scoreboard = m.scoreboard || null;
+                    state.encounterActive = !!m.encounter_active;
+                    render(); updateStatus(state.encounterActive ? 'recording' : 'connected', state.encounterActive ? '● REC' : 'Connected');
+                    break;
+                case 'scoreboard': state.scoreboard = m; render(); break;
+                case 'encounter_start': state.encounterActive = true; updateStatus('recording', '● REC'); break;
+                case 'encounter_end': state.encounterActive = false; updateStatus('connected', 'Connected'); break;
+            }
+        };
+        ws.onerror = () => {};
+        ws.onclose = () => {
+            state.connected = false; updateStatus('error', 'Reconnecting…');
+            if (!wantOpen) return;
+            reconnectTimer = setTimeout(() => { if (wantOpen) connect(); }, 2000);
+        };
+    }
+
+    function updateStatus(type, text) {
+        const dot = document.getElementById('statusDot');
+        dot.className = 'status-dot';
+        if (type === 'connected') dot.classList.add('connected');
+        if (type === 'recording') dot.classList.add('connected', 'recording');
+        document.getElementById('statusText').textContent = text;
+    }
+
+    function render() {
+        const container = document.getElementById('results');
+        const sb = state.scoreboard;
+        const entries = (sb && Array.isArray(sb.entries)) ? sb.entries : [];
+        const bossBar = document.getElementById('bossBar');
+
+        if (entries.length === 0) {
+            bossBar.style.display = 'none';
+            container.innerHTML = `<div class="empty"><div class="empty-icon">${state.encounterActive ? '⚔️' : '⏳'}</div><div>${state.encounterActive ? 'Recording — results post on combat exit' : 'Waiting for data...'}</div></div>`;
+            document.getElementById('playerCount').textContent = '0 players';
+            return;
+        }
+
+        bossBar.style.display = 'flex';
+        document.getElementById('bossCat').textContent = BOSS_CAT_LABELS[sb.boss_category] || BOSS_CAT_LABELS.unknown;
+        document.getElementById('bossName').textContent = sb.boss || 'Boss';
+        document.getElementById('bossTotal').textContent = formatDamage(sb.total_damage || 0) + ' total';
+
+        let html = '';
+        entries.forEach((e) => {
+            const rank = e.rank || 1;
+            const pct = (typeof e.contribution === 'number') ? e.contribution : 0;
+            const isSelf = e.username === playerName;
+            let rankClass = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
+            html += `
+                <div class="result-row ${isSelf ? 'self' : ''}">
+                    <div class="rank ${rankClass}">${rank}</div>
+                    <div class="player-info">
+                        <div class="player-name">${escapeHtml(e.username)}<span class="pct">${pct.toFixed(0)}%</span></div>
+                        <div class="damage-bar"><div class="damage-bar-fill" style="width:${pct.toFixed(1)}%"></div></div>
+                    </div>
+                    <div class="dps">${formatNumber(e.dps || 0)}</div>
+                    <div class="damage">${formatDamage(e.total_damage || 0)}</div>
+                </div>`;
+        });
+        container.innerHTML = html;
+        document.getElementById('playerCount').textContent = `${entries.length} player${entries.length !== 1 ? 's' : ''}`;
+    }
+
+    function formatNumber(n) { return Math.round(n).toLocaleString(); }
+    function formatDamage(n) { if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'; if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'; return Math.round(n).toLocaleString(); }
+    function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t || ''; return d.innerHTML; }
+
+    // ---- lock (click-through) + close — Rust owns the real click-through ----
+    function applyLockUI(isLocked) {
+        state.isLocked = isLocked;
+        document.getElementById('lockBtn').textContent = isLocked ? '🔓' : '🔒';
+        document.getElementById('lockHint').textContent = isLocked ? 'Ctrl+Shift+O to interact' : 'Click-through OFF';
+        const ind = document.getElementById('lockIndicator');
+        ind.textContent = isLocked ? '🔓 Locked (click-through)' : '🔒 Unlocked';
+        ind.classList.remove('show'); void ind.offsetWidth; ind.classList.add('show');
+    }
+    function toggleLock() {
+        if (TAURI) { tauriInvoke('toggle_lock'); }   // Rust flips setIgnoreCursorEvents + emits 'lock-changed'
+        else { applyLockUI(!state.isLocked); }        // browser test fallback
+    }
+    function closeOverlay() {
+        if (TAURI) { tauriInvoke('close_overlay'); }
+        else { window.close(); }
+    }
+    // Rust emits 'lock-changed' (true/false) when the hotkey or button toggles.
+    if (TAURI?.event?.listen) { TAURI.event.listen('lock-changed', (e) => applyLockUI(!!e.payload)); }
+
+    connect();
+    </script>
+</body>
+</html>

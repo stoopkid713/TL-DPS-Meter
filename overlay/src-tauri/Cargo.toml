@@ -1,0 +1,19 @@
+[package]
+name = "tldps-overlay"
+version = "0.1.0"
+description = "TL-DPS-Meter party overlay (transparent, click-through, always-on-top)"
+edition = "2021"
+
+[lib]
+name = "tldps_overlay_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["devtools"] }
+tauri-plugin-global-shortcut = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+urlencoding = "2"

@@ -26,3 +26,8 @@ __pycache__/
 
 # Local tooling (Claude Code preview config, etc.) — not shipped
 .claude/
+
+# Tauri overlay (Rust) build artifacts + generated files
+overlay/src-tauri/target/
+overlay/src-tauri/gen/
+
