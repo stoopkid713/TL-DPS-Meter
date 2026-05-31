@@ -27,12 +27,20 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
+from encounter_boundary import (
+    ADDS_GAP_THRESHOLD as _ADDS_GAP_THRESHOLD,
+    BOSS_CATEGORIES as _BOSS_CATEGORIES,
+    BOSS_GAP_THRESHOLD as _BOSS_GAP_THRESHOLD,
+    OTHER_GAP_THRESHOLD as _OTHER_GAP_THRESHOLD,
+    category_for_target,
+    gap_threshold_for_category,
+)
+
 # Category routing (disasm L1690-1848): archboss -> same-day grouping; the three
 # boss categories -> 45s gap split; adds -> 30s; everything else -> 30s gap split.
-_BOSS_CATEGORIES = ("raid_boss", "field_boss", "dungeon_boss")
-_BOSS_GAP_THRESHOLD = 45
-_OTHER_GAP_THRESHOLD = 30
-_ADDS_GAP_THRESHOLD = 30
+# The thresholds + category lookup now live in ``encounter_boundary`` (shared with
+# the live party-segmentation path); re-exported here under their original private
+# names so existing references stay valid.
 
 # Details window around the requested start_time (disasm L693-694).
 _DETAILS_WINDOW_BEFORE = timedelta(seconds=10)
@@ -195,22 +203,23 @@ def parse_encounters_from_log(log_file_path: Optional[Path],
                 hits_by_target[target_name].append({"timestamp": timestamp, "damage": damage})
 
         encounters: list[dict] = []
-        assignments = target_assignments.get("assignments", {})
         for target_name, hits in hits_by_target.items():
             if len(hits) == 0:
                 continue
             hits.sort(key=lambda h: h["timestamp"])
-            category = assignments.get(target_name, "other")
+            category = category_for_target(target_name, target_assignments)
             if category == "archboss":
                 encounters_for_target = parse_archboss_encounters(target_name, hits, category)
             elif category in _BOSS_CATEGORIES:
                 encounters_for_target = parse_boss_encounters(
-                    target_name, hits, category, gap_threshold=_BOSS_GAP_THRESHOLD)
+                    target_name, hits, category,
+                    gap_threshold=gap_threshold_for_category(category))
             elif category == "adds":
                 encounters_for_target = parse_adds_encounters(target_name, hits, category)
             else:
                 encounters_for_target = parse_boss_encounters(
-                    target_name, hits, category, gap_threshold=_OTHER_GAP_THRESHOLD)
+                    target_name, hits, category,
+                    gap_threshold=gap_threshold_for_category(category))
             encounters.extend(encounters_for_target)
 
         encounters.sort(key=lambda e: e["end_time"], reverse=True)
