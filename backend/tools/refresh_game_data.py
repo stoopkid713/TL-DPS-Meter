@@ -7,16 +7,18 @@ KNOWN_BOSSES, dungeons.json) GENERATED so the layers can never drift.
 Full design + the reverse-engineered API map: TL-DPS-Meter-oracle/docs/WORKSTREAM-GAME-DATA-REFRESH.md
 
 The full workflow is pull -> extract -> reconcile -> diff -> review-gate -> regenerate -> verify,
-built in gated segments. THIS FILE currently implements **G1 + G2 (pull/extract + reconcile/diff,
-read-only)**:
+built in gated segments. THIS FILE currently implements **G1 + G2 + G3**:
   * G1: the questlog tRPC pull layer (GET, no auth, raw `input`), the questlog-mainCategory ->
     meter-weapon-slug map (the 11 existing UI cards), combat-log token normalization + the
-    multi-feed skill->weapon extractor (recipe doc S7).
+    multi-feed skill->weapon extractor (recipe doc S7). Masteries (feed #4) map to their
+    mainCategory weapon, not a catch-all 'mastery' bucket.
   * G2: fuzzy reconcile of the extracted map vs the meter's skillAssignments + a boss-name diff
     vs default_target_assignments.json, emitted as a human-readable patch diff (`--report`).
-Later segments regenerate skills (G3) and derive bosses/dungeons (G4).
+  * G3: regenerate skills_canonical.json from feeds + curated overlay, then DERIVE
+    weapon_config.json skillAssignments from canonical so the layers can never drift.
+G4 (next) regenerates boss/dungeon derived files (worker KNOWN_BOSSES, dungeons.json).
 
-CLI (read-only; never touches canonical or derived files):
+CLI:
   py backend/tools/refresh_game_data.py --counts
       live-probe every feed and print record counts (the cheapest gate check).
   py backend/tools/refresh_game_data.py --dump [DIR] [--passives]
@@ -26,6 +28,12 @@ CLI (read-only; never touches canonical or derived files):
   py backend/tools/refresh_game_data.py --report [--passives]
       pull every feed live, reconcile against canonical (weapon_config.json skillAssignments +
       default_target_assignments.json), and print the human-readable patch diff (read-only).
+  py backend/tools/refresh_game_data.py --regenerate [--cache DIR] [--passives] [--dry-run]
+      G3: pull feeds (or load from cache), write skills_canonical.json, then derive
+      weapon_config.json skillAssignments. Stamps last_updated + patch.
+      --cache DIR   load raw feeds from DIR instead of pulling live (fast; default: _refresh_cache/).
+      --passives    also fold in weapon-item passives (feed #5; slow when pulling live).
+      --dry-run     show what would change, write nothing.
 
 Run with the venv python (stdlib-only; no third-party deps):
   backend/.venv/Scripts/python.exe backend/tools/refresh_game_data.py --counts
@@ -33,6 +41,7 @@ Run with the venv python (stdlib-only; no third-party deps):
 from __future__ import annotations
 
 import argparse
+import datetime
 import difflib
 import json
 import re
@@ -100,7 +109,7 @@ def pull_skill_traits() -> list:
 
 
 def pull_weapon_specializations() -> list:
-    """Feed #4: 490 MASTERIES (`mainCategory`=weapon) -> the meter's `mastery` card."""
+    """Feed #4: 490 MASTERIES (`mainCategory`=weapon) -> mapped to mainCategory weapon slug."""
     return _trpc("weaponSpecialization.getWeaponSpecializations", {"language": LANG})
 
 
@@ -167,8 +176,10 @@ WEAPON_MAP = {
 # The 11 meter slots (10 weapons + Mastery + Other). Used to validate derived output.
 METER_SLUGS = set(WEAPON_MAP.values()) | {"mastery", "other"}
 
-# Slug priority when feeds disagree on the same skill name: a real weapon beats `mastery`
-# beats `other` (a concrete weapon attribution is always preferred over a fallback bucket).
+# Slug priority when feeds disagree on the same skill name: a real weapon beats `other`
+# (a concrete weapon attribution is always preferred over the fallback bucket).
+# `mastery` is no longer a feed-output slug — masteries now map to their mainCategory weapon.
+# Keep the priority entry for `mastery` in case the overlay still carries it; weapon still wins.
 _SLUG_PRIORITY = {slug: 2 for slug in WEAPON_MAP.values()}
 _SLUG_PRIORITY["mastery"] = 1
 _SLUG_PRIORITY["other"] = 0
@@ -220,7 +231,7 @@ def extract_skill_weapons(
       1. ``getSkillSets[].name``                 (base skill-sets)            -> mainCategory weapon
       2. ``getSkillSets[].specializations[].name`` (the combat log usually emits the SPEC name)
       3. ``getSkillTraits[].name``               (skill effects)             -> mainCategory weapon
-      4. ``getWeaponSpecializations[].name``     (masteries)                 -> 'mastery'
+      4. ``getWeaponSpecializations[].name``     (masteries)                 -> mainCategory weapon
       5. weapon-item passives ``{name, weapon}`` (non-null only; see pull_item) -> item weapon
 
     Each name is normalized; on conflict the higher-priority slug wins (weapon > mastery > other).
@@ -234,7 +245,7 @@ def extract_skill_weapons(
     for rec in skill_traits or []:
         _offer(out, rec.get("name"), weapon_slug(rec.get("mainCategory")))
     for rec in weapon_specs or []:
-        _offer(out, rec.get("name"), "mastery")
+        _offer(out, rec.get("name"), weapon_slug(rec.get("mainCategory")))
     for rec in weapon_passives or []:
         # rec = {"name": <passive.name>, "weapon": <slug already mapped>}
         _offer(out, rec.get("name"), rec.get("weapon") or "other")
@@ -410,18 +421,158 @@ def reconcile_bosses(pulled_by_cat: dict, known_names: list) -> dict:
 
 
 # --------------------------------------------------------------------------------------------
-# CLI (read-only)
+# G3 — regenerate skills_canonical.json + derive weapon_config.json skillAssignments
+# --------------------------------------------------------------------------------------------
+# skills_canonical.json schema:
+#   {
+#     "version": 1,
+#     "patch": "<T&L patch version string, e.g. 3.18.0>",
+#     "last_updated": "<ISO-8601 UTC>",
+#     "generated_from": "questlog.gg tRPC feeds (getSkillSets + getSkillTraits + "
+#                       "getWeaponSpecializations [+ weapon passives])",
+#     "source": "https://questlog.gg/throne-and-liberty",
+#     "entries": { "<skill name>": "<weapon slug>", ... },  <- questlog-derived
+#     "overlay": { "<skill name>": "<weapon slug>", ... }   <- curated, hand-maintained residual
+#   }
+#
+# weapon_config.json skillAssignments is the union of entries + overlay (overlay wins on conflict),
+# sorted alphabetically, with last_updated restamped to now.
+#
+# The curated overlay covers the genuinely-orphaned meter keys that no questlog feed carries
+# (renamed/removed skills, combat-log-only tokens, or skills that appear in the logs but not the
+# questlog skill-builder). It is the ONLY part that requires human curation after a patch; the
+# questlog feeds handle the rest automatically.
+
+# Default curated overlay — populated from the 2026-05-31 reconcile report's orphaned list.
+# Keys that the feeds DO carry (retagged, matched, or new) are NOT here — they come from entries.
+# This residual is intentionally small; it grows only when a combat-log token is genuinely absent
+# from all four questlog feeds (rare).
+DEFAULT_OVERLAY: dict = {
+    # Orphaned meter keys not carried by any feed (as of 2026-05-31 report):
+    # Icon-tagged skill token (meter had it with icon markup; canonical stores clean form)
+    "^<imgf=IMG_PartyMatching_MainAttacker> Sword of Judgment": "other",
+    # Renamed/removed skills -- keep as `other` until confirmed reassigned or removed
+    "Basic Shot": "crossbow",         # near: Rapid Shot — likely renamed
+    "Copy Satellite": "orb",          # near: Summon Satellite — likely renamed
+    "Counterattack Spell": "wand",    # no near match; retained as wand
+    "Dimensional Bomb": "orb",        # near: Time Bomb
+    "Mutilation": "dagger",           # near: Time Dilation (false positive)
+    "Poison Dagger": "dagger",        # near: Hemotoxic Dagger — likely renamed
+    "Shield Smash Schema": "other",   # no near match
+    "Spiral Slash": "spear",          # near: Spiral Assault — likely renamed
+}
+
+SKILLS_CANONICAL_PATH_NAME = "skills_canonical.json"
+
+
+def build_canonical(
+    extracted: dict,
+    overlay: dict | None = None,
+    patch: str = "",
+    with_passives: bool = False,
+) -> dict:
+    """Build the skills_canonical.json structure from the extracted feed map + curated overlay.
+
+    `extracted` = output of extract_skill_weapons (all four feeds merged).
+    `overlay`   = curated residual dict {name: slug}; defaults to DEFAULT_OVERLAY.
+    `patch`     = T&L patch version string (e.g. "3.18.0"); empty string if unknown.
+
+    Returns the full canonical dict (not yet written to disk).
+    """
+    if overlay is None:
+        overlay = dict(DEFAULT_OVERLAY)
+    feeds_desc = (
+        "questlog.gg tRPC feeds (getSkillSets + getSkillTraits + getWeaponSpecializations"
+        + (" + weapon passives" if with_passives else "")
+        + ")"
+    )
+    return {
+        "version": 1,
+        "patch": patch or "",
+        "last_updated": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S") + "Z",
+        "generated_from": feeds_desc,
+        "source": "https://questlog.gg/throne-and-liberty",
+        "entries": dict(sorted(extracted.items())),
+        "overlay": dict(sorted(overlay.items())),
+    }
+
+
+def derive_skill_assignments(canonical: dict) -> dict:
+    """Derive the {name: slug} skillAssignments dict from a canonical structure.
+
+    Merges entries + overlay; overlay wins on conflict (it's the curated authority for residuals).
+    Returns a new dict sorted alphabetically by skill name.
+    """
+    merged: dict = {}
+    merged.update(canonical.get("entries") or {})
+    merged.update(canonical.get("overlay") or {})   # overlay wins
+    return dict(sorted(merged.items()))
+
+
+def write_skills_canonical(canonical: dict, path: Path) -> None:
+    """Write skills_canonical.json to disk."""
+    path.write_text(json.dumps(canonical, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def derive_weapon_config(skill_assignments: dict, existing_path: Path) -> dict:
+    """Derive the full weapon_config.json dict by replacing skillAssignments in the existing
+    file, restamping last_updated to now. Preserves any other top-level keys.
+
+    `skill_assignments` = output of derive_skill_assignments.
+    `existing_path`     = current weapon_config.json path (may not exist; that's OK).
+    """
+    try:
+        existing = _load_json(existing_path)
+    except (FileNotFoundError, json.JSONDecodeError):
+        existing = {}
+    updated = dict(existing)
+    updated["skillAssignments"] = skill_assignments
+    updated["last_updated"] = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")
+    return updated
+
+
+def write_weapon_config(weapon_cfg: dict, path: Path) -> None:
+    """Write weapon_config.json to disk."""
+    path.write_text(json.dumps(weapon_cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+# --------------------------------------------------------------------------------------------
+# CLI
 # --------------------------------------------------------------------------------------------
 NPC_BOSS_CATEGORIES = ("boss-world", "boss", "solo-elite")
 DEFAULT_CACHE = Path(__file__).resolve().parent / "_refresh_cache"
 # Canonical files live at the repo root (backend/tools/refresh_game_data.py -> parents[2]).
 ROOT = Path(__file__).resolve().parents[2]
 WEAPON_CONFIG_PATH = ROOT / "weapon_config.json"
+SKILLS_CANONICAL_PATH = ROOT / SKILLS_CANONICAL_PATH_NAME
 TARGET_ASSIGNMENTS_PATH = ROOT / "default_target_assignments.json"
 
 
 def _load_json(path: Path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _load_feeds_from_cache(cache_dir: Path, with_passives: bool) -> tuple:
+    """Load raw feed JSON from a prior --dump run instead of pulling live.
+
+    Returns (skill_sets, skill_traits, weapon_specs, weapon_passives_or_None).
+    Raises FileNotFoundError if any required feed file is missing.
+    """
+    def _read(name: str):
+        return _load_json(cache_dir / f"{name}.json")
+
+    sets = _read("skill_sets")
+    traits = _read("skill_traits")
+    specs = _read("weapon_specializations")
+    passives: list | None = None
+    if with_passives:
+        passives_path = cache_dir / "weapon_passives.json"
+        if passives_path.exists():
+            passives = _load_json(passives_path)
+        else:
+            print(f"  [warn] --passives requested but {passives_path} not found in cache; "
+                  "feed #5 skipped. Re-run --dump --passives to populate it.")
+    return sets, traits, specs, passives
 
 
 def _counts() -> int:
@@ -558,6 +709,96 @@ def _report(with_passives: bool) -> int:
     return 0
 
 
+def _skill_counts_by_slug(assignments: dict) -> dict:
+    """Return {slug: count} from a skillAssignments dict."""
+    counts: dict = {}
+    for slug in assignments.values():
+        counts[slug] = counts.get(slug, 0) + 1
+    return counts
+
+
+def _regenerate(cache_dir: Path | None, with_passives: bool, dry_run: bool) -> int:
+    """G3: pull or load feeds, write skills_canonical.json, derive weapon_config.json.
+
+    When `cache_dir` is given, loads raw feeds from that directory instead of pulling live.
+    When `dry_run` is True, prints what would change but writes nothing.
+    """
+    # --- load feeds ---
+    if cache_dir is not None:
+        print(f"Loading feeds from cache: {cache_dir}")
+        try:
+            sets, traits, specs, passives = _load_feeds_from_cache(cache_dir, with_passives)
+        except FileNotFoundError as err:
+            print(f"ERROR: cache missing a required file: {err}", file=sys.stderr)
+            return 1
+        print(f"  skill_sets: {len(sets)}, skill_traits: {len(traits)}, "
+              f"weapon_specs: {len(specs)}"
+              + (f", weapon_passives: {len(passives)}" if passives else " (no passives)"))
+    else:
+        print("Pulling questlog feeds (live)...")
+        sets = pull_skill_sets()
+        traits = pull_skill_traits()
+        specs = pull_weapon_specializations()
+        passives = None
+        if with_passives:
+            items = pull_weapon_items()
+            passives = pull_weapon_passives_live(items)
+        print(f"  skill_sets: {len(sets)}, skill_traits: {len(traits)}, "
+              f"weapon_specs: {len(specs)}"
+              + (f", passives: {len(passives)}" if passives else " (no passives)"))
+
+    # --- extract ---
+    extracted = extract_skill_weapons(sets, traits, specs, passives)
+    print(f"  extracted {len(extracted)} skill->weapon tokens")
+
+    # --- build canonical (overlay = DEFAULT_OVERLAY) ---
+    canonical = build_canonical(extracted, overlay=None, with_passives=bool(passives))
+
+    # --- show before/after skillAssignment counts ---
+    try:
+        before_cfg = _load_json(WEAPON_CONFIG_PATH)
+        before_assignments = before_cfg.get("skillAssignments", {})
+    except (FileNotFoundError, json.JSONDecodeError):
+        before_assignments = {}
+
+    new_assignments = derive_skill_assignments(canonical)
+
+    before_by_slug = _skill_counts_by_slug(before_assignments)
+    after_by_slug = _skill_counts_by_slug(new_assignments)
+
+    print("\n=== skillAssignments BEFORE -> AFTER ===")
+    all_slugs = sorted(set(before_by_slug) | set(after_by_slug))
+    for slug in all_slugs:
+        b = before_by_slug.get(slug, 0)
+        a = after_by_slug.get(slug, 0)
+        delta = f"+{a - b}" if a > b else (f"{a - b}" if a != b else "=")
+        flag = " <-- WAS EMPTY" if b == 0 and a > 0 else ""
+        print(f"  {slug:<12} {b:>4} -> {a:>4}  ({delta}){flag}")
+    total_before = len(before_assignments)
+    total_after = len(new_assignments)
+    print(f"  {'TOTAL':<12} {total_before:>4} -> {total_after:>4}  "
+          f"({'+' if total_after >= total_before else ''}{total_after - total_before})")
+
+    if dry_run:
+        print("\n[dry-run] No files written.")
+        print(f"  Would write: {SKILLS_CANONICAL_PATH}")
+        print(f"  Would write: {WEAPON_CONFIG_PATH}")
+        return 0
+
+    # --- write canonical ---
+    write_skills_canonical(canonical, SKILLS_CANONICAL_PATH)
+    print(f"\nWrote {SKILLS_CANONICAL_PATH}  "
+          f"({len(canonical['entries'])} entries, {len(canonical['overlay'])} overlay)")
+
+    # --- derive + write weapon_config ---
+    weapon_cfg = derive_weapon_config(new_assignments, WEAPON_CONFIG_PATH)
+    write_weapon_config(weapon_cfg, WEAPON_CONFIG_PATH)
+    print(f"Wrote {WEAPON_CONFIG_PATH}  ({len(new_assignments)} skillAssignments)")
+
+    print("\nDone. G3 complete. Run pytest to verify.")
+    return 0
+
+
 def main(argv=None) -> int:
     # questlog names carry non-ASCII glyphs (e.g. U+25B2); Windows' default cp1252 stdout
     # crashes on them when output is redirected. Force UTF-8 so the diff renders intact.
@@ -565,21 +806,32 @@ def main(argv=None) -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except (AttributeError, ValueError):
         pass
-    parser = argparse.ArgumentParser(description="Game-data refresh (G1: pull + extract, read-only)")
+    parser = argparse.ArgumentParser(description="Game-data refresh (G1+G2+G3)")
     grp = parser.add_mutually_exclusive_group(required=True)
     grp.add_argument("--counts", action="store_true", help="live-probe every feed and print counts")
     grp.add_argument("--dump", nargs="?", const=str(DEFAULT_CACHE), metavar="DIR",
                      help="pull every feed live and write raw JSON + the extracted map to DIR")
     grp.add_argument("--report", action="store_true",
                      help="pull live, reconcile vs canonical, print the patch diff (read-only)")
+    grp.add_argument("--regenerate", action="store_true",
+                     help="G3: write skills_canonical.json + derive weapon_config.json skillAssignments")
     parser.add_argument("--passives", action="store_true",
-                        help="with --dump/--report: also pull each weapon's item detail (feed #5; slow)")
+                        help="with --dump/--report/--regenerate: also pull each weapon's item detail "
+                             "(feed #5; slow when live; uses cached weapon_passives.json if --cache)")
+    parser.add_argument("--cache", nargs="?", const=str(DEFAULT_CACHE), metavar="DIR",
+                        help="with --regenerate: load raw feeds from this cache dir instead of live pull "
+                             f"(default: {DEFAULT_CACHE})")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="with --regenerate: show what would change, write nothing")
     args = parser.parse_args(argv)
     try:
         if args.counts:
             return _counts()
         if args.report:
             return _report(args.passives)
+        if args.regenerate:
+            cache_dir = Path(args.cache) if args.cache is not None else None
+            return _regenerate(cache_dir, args.passives, args.dry_run)
         return _dump(Path(args.dump), args.passives)
     except RuntimeError as err:
         print(f"ERROR: {err}", file=sys.stderr)

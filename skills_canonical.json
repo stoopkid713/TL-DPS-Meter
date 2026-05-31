@@ -1,5 +1,10 @@
 {
-  "skillAssignments": {
+  "version": 1,
+  "patch": "",
+  "last_updated": "2026-05-31T20:43:02Z",
+  "generated_from": "questlog.gg tRPC feeds (getSkillSets + getSkillTraits + getWeaponSpecializations)",
+  "source": "https://questlog.gg/throne-and-liberty",
+  "entries": {
     "A Shot at Victory": "sns",
     "A Shot at Victory - Annihilation Blade": "sns",
     "A Shot at Victory - Effect Boost": "sns",
@@ -51,7 +56,6 @@
     "Barbarian's Dash": "greatsword",
     "Barrier": "orb",
     "Base Damage Expertise": "longbow",
-    "Basic Shot": "crossbow",
     "Battle Prep": "other",
     "Battle Spirit": "wand",
     "Battle Tempo": "longbow",
@@ -152,7 +156,6 @@
     "Cooldown Speed Expertise": "dagger",
     "Cooldown Speed Intensity": "crossbow",
     "Coordinated Fracture": "orb",
-    "Copy Satellite": "orb",
     "Corrupt Nail": "crossbow",
     "Corrupted Magic Circle": "wand",
     "Corrupted Magic Circle - Additional Damage": "wand",
@@ -164,7 +167,6 @@
     "Counter Barrier - Concentrated Barrier": "sns",
     "Counter Barrier - Cooldown ▼": "sns",
     "Counter Barrier - Damage Increased": "sns",
-    "Counterattack Spell": "wand",
     "Critical Damage Expertise": "dagger",
     "Critical Damage Intensity": "longbow",
     "Critical Damage Resistance Augment": "longbow",
@@ -251,7 +253,6 @@
     "Devotion and Emptiness": "wand",
     "Dexterity Enchantment Sage": "orb",
     "Dexterous Power": "dagger",
-    "Dimensional Bomb": "orb",
     "Dimensional Seal": "orb",
     "Distorted Sanctuary": "longbow",
     "Distortion Veil": "orb",
@@ -613,7 +614,6 @@
     "Multi-Shot - Rapid Shot": "crossbow",
     "Multi-Shot - Shield Removal": "crossbow",
     "Murderous Energy": "dagger",
-    "Mutilation": "dagger",
     "Mystic Shield": "staff",
     "Nature's Blessing": "longbow",
     "Nature's Blessing - Cooldown ▼": "longbow",
@@ -649,7 +649,6 @@
     "Phoenix Barrage": "spear",
     "Piercing Bite": "dagger",
     "Piercing Strike": "crossbow",
-    "Poison Dagger": "dagger",
     "Potent Toxicity": "dagger",
     "Potential": "other",
     "Power Breach": "sns",
@@ -766,7 +765,6 @@
     "Shield Block Penetration Intensity": "spear",
     "Shield Damage Reduction Concentration": "orb",
     "Shield Health Concentration": "orb",
-    "Shield Smash Schema": "other",
     "Shield Strike": "sns",
     "Shield Strike - Aggro ▲": "sns",
     "Shield Strike - Critical Hit Chance ▼": "sns",
@@ -798,7 +796,6 @@
     "Species Damage Reduction Intensity": "staff",
     "Spectral Defense": "wand",
     "Spectrum of Agony": "sns",
-    "Spiral Slash": "spear",
     "Spirit of Defiance": "other",
     "Spirit of Perseverance": "staff",
     "Stacking Echo": "orb",
@@ -968,8 +965,17 @@
     "Zephyr's Nock": "longbow",
     "Zephyr's Nock - Collision": "longbow",
     "Zephyr's Nock - Cooldown ▼": "longbow",
-    "Zephyr's Nock - Damage ▲": "longbow",
-    "^<imgf=IMG_PartyMatching_MainAttacker> Sword of Judgment": "other"
+    "Zephyr's Nock - Damage ▲": "longbow"
   },
-  "last_updated": "2026-05-31T20:43:02.981105"
+  "overlay": {
+    "Basic Shot": "crossbow",
+    "Copy Satellite": "orb",
+    "Counterattack Spell": "wand",
+    "Dimensional Bomb": "orb",
+    "Mutilation": "dagger",
+    "Poison Dagger": "dagger",
+    "Shield Smash Schema": "other",
+    "Spiral Slash": "spear",
+    "^<imgf=IMG_PartyMatching_MainAttacker> Sword of Judgment": "other"
+  }
 }

@@ -1,12 +1,15 @@
-"""Unit tests for the game-data refresh tool (G1: pure functions; no live network).
+"""Unit tests for the game-data refresh tool (G1+G2+G3: pure functions; no live network).
 
-Covers token normalization, the questlog->meter weapon-slug map, and the multi-feed
-skill->weapon extractor (recipe doc S7). The tRPC pull layer is intentionally NOT exercised
-here (it hits questlog live) -- it's verified at the gate with `--counts`.
+Covers token normalization, the questlog->meter weapon-slug map, the multi-feed
+skill->weapon extractor (recipe doc S7), and the G3 canonical/derive functions.
+The tRPC pull layer is intentionally NOT exercised here (it hits questlog live) --
+it's verified at the gate with `--counts`.
 """
 from __future__ import annotations
 
+import json
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
@@ -76,24 +79,41 @@ def test_extract_normalizes_names_from_feeds():
     assert out["Gale Rush"] == "spear"
 
 
-def test_extract_masteries_become_mastery():
-    specs = [{"name": "Dragon Ascent", "mainCategory": "spear"}]
+def test_extract_masteries_attribute_to_their_weapon():
+    """Masteries must map to their mainCategory weapon, not a catch-all 'mastery' bucket."""
+    specs = [
+        {"name": "Dragon Ascent", "mainCategory": "spear"},
+        {"name": "Destruction Spear", "mainCategory": "spear"},
+        {"name": "Deadly Viper", "mainCategory": "dagger"},
+    ]
     out = rgd.extract_skill_weapons([], weapon_specs=specs)
-    assert out["Dragon Ascent"] == "mastery"
+    assert out["Dragon Ascent"] == "spear"
+    assert out["Destruction Spear"] == "spear"
+    assert out["Deadly Viper"] == "dagger"
+    # 'mastery' should NOT appear as a value for any mastery skill
+    assert "mastery" not in out.values()
 
 
-def test_extract_priority_weapon_beats_mastery_beats_other():
-    # 'other' offered first, then mastery, then a real weapon -> weapon must win.
+def test_extract_priority_weapon_beats_other():
+    # 'other' offered first (unknown mainCategory), then a real weapon -> weapon must win.
+    # Masteries now map to real weapon slugs, so the first concrete weapon slug wins on tie.
     sets = [{"name": "Ambiguous", "mainCategory": "nonsense", "specializations": []}]   # -> other
-    specs = [{"name": "Ambiguous", "mainCategory": "spear"}]                            # -> mastery
-    traits = [{"name": "Ambiguous", "mainCategory": "dagger"}]                          # -> dagger
-    out = rgd.extract_skill_weapons(sets, skill_traits=traits, weapon_specs=specs)
-    assert out["Ambiguous"] == "dagger"
+    specs = [{"name": "Ambiguous", "mainCategory": "spear"}]                            # -> spear (mastery now maps real)
+    out = rgd.extract_skill_weapons(sets, weapon_specs=specs)
+    assert out["Ambiguous"] == "spear"   # weapon beats other; first concrete weapon wins on tie
+
+
+def test_extract_priority_two_real_weapons_first_wins():
+    # When two feeds both assign a real weapon slug, the first-seen slug wins (feeds run in order).
+    sets = [{"name": "Ambiguous", "mainCategory": "spear", "specializations": []}]   # -> spear
+    traits = [{"name": "Ambiguous", "mainCategory": "dagger"}]                        # -> dagger (loses; spear already recorded at priority 2)
+    out = rgd.extract_skill_weapons(sets, skill_traits=traits)
+    assert out["Ambiguous"] == "spear"
 
 
 def test_extract_lower_priority_does_not_clobber_weapon():
     sets = [{"name": "Shadow Strike", "mainCategory": "dagger", "specializations": []}]
-    specs = [{"name": "Shadow Strike", "mainCategory": "dagger"}]  # mastery offer must not win
+    specs = [{"name": "Shadow Strike", "mainCategory": "dagger"}]  # same weapon -> no conflict
     out = rgd.extract_skill_weapons(sets, weapon_specs=specs)
     assert out["Shadow Strike"] == "dagger"
 
@@ -234,3 +254,192 @@ def test_reconcile_bosses_dedupes_and_normalizes():
 
 def test_reconcile_bosses_empty_when_all_known():
     assert rgd.reconcile_bosses({"boss": [{"name": "Morokai"}]}, ["Morokai"]) == {}
+
+
+# --- G3: build_canonical -------------------------------------------------------------------
+def test_build_canonical_schema_keys():
+    extracted = {"Brutal Fury": "spear", "Guillotine Blade": "greatsword"}
+    overlay = {"Legacy Skill": "other"}
+    can = rgd.build_canonical(extracted, overlay=overlay, patch="3.18.0")
+    assert can["version"] == 1
+    assert can["patch"] == "3.18.0"
+    assert "last_updated" in can
+    assert can["source"] == "https://questlog.gg/throne-and-liberty"
+    assert can["entries"] == {"Brutal Fury": "spear", "Guillotine Blade": "greatsword"}
+    assert can["overlay"] == {"Legacy Skill": "other"}
+
+
+def test_build_canonical_entries_sorted():
+    extracted = {"Zephyr's Nock": "longbow", "Arrow Vortex": "longbow"}
+    can = rgd.build_canonical(extracted, overlay={})
+    keys = list(can["entries"].keys())
+    assert keys == sorted(keys)
+
+
+def test_build_canonical_overlay_sorted():
+    extracted = {}
+    overlay = {"Zorro Slash": "other", "Ancient Strike": "spear"}
+    can = rgd.build_canonical(extracted, overlay=overlay)
+    keys = list(can["overlay"].keys())
+    assert keys == sorted(keys)
+
+
+def test_build_canonical_uses_default_overlay_when_none():
+    can = rgd.build_canonical({}, overlay=None)
+    # DEFAULT_OVERLAY is non-empty
+    assert len(can["overlay"]) > 0
+    assert can["overlay"] == dict(sorted(rgd.DEFAULT_OVERLAY.items()))
+
+
+def test_build_canonical_passives_reflected_in_generated_from():
+    can_with = rgd.build_canonical({}, overlay={}, with_passives=True)
+    can_without = rgd.build_canonical({}, overlay={}, with_passives=False)
+    assert "weapon passives" in can_with["generated_from"]
+    assert "weapon passives" not in can_without["generated_from"]
+
+
+def test_build_canonical_last_updated_is_utc_iso():
+    can = rgd.build_canonical({}, overlay={})
+    ts = can["last_updated"]
+    # Basic shape: "YYYY-MM-DDTHH:MM:SSZ"
+    assert ts.endswith("Z")
+    assert "T" in ts
+    assert len(ts) >= 20
+
+
+# --- G3: derive_skill_assignments ----------------------------------------------------------
+def test_derive_skill_assignments_merges_entries_and_overlay():
+    can = {
+        "entries": {"Brutal Fury": "spear", "Power Shot": "longbow"},
+        "overlay": {"Basic Shot": "crossbow"},
+    }
+    merged = rgd.derive_skill_assignments(can)
+    assert merged["Brutal Fury"] == "spear"
+    assert merged["Power Shot"] == "longbow"
+    assert merged["Basic Shot"] == "crossbow"
+
+
+def test_derive_skill_assignments_overlay_wins_on_conflict():
+    # If a skill appears in both entries (feed-derived) and overlay (curated), overlay wins.
+    can = {
+        "entries": {"Shadow Strike": "dagger"},
+        "overlay": {"Shadow Strike": "other"},   # curated override
+    }
+    merged = rgd.derive_skill_assignments(can)
+    assert merged["Shadow Strike"] == "other"
+
+
+def test_derive_skill_assignments_result_sorted():
+    can = {
+        "entries": {"Zephyr's Nock": "longbow", "Arrow Vortex": "longbow"},
+        "overlay": {"Basic Shot": "crossbow"},
+    }
+    merged = rgd.derive_skill_assignments(can)
+    keys = list(merged.keys())
+    assert keys == sorted(keys)
+
+
+def test_derive_skill_assignments_empty_inputs():
+    assert rgd.derive_skill_assignments({"entries": {}, "overlay": {}}) == {}
+    assert rgd.derive_skill_assignments({}) == {}
+
+
+def test_derive_skill_assignments_fills_previously_empty_slugs():
+    # Regression: greatsword/longbow/staff must all appear after a real extraction.
+    extracted = {
+        "Guillotine Blade": "greatsword",
+        "Brutal Arrow": "longbow",
+        "Chain Lightning": "staff",
+        "Shadow Strike": "dagger",
+    }
+    can = rgd.build_canonical(extracted, overlay={})
+    merged = rgd.derive_skill_assignments(can)
+    slugs = set(merged.values())
+    assert "greatsword" in slugs
+    assert "longbow" in slugs
+    assert "staff" in slugs
+
+
+# --- G3: write_skills_canonical / write_weapon_config / derive_weapon_config ---------------
+def test_write_and_read_skills_canonical_roundtrip():
+    with tempfile.TemporaryDirectory() as td:
+        path = Path(td) / "skills_canonical.json"
+        can = rgd.build_canonical({"Brutal Fury": "spear"}, overlay={"X": "other"}, patch="3.18.0")
+        rgd.write_skills_canonical(can, path)
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    assert loaded["version"] == 1
+    assert loaded["patch"] == "3.18.0"
+    assert loaded["entries"]["Brutal Fury"] == "spear"
+    assert loaded["overlay"]["X"] == "other"
+
+
+def test_write_weapon_config_preserves_other_keys():
+    with tempfile.TemporaryDirectory() as td:
+        wc_path = Path(td) / "weapon_config.json"
+        # Seed an existing config with an extra key
+        wc_path.write_text(json.dumps({
+            "skillAssignments": {"Old Skill": "other"},
+            "extra_key": "preserved",
+            "last_updated": "old",
+        }), encoding="utf-8")
+        assignments = {"New Skill": "greatsword"}
+        cfg = rgd.derive_weapon_config(assignments, wc_path)
+        rgd.write_weapon_config(cfg, wc_path)
+        loaded = json.loads(wc_path.read_text(encoding="utf-8"))
+    assert loaded["skillAssignments"] == {"New Skill": "greatsword"}
+    assert loaded["extra_key"] == "preserved"
+    assert loaded["last_updated"] != "old"
+
+
+def test_derive_weapon_config_missing_existing_file():
+    with tempfile.TemporaryDirectory() as td:
+        missing_path = Path(td) / "nonexistent.json"
+        assignments = {"Brutal Fury": "spear"}
+        cfg = rgd.derive_weapon_config(assignments, missing_path)
+    assert cfg["skillAssignments"] == {"Brutal Fury": "spear"}
+    assert "last_updated" in cfg
+
+
+# --- G3: _load_feeds_from_cache ------------------------------------------------------------
+def test_load_feeds_from_cache_raises_on_missing_file():
+    import pytest
+    with tempfile.TemporaryDirectory() as td:
+        with pytest.raises(FileNotFoundError):
+            rgd._load_feeds_from_cache(Path(td), with_passives=False)
+
+
+def test_load_feeds_from_cache_loads_all_required_feeds():
+    with tempfile.TemporaryDirectory() as td:
+        cache = Path(td)
+        (cache / "skill_sets.json").write_text(json.dumps([{"name": "X", "mainCategory": "spear",
+                                                            "specializations": []}]), encoding="utf-8")
+        (cache / "skill_traits.json").write_text(json.dumps([]), encoding="utf-8")
+        (cache / "weapon_specializations.json").write_text(json.dumps([]), encoding="utf-8")
+        sets, traits, specs, passives = rgd._load_feeds_from_cache(cache, with_passives=False)
+    assert len(sets) == 1
+    assert sets[0]["name"] == "X"
+    assert traits == []
+    assert specs == []
+    assert passives is None
+
+
+def test_load_feeds_from_cache_passives_optional():
+    with tempfile.TemporaryDirectory() as td:
+        cache = Path(td)
+        (cache / "skill_sets.json").write_text("[]", encoding="utf-8")
+        (cache / "skill_traits.json").write_text("[]", encoding="utf-8")
+        (cache / "weapon_specializations.json").write_text("[]", encoding="utf-8")
+        # weapon_passives.json is absent: should not raise, should warn and return None
+        sets, traits, specs, passives = rgd._load_feeds_from_cache(cache, with_passives=True)
+    assert passives is None  # file absent -> graceful degradation
+
+
+# --- G3: _skill_counts_by_slug -------------------------------------------------------------
+def test_skill_counts_by_slug_basic():
+    assignments = {"A": "spear", "B": "spear", "C": "greatsword"}
+    counts = rgd._skill_counts_by_slug(assignments)
+    assert counts == {"spear": 2, "greatsword": 1}
+
+
+def test_skill_counts_by_slug_empty():
+    assert rgd._skill_counts_by_slug({}) == {}
