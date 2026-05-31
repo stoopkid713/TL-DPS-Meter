@@ -29,6 +29,7 @@ wss://<host>/party/<CODE>?user_id=<id>&username=<name>&leader=<0|1>[&spectator=1
 | `encounter_start` | — | leader-only: arm the party for a fresh pull (clears the board, broadcasts `encounter_start`) |
 | `encounter_end` | — | leader-only: signal everyone to stop recording + `post_fight` (broadcasts `encounter_end`) |
 | `clear` | — | leader-only: wipe the board for a fresh pull |
+| `get_member_detail` | `{ encounter_id, user_id }` | fetch one member's heavy per-hit detail for an encounter (Phase 3 / C1) — replies `member_detail`. Allowed for members + spectators (read-only) |
 | `leave` | — | leave the party (removes member + their data) |
 | `ping` | — | keepalive → room replies `pong` |
 
@@ -65,6 +66,7 @@ works (graceful rollout):
 | `roster` | `{ members:[{user_id, username, is_leader, online}] }` |
 | `scoreboard` | `{ encounter_id, boss, boss_category, total_damage, updated_at, entries:[{rank, user_id, username, total_damage, dps, duration, hits, crit_rate, heavy_rate, contribution}] }` — the board for the **active** encounter |
 | `encounters` | `{ active_id, list:[{ encounter_id, boss, boss_category, started_at, ended, entries_n, total_damage }] }` — enumeration of all stored encounters (oldest-first) for the switcher; broadcast on any encounter create/update/close (Phase 2 / A4) |
+| `member_detail` | `{ encounter_id, user_id, skills, rotation }` — one member's heavy per-hit breakdown, served on `get_member_detail` (Phase 3 / C1). `null`s when none stored |
 | `encounter_start` / `encounter_end` | `{ by, encounter_id }` — leader-relayed; clients arm/stop local recording |
 | `member_joined` / `member_left` / `member_offline` | `{ user_id, username? }` |
 | `pong` | — |
@@ -95,6 +97,13 @@ encounter's `post(B)` on that socket, so B never pollutes A's board.)
 The room broadcasts the **active** `scoreboard` plus an **`encounters`** enumeration (all filed +
 active boards) for the Phase-2 switcher. Stored encounters are capped at **20** per room
 (`MAX_ENCOUNTERS`); the oldest (never the active) are evicted (`encounter_evicted`).
+
+**Heavy per-hit detail (Phase 3 / C1):** the KV `"encounters"` blob (capped 128 KiB, holds the
+whole room) stays **light** — top-level per-target + tiny `summary` only. A member's heavy
+`skills`/`rotation` (full per-hit) goes to a **SQLite** table `member_detail(encounter_id, user_id,
+blob)` (the DO is SQLite-backed; no 128 KiB-per-value cap, GBs of headroom), written on `post_fight`
+and served lazily via `get_member_detail` → `member_detail`. Cleaned up on member-leave + encounter-
+eviction. (Today's clients send `null` → no-op; C1b starts sending the full hit slice.)
 
 ## Local dev (no Cloudflare account needed)
 ```

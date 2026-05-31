@@ -143,6 +143,13 @@ export class PartyRoom {
     try { msg = JSON.parse(typeof message === "string" ? message : "{}"); }
     catch (_) { return; }
 
+    // Drill-down: fetch one member's heavy per-hit detail (Phase 3 / C1). Safe read — allowed
+    // for members AND spectators (the overlay drills in too).
+    if (msg.type === "get_member_detail") {
+      await this._sendMemberDetail(ws, msg.encounter_id, msg.user_id);
+      return;
+    }
+
     // Spectators (overlay) are read-only: keepalive only, no mutations.
     if (att.is_spectator) {
       if (msg.type === "ping") ws.send(JSON.stringify({ type: "pong" }));
@@ -285,12 +292,22 @@ export class PartyRoom {
         crit_rate: Number(t.crit_rate) || 0,
         heavy_rate: Number(t.heavy_rate) || 0,
       })),
-      // Enrichment-ready envelope fields — stored OPAQUELY, not read yet (Phase 3 reads
-      // skills/rotation). Kept null-safe so legacy clients (no envelope) store nulls.
+      // `summary` is tiny (overall totals) — keep it in the KV blob. The HEAVY per-hit detail
+      // (skills/rotation) does NOT go here (the KV "encounters" blob is capped at 128 KiB and
+      // holds the whole room); it goes to a SQLite row below, fetched lazily on drill-down.
       summary: payload.summary ?? null,
-      skills: payload.skills ?? null,
-      rotation: payload.rotation ?? null,
+      has_detail: !!(payload.skills || payload.rotation),
     };
+    // Heavy per-hit detail -> SQLite (Phase 3 / C1): unbounded vs the 128 KiB KV cap, queryable
+    // per (encounter, member), served on demand via get_member_detail. Today's clients send null
+    // (no-op); C1b starts sending the full hit slice.
+    if (payload.skills || payload.rotation) {
+      this._ensureDetailTable();
+      this.ctx.storage.sql.exec(
+        "INSERT OR REPLACE INTO member_detail (encounter_id, user_id, blob) VALUES (?, ?, ?)",
+        id, user_id, JSON.stringify({ skills: payload.skills ?? null, rotation: payload.rotation ?? null })
+      );
+    }
     // Client closing a segment at a boundary -> file the encounter so the next fight rolls
     // forward to a new one instead of merging into this (now-finished) board.
     if (payload.final) encs[id].ended = true;
@@ -300,8 +317,35 @@ export class PartyRoom {
       user_id, username, v, encounter_id: id, final: !!payload.final,
       fight_ts: encs[id].submissions[user_id].fight_ts,
       n_targets: encs[id].submissions[user_id].targets.length,
-      has_skills: encs[id].submissions[user_id].skills != null,
+      has_detail: encs[id].submissions[user_id].has_detail,
     });
+  }
+
+  // --- per-member heavy detail (Phase 3 / C1): SQLite-backed, off the KV board blob ---
+  _ensureDetailTable() {
+    if (this._detailReady) return;
+    this.ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS member_detail (encounter_id TEXT, user_id TEXT, blob TEXT, PRIMARY KEY (encounter_id, user_id))"
+    );
+    this._detailReady = true;
+  }
+
+  async _sendMemberDetail(ws, encounter_id, user_id) {
+    let detail = { skills: null, rotation: null };
+    try {
+      this._ensureDetailTable();
+      const rows = [...this.ctx.storage.sql.exec(
+        "SELECT blob FROM member_detail WHERE encounter_id = ? AND user_id = ?",
+        String(encounter_id || ""), String(user_id || "")
+      )];
+      if (rows.length && rows[0].blob) detail = JSON.parse(rows[0].blob);
+    } catch (_) {}
+    try {
+      ws.send(JSON.stringify({
+        type: "member_detail", encounter_id, user_id,
+        skills: detail.skills ?? null, rotation: detail.rotation ?? null,
+      }));
+    } catch (_) {}
   }
 
   // TTL/eviction (A4): drop the oldest encounters once over the cap, never the one just
@@ -314,6 +358,7 @@ export class PartyRoom {
       if (Object.keys(encs).length <= MAX_ENCOUNTERS) break;
       if (id === keepId) continue;
       delete encs[id];
+      try { this._ensureDetailTable(); this.ctx.storage.sql.exec("DELETE FROM member_detail WHERE encounter_id = ?", id); } catch (_) {}
       logEvent("encounter_evicted", { encounter_id: id });
     }
   }
@@ -332,6 +377,7 @@ export class PartyRoom {
       }
     }
     if (touched) await this.ctx.storage.put("encounters", encs);
+    try { this._ensureDetailTable(); this.ctx.storage.sql.exec("DELETE FROM member_detail WHERE user_id = ?", user_id); } catch (_) {}
   }
 
   // --- boss detection (server-side, cross-party convergence) ---
