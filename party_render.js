@@ -137,6 +137,112 @@ const PartyRender = {
       + '<th>Heavy</th><th>Heavy%</th><th>%</th></tr></thead><tbody>' + body + '</tbody></table>';
   },
 
+  // ===== Phase 3 / C4 — shared A/B member compare (head-to-head) =====
+  // Mirrors the SOLO Run-Lab compare (``computeSkillMatrix`` + ``renderRunLabMatrix``/
+  // ``renderRunLabHeader`` in index.html), but lives HERE so base + overlay render two
+  // PARTY members identically with no dependency on the solo Run-Lab DOM/globals
+  // (which read from ``sessionQueue`` slots A/B — solo-only). Same inputs as the
+  // drill-down: each side is a raw ``rotation`` hit list ({relative_time, skill, damage,
+  // is_crit, is_heavy}) the room serves via ``get_member_detail``. Per-skill rows are the
+  // SAME aggregation the Run-Lab matrix shows (damage, hits, crit%, heavy%), sorted by
+  // combined damage — so the head-to-head reads the same way as the solo lab.
+
+  // Per-skill A/B matrix from two rotations. Returns rows sorted by combined damage desc.
+  compareSkillMatrix(rotA, rotB) {
+    const a = {}; PartyRender.aggregateSkills(rotA).forEach((r) => { a[r.name] = r; });
+    const b = {}; PartyRender.aggregateSkills(rotB).forEach((r) => { b[r.name] = r; });
+    const names = {};
+    Object.keys(a).forEach((k) => { names[k] = true; });
+    Object.keys(b).forEach((k) => { names[k] = true; });
+    const blank = { damage: 0, hits: 0, crits: 0, heavies: 0, percent: 0, crit_rate: 0, heavy_rate: 0 };
+    return Object.keys(names).map((name) => {
+      const ra = a[name] || blank, rb = b[name] || blank;
+      return {
+        name: name,
+        dmgA: ra.damage, dmgB: rb.damage, dmgDelta: ra.damage - rb.damage,
+        hitsA: ra.hits, hitsB: rb.hits,
+        critA: ra.crit_rate, critB: rb.crit_rate,
+        heavyA: ra.heavy_rate, heavyB: rb.heavy_rate,
+        pctA: ra.percent, pctB: rb.percent,
+      };
+    }).sort((x, y) => (y.dmgA + y.dmgB) - (x.dmgA + x.dmgB));
+  },
+
+  // Totals for one rotation: total damage, peak-5s DPS, crit/heavy rates over all hits.
+  compareTotals(rotation) {
+    let dmg = 0, hits = 0, crits = 0, heavies = 0;
+    (rotation || []).forEach((h) => {
+      dmg += Number(h && h.damage) || 0; hits += 1;
+      if (h && h.is_crit) crits += 1;
+      if (h && h.is_heavy) heavies += 1;
+    });
+    const stats = PartyRender.rotationStats(rotation);
+    return {
+      damage: dmg, hits: hits,
+      crit_rate: hits > 0 ? +(crits / hits * 100).toFixed(1) : 0,
+      heavy_rate: hits > 0 ? +(heavies / hits * 100).toFixed(1) : 0,
+      peakDps: stats ? Math.round(stats.peakDps) : 0,
+    };
+  },
+
+  // Head-to-head HTML for two members. ``meta`` = {name} label per side (defaults A/B).
+  // ``opts.compact`` => overlay variant (tighter, fewer columns).
+  compareHtml(rotA, rotB, metaA, metaB, opts) {
+    opts = opts || {};
+    const esc = PartyRender.escapeHtml;
+    const labA = esc((metaA && metaA.name) || 'A');
+    const labB = esc((metaB && metaB.name) || 'B');
+    const hasA = rotA && rotA.length, hasB = rotB && rotB.length;
+    if (!hasA || !hasB) {
+      return '<div class="pr-empty">Pick two members with detailed data to compare.</div>';
+    }
+    const tA = PartyRender.compareTotals(rotA), tB = PartyRender.compareTotals(rotB);
+    const rows = PartyRender.compareSkillMatrix(rotA, rotB);
+    const sign = (v) => (v > 0 ? '+' : '');
+    const dcls = (v) => (v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero');
+
+    // Header: peak-5s DPS for each side + delta (peak is the stable cross-member yardstick).
+    const dmgDelta = tA.damage - tB.damage;
+    const dmgPct = tB.damage > 0 ? (dmgDelta / tB.damage * 100) : 0;
+    const fnum = opts.compact ? PartyRender.fmtDmg : PartyRender.fmtNum;
+    const header = '<div class="pr-cmp-head">'
+      + '<div class="pr-cmp-side a"><div class="pr-cmp-name">' + labA + '</div>'
+        + '<div class="pr-cmp-dmg">' + fnum(tA.damage) + '</div>'
+        + '<div class="pr-cmp-sub">Peak5s ' + fnum(tA.peakDps) + ' · ' + tA.crit_rate + '% C · ' + tA.heavy_rate + '% H</div></div>'
+      + '<div class="pr-cmp-delta"><div class="pr-cmp-delta-val ' + dcls(dmgDelta) + '">'
+        + sign(dmgDelta) + fnum(Math.abs(dmgDelta)) + '</div>'
+        + '<div class="pr-cmp-delta-sub ' + dcls(dmgDelta) + '">' + sign(dmgPct) + Math.abs(dmgPct).toFixed(0) + '%</div>'
+        + '<div class="pr-cmp-delta-lbl">total dmg Δ</div></div>'
+      + '<div class="pr-cmp-side b"><div class="pr-cmp-name">' + labB + '</div>'
+        + '<div class="pr-cmp-dmg">' + fnum(tB.damage) + '</div>'
+        + '<div class="pr-cmp-sub">Peak5s ' + fnum(tB.peakDps) + ' · ' + tB.crit_rate + '% C · ' + tB.heavy_rate + '% H</div></div>'
+      + '</div>';
+
+    if (!rows.length) return header + '<div class="pr-empty">No overlapping skill data.</div>';
+
+    let body, table;
+    if (opts.compact) {
+      // overlay: skill · A dmg · B dmg · Δ
+      body = rows.map((r) => '<tr><td class="pr-cmp-skill" title="' + esc(r.name) + '">' + esc(r.name) + '</td>'
+        + '<td class="num cyan">' + PartyRender.fmtDmg(r.dmgA) + '</td>'
+        + '<td class="num purple">' + PartyRender.fmtDmg(r.dmgB) + '</td>'
+        + '<td class="num pr-cmp-d ' + dcls(r.dmgDelta) + '">' + sign(r.dmgDelta) + PartyRender.fmtDmg(Math.abs(r.dmgDelta)) + '</td></tr>').join('');
+      table = '<table class="pr-cmp-table compact"><thead><tr><th>Skill</th><th>' + labA + '</th><th>' + labB + '</th><th>Δ</th></tr></thead><tbody>' + body + '</tbody></table>';
+    } else {
+      // base: skill · A dmg · B dmg · Δ dmg · A hits/B hits · A crit%/B · A heavy%/B
+      body = rows.map((r) => '<tr><td class="pr-cmp-skill" title="' + esc(r.name) + '">' + esc(r.name) + '</td>'
+        + '<td class="num cyan">' + PartyRender.fmtNum(r.dmgA) + '</td>'
+        + '<td class="num purple">' + PartyRender.fmtNum(r.dmgB) + '</td>'
+        + '<td class="num pr-cmp-d ' + dcls(r.dmgDelta) + '">' + sign(r.dmgDelta) + PartyRender.fmtNum(Math.abs(r.dmgDelta)) + '</td>'
+        + '<td class="num">' + r.hitsA + '<span class="pr-cmp-vs">/</span>' + r.hitsB + '</td>'
+        + '<td class="num yellow">' + r.critA + '%<span class="pr-cmp-vs">/</span>' + r.critB + '%</td>'
+        + '<td class="num orange">' + r.heavyA + '%<span class="pr-cmp-vs">/</span>' + r.heavyB + '%</td></tr>').join('');
+      table = '<table class="pr-cmp-table"><thead><tr><th>Skill</th><th>' + labA + '</th><th>' + labB + '</th><th>Δ</th>'
+        + '<th>Hits A/B</th><th>Crit% A/B</th><th>Heavy% A/B</th></tr></thead><tbody>' + body + '</tbody></table>';
+    }
+    return header + table;
+  },
+
   // Rotation chart HTML (61 one-second bars, 0..60s). ``opts.compact`` => overlay variant.
   rotationChartHtml(rotation, opts) {
     opts = opts || {};

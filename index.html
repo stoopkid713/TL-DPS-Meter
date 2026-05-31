@@ -6433,6 +6433,63 @@
         .pr-rot-axis { display: flex; justify-content: space-between; font-size: 0.68rem; color: #64748b; margin-top: 4px; }
         .pr-empty { color: #64748b; text-align: center; padding: 16px; font-size: 0.85rem; }
 
+        /* Phase 3 (C4): party tab strip + member A/B compare */
+        .party-tab-strip {
+            display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.12); padding-bottom: 8px;
+        }
+        .party-tab {
+            background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(148, 163, 184, 0.15);
+            color: #94a3b8; padding: 6px 14px; border-radius: 6px; cursor: pointer;
+            font-size: 0.82rem; font-weight: 600; transition: all 0.15s;
+        }
+        .party-tab:hover { background: rgba(34, 211, 238, 0.1); color: #cbd5e1; }
+        .party-tab.active {
+            background: rgba(34, 211, 238, 0.16); border-color: rgba(34, 211, 238, 0.5); color: #22d3ee;
+        }
+        .party-cmp-pickers {
+            display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap;
+        }
+        .party-cmp-pickers select {
+            background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(148, 163, 184, 0.25);
+            color: #e2e8f0; padding: 6px 10px; border-radius: 6px; font-size: 0.85rem; min-width: 150px;
+        }
+        .party-cmp-pickers .pr-cmp-vs-lbl { color: #64748b; font-weight: 700; font-size: 0.8rem; }
+        .pr-cmp-head { display: flex; align-items: stretch; gap: 10px; margin-bottom: 14px; }
+        .pr-cmp-side {
+            flex: 1; background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(148, 163, 184, 0.15);
+            border-radius: 10px; padding: 12px 14px; text-align: center;
+        }
+        .pr-cmp-side.a { border-left: 3px solid #22d3ee; }
+        .pr-cmp-side.b { border-left: 3px solid #a78bfa; }
+        .pr-cmp-name { font-weight: 700; color: #e2e8f0; font-size: 0.95rem; margin-bottom: 4px; }
+        .pr-cmp-dmg { font-size: 1.5rem; font-weight: 800; color: #f1f5f9; font-variant-numeric: tabular-nums; }
+        .pr-cmp-sub { font-size: 0.7rem; color: #64748b; margin-top: 4px; }
+        .pr-cmp-delta {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 0 8px; min-width: 90px;
+        }
+        .pr-cmp-delta-val { font-size: 1.1rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+        .pr-cmp-delta-sub { font-size: 0.8rem; font-weight: 700; }
+        .pr-cmp-delta-lbl { font-size: 0.62rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+        .pr-cmp-delta-val.pos, .pr-cmp-delta-sub.pos, td.pr-cmp-d.pos { color: #22c55e; }
+        .pr-cmp-delta-val.neg, .pr-cmp-delta-sub.neg, td.pr-cmp-d.neg { color: #ef4444; }
+        .pr-cmp-delta-val.zero, .pr-cmp-delta-sub.zero, td.pr-cmp-d.zero { color: #64748b; }
+        table.pr-cmp-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+        table.pr-cmp-table th {
+            text-align: right; color: #64748b; font-weight: 600; font-size: 0.7rem;
+            text-transform: uppercase; padding: 4px 8px; border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+        }
+        table.pr-cmp-table th:first-child { text-align: left; }
+        table.pr-cmp-table td { padding: 4px 8px; border-bottom: 1px solid rgba(148, 163, 184, 0.06); }
+        table.pr-cmp-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+        table.pr-cmp-table td.pr-cmp-skill { color: #e2e8f0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .pr-cmp-vs { color: #475569; padding: 0 3px; }
+        table.pr-cmp-table td.cyan, table.pr-skill-table td.cyan { color: #22d3ee; }
+        table.pr-cmp-table td.purple, table.pr-skill-table td.purple { color: #a78bfa; }
+        table.pr-cmp-table td.yellow, table.pr-skill-table td.yellow { color: #fbbf24; }
+        table.pr-cmp-table td.orange, table.pr-skill-table td.orange { color: #fb923c; }
+
         .party-result-row.rank-1 {
             background: rgba(251, 191, 36, 0.05);
             border-radius: 8px;
@@ -10890,6 +10947,15 @@
                                                 🗑️ Clear
                                             </button>
                                         </div>
+                                    </div>
+
+                                    <!-- Phase 3 (C4): tab strip — Scoreboard / Skills / Rotation / Compare / History -->
+                                    <div class="party-tab-strip" id="partyTabStrip">
+                                        <button class="party-tab active" data-ptab="scoreboard" onclick="switchPartyTab('scoreboard')">Scoreboard</button>
+                                        <button class="party-tab" data-ptab="skills" onclick="switchPartyTab('skills')">Skills</button>
+                                        <button class="party-tab" data-ptab="rotation" onclick="switchPartyTab('rotation')">Rotation</button>
+                                        <button class="party-tab" data-ptab="compare" onclick="switchPartyTab('compare')">Compare</button>
+                                        <button class="party-tab" data-ptab="history" onclick="switchPartyTab('history')">History</button>
                                     </div>
 
                                     <!-- Results Container -->
@@ -23066,6 +23132,11 @@ ${attemptLine}
             // Phase 3 (C3) — member drill-down:
             detail: null,              // {encounter_id, user_id, username} when drilled into a member
             memberDetails: {},         // cache: `${encounter_id}:${user_id}` -> {skills, rotation}
+            // Phase 3 (C4) — tabs + A/B compare:
+            activeTab: 'scoreboard',   // scoreboard | skills | rotation | compare | history
+            skillsMember: null,        // selected member for the Skills tab
+            rotationMember: null,      // selected member for the Rotation tab
+            compare: { a: null, b: null }, // selected member user_ids for the Compare tab
             // legacy fields kept so older render paths don't throw:
             members: [],
             onlineMembers: {},
@@ -23258,6 +23329,9 @@ ${attemptLine}
                         && partyState.detail.encounter_id === m.encounter_id
                         && partyState.detail.user_id === m.user_id) {
                         renderMemberDetail();
+                    } else if (partyState.activeTab && partyState.activeTab !== 'scoreboard') {
+                        // C4: a Skills/Rotation/Compare tab is waiting on this payload — re-render it.
+                        renderPartyResults();
                     }
                     break;
                 }
@@ -24322,6 +24396,112 @@ const PartyRender = {
       + '<th>Heavy</th><th>Heavy%</th><th>%</th></tr></thead><tbody>' + body + '</tbody></table>';
   },
 
+  // ===== Phase 3 / C4 — shared A/B member compare (head-to-head) =====
+  // Mirrors the SOLO Run-Lab compare (``computeSkillMatrix`` + ``renderRunLabMatrix``/
+  // ``renderRunLabHeader`` in index.html), but lives HERE so base + overlay render two
+  // PARTY members identically with no dependency on the solo Run-Lab DOM/globals
+  // (which read from ``sessionQueue`` slots A/B — solo-only). Same inputs as the
+  // drill-down: each side is a raw ``rotation`` hit list ({relative_time, skill, damage,
+  // is_crit, is_heavy}) the room serves via ``get_member_detail``. Per-skill rows are the
+  // SAME aggregation the Run-Lab matrix shows (damage, hits, crit%, heavy%), sorted by
+  // combined damage — so the head-to-head reads the same way as the solo lab.
+
+  // Per-skill A/B matrix from two rotations. Returns rows sorted by combined damage desc.
+  compareSkillMatrix(rotA, rotB) {
+    const a = {}; PartyRender.aggregateSkills(rotA).forEach((r) => { a[r.name] = r; });
+    const b = {}; PartyRender.aggregateSkills(rotB).forEach((r) => { b[r.name] = r; });
+    const names = {};
+    Object.keys(a).forEach((k) => { names[k] = true; });
+    Object.keys(b).forEach((k) => { names[k] = true; });
+    const blank = { damage: 0, hits: 0, crits: 0, heavies: 0, percent: 0, crit_rate: 0, heavy_rate: 0 };
+    return Object.keys(names).map((name) => {
+      const ra = a[name] || blank, rb = b[name] || blank;
+      return {
+        name: name,
+        dmgA: ra.damage, dmgB: rb.damage, dmgDelta: ra.damage - rb.damage,
+        hitsA: ra.hits, hitsB: rb.hits,
+        critA: ra.crit_rate, critB: rb.crit_rate,
+        heavyA: ra.heavy_rate, heavyB: rb.heavy_rate,
+        pctA: ra.percent, pctB: rb.percent,
+      };
+    }).sort((x, y) => (y.dmgA + y.dmgB) - (x.dmgA + x.dmgB));
+  },
+
+  // Totals for one rotation: total damage, peak-5s DPS, crit/heavy rates over all hits.
+  compareTotals(rotation) {
+    let dmg = 0, hits = 0, crits = 0, heavies = 0;
+    (rotation || []).forEach((h) => {
+      dmg += Number(h && h.damage) || 0; hits += 1;
+      if (h && h.is_crit) crits += 1;
+      if (h && h.is_heavy) heavies += 1;
+    });
+    const stats = PartyRender.rotationStats(rotation);
+    return {
+      damage: dmg, hits: hits,
+      crit_rate: hits > 0 ? +(crits / hits * 100).toFixed(1) : 0,
+      heavy_rate: hits > 0 ? +(heavies / hits * 100).toFixed(1) : 0,
+      peakDps: stats ? Math.round(stats.peakDps) : 0,
+    };
+  },
+
+  // Head-to-head HTML for two members. ``meta`` = {name} label per side (defaults A/B).
+  // ``opts.compact`` => overlay variant (tighter, fewer columns).
+  compareHtml(rotA, rotB, metaA, metaB, opts) {
+    opts = opts || {};
+    const esc = PartyRender.escapeHtml;
+    const labA = esc((metaA && metaA.name) || 'A');
+    const labB = esc((metaB && metaB.name) || 'B');
+    const hasA = rotA && rotA.length, hasB = rotB && rotB.length;
+    if (!hasA || !hasB) {
+      return '<div class="pr-empty">Pick two members with detailed data to compare.</div>';
+    }
+    const tA = PartyRender.compareTotals(rotA), tB = PartyRender.compareTotals(rotB);
+    const rows = PartyRender.compareSkillMatrix(rotA, rotB);
+    const sign = (v) => (v > 0 ? '+' : '');
+    const dcls = (v) => (v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero');
+
+    // Header: peak-5s DPS for each side + delta (peak is the stable cross-member yardstick).
+    const dmgDelta = tA.damage - tB.damage;
+    const dmgPct = tB.damage > 0 ? (dmgDelta / tB.damage * 100) : 0;
+    const fnum = opts.compact ? PartyRender.fmtDmg : PartyRender.fmtNum;
+    const header = '<div class="pr-cmp-head">'
+      + '<div class="pr-cmp-side a"><div class="pr-cmp-name">' + labA + '</div>'
+        + '<div class="pr-cmp-dmg">' + fnum(tA.damage) + '</div>'
+        + '<div class="pr-cmp-sub">Peak5s ' + fnum(tA.peakDps) + ' · ' + tA.crit_rate + '% C · ' + tA.heavy_rate + '% H</div></div>'
+      + '<div class="pr-cmp-delta"><div class="pr-cmp-delta-val ' + dcls(dmgDelta) + '">'
+        + sign(dmgDelta) + fnum(Math.abs(dmgDelta)) + '</div>'
+        + '<div class="pr-cmp-delta-sub ' + dcls(dmgDelta) + '">' + sign(dmgPct) + Math.abs(dmgPct).toFixed(0) + '%</div>'
+        + '<div class="pr-cmp-delta-lbl">total dmg Δ</div></div>'
+      + '<div class="pr-cmp-side b"><div class="pr-cmp-name">' + labB + '</div>'
+        + '<div class="pr-cmp-dmg">' + fnum(tB.damage) + '</div>'
+        + '<div class="pr-cmp-sub">Peak5s ' + fnum(tB.peakDps) + ' · ' + tB.crit_rate + '% C · ' + tB.heavy_rate + '% H</div></div>'
+      + '</div>';
+
+    if (!rows.length) return header + '<div class="pr-empty">No overlapping skill data.</div>';
+
+    let body, table;
+    if (opts.compact) {
+      // overlay: skill · A dmg · B dmg · Δ
+      body = rows.map((r) => '<tr><td class="pr-cmp-skill" title="' + esc(r.name) + '">' + esc(r.name) + '</td>'
+        + '<td class="num cyan">' + PartyRender.fmtDmg(r.dmgA) + '</td>'
+        + '<td class="num purple">' + PartyRender.fmtDmg(r.dmgB) + '</td>'
+        + '<td class="num pr-cmp-d ' + dcls(r.dmgDelta) + '">' + sign(r.dmgDelta) + PartyRender.fmtDmg(Math.abs(r.dmgDelta)) + '</td></tr>').join('');
+      table = '<table class="pr-cmp-table compact"><thead><tr><th>Skill</th><th>' + labA + '</th><th>' + labB + '</th><th>Δ</th></tr></thead><tbody>' + body + '</tbody></table>';
+    } else {
+      // base: skill · A dmg · B dmg · Δ dmg · A hits/B hits · A crit%/B · A heavy%/B
+      body = rows.map((r) => '<tr><td class="pr-cmp-skill" title="' + esc(r.name) + '">' + esc(r.name) + '</td>'
+        + '<td class="num cyan">' + PartyRender.fmtNum(r.dmgA) + '</td>'
+        + '<td class="num purple">' + PartyRender.fmtNum(r.dmgB) + '</td>'
+        + '<td class="num pr-cmp-d ' + dcls(r.dmgDelta) + '">' + sign(r.dmgDelta) + PartyRender.fmtNum(Math.abs(r.dmgDelta)) + '</td>'
+        + '<td class="num">' + r.hitsA + '<span class="pr-cmp-vs">/</span>' + r.hitsB + '</td>'
+        + '<td class="num yellow">' + r.critA + '%<span class="pr-cmp-vs">/</span>' + r.critB + '%</td>'
+        + '<td class="num orange">' + r.heavyA + '%<span class="pr-cmp-vs">/</span>' + r.heavyB + '%</td></tr>').join('');
+      table = '<table class="pr-cmp-table"><thead><tr><th>Skill</th><th>' + labA + '</th><th>' + labB + '</th><th>Δ</th>'
+        + '<th>Hits A/B</th><th>Crit% A/B</th><th>Heavy% A/B</th></tr></thead><tbody>' + body + '</tbody></table>';
+    }
+    return header + table;
+  },
+
   // Rotation chart HTML (61 one-second bars, 0..60s). ``opts.compact`` => overlay variant.
   rotationChartHtml(rotation, opts) {
     opts = opts || {};
@@ -24384,8 +24564,53 @@ const PartyRender = {
             renderPartyResults();
         }
 
+        // Phase 3 (C4): tab switching. Scoreboard is the live board (+ drill-down); the other
+        // tabs are post-combat views that reuse the shared PartyRender renderers fed by the
+        // member-detail payloads the room serves (same data path as C3 drill-down).
+        function switchPartyTab(tab) {
+            partyState.activeTab = tab;
+            // Leaving a member drill-down when changing tabs (drill-down belongs to Scoreboard).
+            if (tab !== 'scoreboard') partyState.detail = null;
+            document.querySelectorAll('#partyTabStrip .party-tab').forEach((b) => {
+                b.classList.toggle('active', b.dataset.ptab === tab);
+            });
+            renderPartyResults();
+        }
+
+        // The board (entries) for whichever encounter the UI is currently showing.
+        function currentPartyBoard() {
+            const viewId = partyState.viewing_encounter_id || partyState.active_encounter_id;
+            if (viewId && partyState.boards[viewId]) return partyState.boards[viewId];
+            if (!viewId) return partyState.scoreboard;
+            return null;
+        }
+
+        // Ensure a member's detail is fetched (lazy) — used by Skills/Rotation/Compare tabs.
+        function ensureMemberDetail(encounterId, userId) {
+            if (!encounterId || !userId) return;
+            const key = `${encounterId}:${userId}`;
+            if (partyState.memberDetails[key]) return;
+            try {
+                if (partyWS && partyWS.readyState === WebSocket.OPEN) {
+                    partyWS.send(JSON.stringify({ type: 'get_member_detail', encounter_id: encounterId, user_id: userId }));
+                    partyDebug('party.member_detail.request', { encounter_id: encounterId, user_id: userId, via: partyState.activeTab });
+                }
+            } catch (e) { console.warn('[Party] get_member_detail failed:', e); }
+        }
+
+        function rotationFor(encounterId, userId) {
+            const d = partyState.memberDetails[`${encounterId}:${userId}`];
+            return (d && d.rotation) || null;
+        }
+
         function renderPartyResults() {
             const container = document.getElementById('partyResultsContainer');
+            // Phase 3 (C4): route non-scoreboard tabs to their own renderers.
+            const tab = partyState.activeTab || 'scoreboard';
+            if (tab === 'skills')   { renderPartySkillsTab();   return; }
+            if (tab === 'rotation') { renderPartyRotationTab(); return; }
+            if (tab === 'compare')  { renderPartyCompareTab();  return; }
+            if (tab === 'history')  { renderPartyHistoryTab();  return; }
             // Phase 3 (C3): if drilled into a member, render their detail panel instead of the board.
             if (partyState.detail) { renderMemberDetail(); return; }
             // Resolve which encounter's board to show: the explicitly-viewed one, else the active.
@@ -24538,6 +24763,134 @@ const PartyRender = {
                 + `<div class="party-detail-section"><div class="party-detail-section-title">Skills</div>${PartyRender.skillTableHtml(rotation)}</div>`
                 + `<div class="party-detail-section"><div class="party-detail-section-title">Rotation</div>${PartyRender.rotationChartHtml(rotation)}</div>`
                 + `</div>`;
+        }
+
+        // ===== Phase 3 (C4) — tab renderers (Skills / Rotation / Compare / History) =====
+        // Build the <option> list of drillable members on the viewed board (those with has_detail).
+        function partyMemberOptions(board, selected) {
+            const entries = (board && Array.isArray(board.entries)) ? board.entries.filter((e) => e.has_detail) : [];
+            const opts = ['<option value="">— pick member —</option>'].concat(
+                entries.map((e) => `<option value="${escapeHtml(e.user_id)}"${e.user_id === selected ? ' selected' : ''}>${escapeHtml(e.username)}</option>`)
+            );
+            return opts.join('');
+        }
+
+        // A single-member skill OR rotation view, with a member picker. ``kind`` = 'skills'|'rotation'.
+        function renderPartySingleMemberTab(kind) {
+            const container = document.getElementById('partyResultsContainer');
+            const board = currentPartyBoard();
+            const entries = (board && Array.isArray(board.entries)) ? board.entries.filter((e) => e.has_detail) : [];
+            const sel = partyState[kind === 'skills' ? 'skillsMember' : 'rotationMember'];
+            // Default to the top (rank-1) drillable member.
+            const chosen = (sel && entries.some((e) => e.user_id === sel)) ? sel : (entries[0] && entries[0].user_id) || null;
+            if (kind === 'skills') partyState.skillsMember = chosen; else partyState.rotationMember = chosen;
+
+            if (!entries.length) {
+                container.innerHTML = `<div class="party-empty-state"><div class="party-empty-icon">📊</div><div class="party-empty-text">No member breakdowns available for this encounter yet.</div></div>`;
+                return;
+            }
+            const encId = board.encounter_id;
+            const picker = `<div class="party-cmp-pickers">
+                <span class="pr-cmp-vs-lbl">Member</span>
+                <select onchange="onPartySingleMemberChange('${kind}', this.value)">${partyMemberOptions(board, chosen)}</select>
+            </div>`;
+            ensureMemberDetail(encId, chosen);
+            const rotation = rotationFor(encId, chosen);
+            let body;
+            if (!rotation) {
+                body = `<div class="party-empty-state"><div class="party-empty-icon">⏳</div><div class="party-empty-text">Loading breakdown…</div></div>`;
+            } else if (!rotation.length) {
+                body = `<div class="pr-empty">No detailed breakdown for this member.</div>`;
+            } else {
+                body = kind === 'skills' ? PartyRender.skillTableHtml(rotation) : PartyRender.rotationChartHtml(rotation);
+            }
+            container.innerHTML = picker + `<div class="party-detail-body">${body}</div>`;
+        }
+
+        function onPartySingleMemberChange(kind, userId) {
+            if (kind === 'skills') partyState.skillsMember = userId || null;
+            else partyState.rotationMember = userId || null;
+            renderPartyResults();
+        }
+
+        function renderPartySkillsTab()   { renderPartySingleMemberTab('skills'); }
+        function renderPartyRotationTab() { renderPartySingleMemberTab('rotation'); }
+
+        function renderPartyCompareTab() {
+            const container = document.getElementById('partyResultsContainer');
+            const board = currentPartyBoard();
+            const entries = (board && Array.isArray(board.entries)) ? board.entries.filter((e) => e.has_detail) : [];
+            if (entries.length < 2) {
+                container.innerHTML = `<div class="party-empty-state"><div class="party-empty-icon">⚖️</div><div class="party-empty-text">Need at least two members with detailed data to compare.</div></div>`;
+                return;
+            }
+            const encId = board.encounter_id;
+            // Default A/B to the top two drillable members if unset / stale.
+            const ids = entries.map((e) => e.user_id);
+            if (!ids.includes(partyState.compare.a)) partyState.compare.a = entries[0].user_id;
+            if (!ids.includes(partyState.compare.b) || partyState.compare.b === partyState.compare.a) {
+                partyState.compare.b = (entries.find((e) => e.user_id !== partyState.compare.a) || entries[1]).user_id;
+            }
+            const a = partyState.compare.a, b = partyState.compare.b;
+            const nameOf = (uid) => { const e = entries.find((x) => x.user_id === uid); return e ? e.username : uid; };
+
+            ensureMemberDetail(encId, a);
+            ensureMemberDetail(encId, b);
+            const rotA = rotationFor(encId, a), rotB = rotationFor(encId, b);
+
+            const pickers = `<div class="party-cmp-pickers">
+                <select onchange="onPartyCompareChange('a', this.value)">${partyMemberOptions(board, a)}</select>
+                <span class="pr-cmp-vs-lbl">VS</span>
+                <select onchange="onPartyCompareChange('b', this.value)">${partyMemberOptions(board, b)}</select>
+            </div>`;
+            let body;
+            if (!rotA || !rotB) {
+                body = `<div class="party-empty-state"><div class="party-empty-icon">⏳</div><div class="party-empty-text">Loading breakdowns…</div></div>`;
+            } else {
+                body = PartyRender.compareHtml(rotA, rotB, { name: nameOf(a) }, { name: nameOf(b) });
+            }
+            container.innerHTML = pickers + body;
+        }
+
+        function onPartyCompareChange(slot, userId) {
+            partyState.compare[slot] = userId || null;
+            // Avoid comparing a member with themselves — bump the other slot if they collide.
+            if (partyState.compare.a && partyState.compare.a === partyState.compare.b) {
+                const board = currentPartyBoard();
+                const entries = (board && Array.isArray(board.entries)) ? board.entries.filter((e) => e.has_detail) : [];
+                const other = entries.find((e) => e.user_id !== userId);
+                if (other) partyState.compare[slot === 'a' ? 'b' : 'a'] = other.user_id;
+            }
+            renderPartyResults();
+        }
+
+        function renderPartyHistoryTab() {
+            const container = document.getElementById('partyResultsContainer');
+            const list = (partyState.encounters || []).slice().reverse(); // newest first
+            if (!list.length) {
+                container.innerHTML = `<div class="party-empty-state"><div class="party-empty-icon">📜</div><div class="party-empty-text">No encounters recorded yet.</div></div>`;
+                return;
+            }
+            const activeId = partyState.active_encounter_id;
+            const rows = list.map((e) => {
+                const icon = PartyRender.catLabel(e.boss_category || 'unknown').split(' ')[0];
+                const t = e.started_at ? new Date(e.started_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                const live = (e.encounter_id === activeId && !e.ended) ? ' <span style="color:#22c55e;font-weight:700;">● LIVE</span>' : '';
+                return `<div class="party-result-row party-result-clickable" onclick="onPartyHistorySelect('${escapeHtml(e.encounter_id)}')" style="cursor:pointer;padding:8px 10px;display:flex;gap:10px;align-items:center;">
+                    <span style="font-size:1.1rem;">${icon}</span>
+                    <span style="flex:1;color:#e2e8f0;font-weight:600;">${escapeHtml(e.boss || 'Recording…')}${live}</span>
+                    <span style="color:#64748b;font-size:0.78rem;">${escapeHtml(t)}</span>
+                    <span style="color:#94a3b8;font-size:0.8rem;">${e.entries_n || 0} · ${formatNumber(e.total_damage || 0)}</span>
+                </div>`;
+            }).join('');
+            container.innerHTML = `<div class="party-detail-body" style="gap:6px;">${rows}</div>`;
+        }
+
+        function onPartyHistorySelect(encId) {
+            partyState.viewing_encounter_id = encId;
+            const sel = document.getElementById('partyTargetFilter');
+            if (sel) sel.value = encId;
+            switchPartyTab('scoreboard');
         }
 
         function partyLogout() {

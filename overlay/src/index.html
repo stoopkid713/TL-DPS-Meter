@@ -122,6 +122,34 @@
 
         /* pr-empty fallback */
         .pr-empty { color: #64748b; font-size: 11px; text-align: center; padding: 12px 0; }
+
+        /* Phase 3 (C4): overlay compact tab strip + compare */
+        .ov-tab-strip { display: flex; gap: 3px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .ov-tab { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: 600; font-family: inherit; }
+        .ov-tab:hover { background: rgba(34,211,238,0.12); color: #cbd5e1; }
+        .ov-tab.active { background: rgba(34,211,238,0.18); border-color: rgba(34,211,238,0.4); color: #22d3ee; }
+        .ov-cmp-pickers { display: flex; gap: 4px; align-items: center; padding: 4px; }
+        .ov-cmp-pickers select { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); color: #e2e8f0; font-size: 10px; border-radius: 4px; padding: 2px 4px; flex: 1; font-family: inherit; min-width: 0; }
+        .ov-cmp-pickers .pr-cmp-vs-lbl { color: #64748b; font-size: 10px; font-weight: 700; }
+        .pr-cmp-head { display: flex; gap: 4px; align-items: stretch; padding: 4px; }
+        .pr-cmp-side { flex: 1; background: rgba(0,0,0,0.25); border-radius: 4px; padding: 4px 6px; text-align: center; }
+        .pr-cmp-side.a { border-left: 2px solid #22d3ee; } .pr-cmp-side.b { border-left: 2px solid #a78bfa; }
+        .pr-cmp-name { font-size: 10px; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pr-cmp-dmg { font-size: 13px; font-weight: 800; color: #f1f5f9; }
+        .pr-cmp-sub { font-size: 8px; color: #64748b; }
+        .pr-cmp-delta { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 48px; }
+        .pr-cmp-delta-val { font-size: 11px; font-weight: 800; } .pr-cmp-delta-sub { font-size: 9px; font-weight: 700; }
+        .pr-cmp-delta-lbl { font-size: 7px; color: #64748b; text-transform: uppercase; }
+        .pr-cmp-delta-val.pos, .pr-cmp-delta-sub.pos, .pr-cmp-table td.pr-cmp-d.pos { color: #22c55e; }
+        .pr-cmp-delta-val.neg, .pr-cmp-delta-sub.neg, .pr-cmp-table td.pr-cmp-d.neg { color: #ef4444; }
+        .pr-cmp-delta-val.zero, .pr-cmp-delta-sub.zero, .pr-cmp-table td.pr-cmp-d.zero { color: #64748b; }
+        table.pr-cmp-table.compact { width: 100%; border-collapse: collapse; font-size: 10px; }
+        table.pr-cmp-table.compact th { color: #64748b; font-size: 9px; text-transform: uppercase; text-align: right; padding: 2px 5px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        table.pr-cmp-table.compact th:first-child { text-align: left; }
+        table.pr-cmp-table.compact td { padding: 2px 5px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        table.pr-cmp-table.compact td.num { text-align: right; font-variant-numeric: tabular-nums; }
+        table.pr-cmp-table.compact td.cyan { color: #22d3ee; } table.pr-cmp-table.compact td.purple { color: #a78bfa; }
+        table.pr-cmp-table.compact td.pr-cmp-skill { color: #e2e8f0; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     </style>
 </head>
 <body class="">
@@ -151,6 +179,13 @@
             <span class="boss-total" id="bossTotal"></span>
             <span id="encPos" style="opacity:0.5; font-size:10px; margin-left:auto;"></span>
             <span id="encNext" title="Next encounter" onclick="ovEncStep(1)" style="cursor:pointer; padding:0 3px; display:none;">›</span>
+        </div>
+
+        <!-- Phase 3 (C4): compact tab strip — keeps the overlay from being one static panel. -->
+        <div class="ov-tab-strip" id="ovTabStrip" style="display:none;">
+            <button class="ov-tab active" data-ovtab="scoreboard" onclick="ovSwitchTab('scoreboard')">Board</button>
+            <button class="ov-tab" data-ovtab="skills" onclick="ovSwitchTab('skills')">Skills</button>
+            <button class="ov-tab" data-ovtab="compare" onclick="ovSwitchTab('compare')">Compare</button>
         </div>
 
         <div class="results" id="results">
@@ -299,6 +334,112 @@ const PartyRender = {
       + '<th>Heavy</th><th>Heavy%</th><th>%</th></tr></thead><tbody>' + body + '</tbody></table>';
   },
 
+  // ===== Phase 3 / C4 — shared A/B member compare (head-to-head) =====
+  // Mirrors the SOLO Run-Lab compare (``computeSkillMatrix`` + ``renderRunLabMatrix``/
+  // ``renderRunLabHeader`` in index.html), but lives HERE so base + overlay render two
+  // PARTY members identically with no dependency on the solo Run-Lab DOM/globals
+  // (which read from ``sessionQueue`` slots A/B — solo-only). Same inputs as the
+  // drill-down: each side is a raw ``rotation`` hit list ({relative_time, skill, damage,
+  // is_crit, is_heavy}) the room serves via ``get_member_detail``. Per-skill rows are the
+  // SAME aggregation the Run-Lab matrix shows (damage, hits, crit%, heavy%), sorted by
+  // combined damage — so the head-to-head reads the same way as the solo lab.
+
+  // Per-skill A/B matrix from two rotations. Returns rows sorted by combined damage desc.
+  compareSkillMatrix(rotA, rotB) {
+    const a = {}; PartyRender.aggregateSkills(rotA).forEach((r) => { a[r.name] = r; });
+    const b = {}; PartyRender.aggregateSkills(rotB).forEach((r) => { b[r.name] = r; });
+    const names = {};
+    Object.keys(a).forEach((k) => { names[k] = true; });
+    Object.keys(b).forEach((k) => { names[k] = true; });
+    const blank = { damage: 0, hits: 0, crits: 0, heavies: 0, percent: 0, crit_rate: 0, heavy_rate: 0 };
+    return Object.keys(names).map((name) => {
+      const ra = a[name] || blank, rb = b[name] || blank;
+      return {
+        name: name,
+        dmgA: ra.damage, dmgB: rb.damage, dmgDelta: ra.damage - rb.damage,
+        hitsA: ra.hits, hitsB: rb.hits,
+        critA: ra.crit_rate, critB: rb.crit_rate,
+        heavyA: ra.heavy_rate, heavyB: rb.heavy_rate,
+        pctA: ra.percent, pctB: rb.percent,
+      };
+    }).sort((x, y) => (y.dmgA + y.dmgB) - (x.dmgA + x.dmgB));
+  },
+
+  // Totals for one rotation: total damage, peak-5s DPS, crit/heavy rates over all hits.
+  compareTotals(rotation) {
+    let dmg = 0, hits = 0, crits = 0, heavies = 0;
+    (rotation || []).forEach((h) => {
+      dmg += Number(h && h.damage) || 0; hits += 1;
+      if (h && h.is_crit) crits += 1;
+      if (h && h.is_heavy) heavies += 1;
+    });
+    const stats = PartyRender.rotationStats(rotation);
+    return {
+      damage: dmg, hits: hits,
+      crit_rate: hits > 0 ? +(crits / hits * 100).toFixed(1) : 0,
+      heavy_rate: hits > 0 ? +(heavies / hits * 100).toFixed(1) : 0,
+      peakDps: stats ? Math.round(stats.peakDps) : 0,
+    };
+  },
+
+  // Head-to-head HTML for two members. ``meta`` = {name} label per side (defaults A/B).
+  // ``opts.compact`` => overlay variant (tighter, fewer columns).
+  compareHtml(rotA, rotB, metaA, metaB, opts) {
+    opts = opts || {};
+    const esc = PartyRender.escapeHtml;
+    const labA = esc((metaA && metaA.name) || 'A');
+    const labB = esc((metaB && metaB.name) || 'B');
+    const hasA = rotA && rotA.length, hasB = rotB && rotB.length;
+    if (!hasA || !hasB) {
+      return '<div class="pr-empty">Pick two members with detailed data to compare.</div>';
+    }
+    const tA = PartyRender.compareTotals(rotA), tB = PartyRender.compareTotals(rotB);
+    const rows = PartyRender.compareSkillMatrix(rotA, rotB);
+    const sign = (v) => (v > 0 ? '+' : '');
+    const dcls = (v) => (v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero');
+
+    // Header: peak-5s DPS for each side + delta (peak is the stable cross-member yardstick).
+    const dmgDelta = tA.damage - tB.damage;
+    const dmgPct = tB.damage > 0 ? (dmgDelta / tB.damage * 100) : 0;
+    const fnum = opts.compact ? PartyRender.fmtDmg : PartyRender.fmtNum;
+    const header = '<div class="pr-cmp-head">'
+      + '<div class="pr-cmp-side a"><div class="pr-cmp-name">' + labA + '</div>'
+        + '<div class="pr-cmp-dmg">' + fnum(tA.damage) + '</div>'
+        + '<div class="pr-cmp-sub">Peak5s ' + fnum(tA.peakDps) + ' · ' + tA.crit_rate + '% C · ' + tA.heavy_rate + '% H</div></div>'
+      + '<div class="pr-cmp-delta"><div class="pr-cmp-delta-val ' + dcls(dmgDelta) + '">'
+        + sign(dmgDelta) + fnum(Math.abs(dmgDelta)) + '</div>'
+        + '<div class="pr-cmp-delta-sub ' + dcls(dmgDelta) + '">' + sign(dmgPct) + Math.abs(dmgPct).toFixed(0) + '%</div>'
+        + '<div class="pr-cmp-delta-lbl">total dmg Δ</div></div>'
+      + '<div class="pr-cmp-side b"><div class="pr-cmp-name">' + labB + '</div>'
+        + '<div class="pr-cmp-dmg">' + fnum(tB.damage) + '</div>'
+        + '<div class="pr-cmp-sub">Peak5s ' + fnum(tB.peakDps) + ' · ' + tB.crit_rate + '% C · ' + tB.heavy_rate + '% H</div></div>'
+      + '</div>';
+
+    if (!rows.length) return header + '<div class="pr-empty">No overlapping skill data.</div>';
+
+    let body, table;
+    if (opts.compact) {
+      // overlay: skill · A dmg · B dmg · Δ
+      body = rows.map((r) => '<tr><td class="pr-cmp-skill" title="' + esc(r.name) + '">' + esc(r.name) + '</td>'
+        + '<td class="num cyan">' + PartyRender.fmtDmg(r.dmgA) + '</td>'
+        + '<td class="num purple">' + PartyRender.fmtDmg(r.dmgB) + '</td>'
+        + '<td class="num pr-cmp-d ' + dcls(r.dmgDelta) + '">' + sign(r.dmgDelta) + PartyRender.fmtDmg(Math.abs(r.dmgDelta)) + '</td></tr>').join('');
+      table = '<table class="pr-cmp-table compact"><thead><tr><th>Skill</th><th>' + labA + '</th><th>' + labB + '</th><th>Δ</th></tr></thead><tbody>' + body + '</tbody></table>';
+    } else {
+      // base: skill · A dmg · B dmg · Δ dmg · A hits/B hits · A crit%/B · A heavy%/B
+      body = rows.map((r) => '<tr><td class="pr-cmp-skill" title="' + esc(r.name) + '">' + esc(r.name) + '</td>'
+        + '<td class="num cyan">' + PartyRender.fmtNum(r.dmgA) + '</td>'
+        + '<td class="num purple">' + PartyRender.fmtNum(r.dmgB) + '</td>'
+        + '<td class="num pr-cmp-d ' + dcls(r.dmgDelta) + '">' + sign(r.dmgDelta) + PartyRender.fmtNum(Math.abs(r.dmgDelta)) + '</td>'
+        + '<td class="num">' + r.hitsA + '<span class="pr-cmp-vs">/</span>' + r.hitsB + '</td>'
+        + '<td class="num yellow">' + r.critA + '%<span class="pr-cmp-vs">/</span>' + r.critB + '%</td>'
+        + '<td class="num orange">' + r.heavyA + '%<span class="pr-cmp-vs">/</span>' + r.heavyB + '%</td></tr>').join('');
+      table = '<table class="pr-cmp-table"><thead><tr><th>Skill</th><th>' + labA + '</th><th>' + labB + '</th><th>Δ</th>'
+        + '<th>Hits A/B</th><th>Crit% A/B</th><th>Heavy% A/B</th></tr></thead><tbody>' + body + '</tbody></table>';
+    }
+    return header + table;
+  },
+
   // Rotation chart HTML (61 one-second bars, 0..60s). ``opts.compact`` => overlay variant.
   rotationChartHtml(rotation, opts) {
     opts = opts || {};
@@ -335,6 +476,8 @@ const PartyRender = {
         encounters: [], activeId: null, viewingId: null, boards: {},
         // Phase 3 (C3): member drill-down.
         detail: null, memberDetails: {},
+        // Phase 3 (C4): compact tabs + A/B compare.
+        activeTab: 'scoreboard', skillsMember: null, cmpA: null, cmpB: null,
     };
     let ws = null, wantOpen = false, reconnectTimer = null;
 
@@ -442,8 +585,99 @@ const PartyRender = {
         render();
     }
 
+        // ---- Phase 3 (C4): compact tabs (Board / Skills / Compare) ----
+        function ovCurrentBoard() {
+            const viewId = state.viewingId || state.activeId;
+            return (viewId && state.boards[viewId]) ? state.boards[viewId] : (!viewId ? state.scoreboard : null);
+        }
+        function ovEnsureDetail(encId, userId) {
+            if (!encId || !userId) return;
+            const k = encId + ':' + userId;
+            if (state.memberDetails[k]) return;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ovlog('member-detail-request', { encounter_id: encId, user_id: userId, via: state.activeTab });
+                ws.send(JSON.stringify({ type: 'get_member_detail', encounter_id: encId, user_id: userId }));
+            }
+        }
+        function ovRotationFor(encId, userId) {
+            const d = state.memberDetails[encId + ':' + userId];
+            return (d && d.rotation) || null;
+        }
+        function ovDrillableEntries() {
+            const b = ovCurrentBoard();
+            return (b && Array.isArray(b.entries)) ? b.entries.filter((e) => e.has_detail) : [];
+        }
+        function ovMemberOptions(selected) {
+            const entries = ovDrillableEntries();
+            return ['<option value="">—</option>'].concat(
+                entries.map((e) => '<option value="' + escapeHtml(e.user_id) + '"' + (e.user_id === selected ? ' selected' : '') + '>' + escapeHtml(e.username) + '</option>')
+            ).join('');
+        }
+        function ovSwitchTab(tab) {
+            state.activeTab = tab;
+            if (tab !== 'scoreboard') state.detail = null;
+            document.querySelectorAll('#ovTabStrip .ov-tab').forEach((b) => b.classList.toggle('active', b.dataset.ovtab === tab));
+            render();
+        }
+        function ovUpdateTabStrip() {
+            // Show tabs only once there's a board with drillable members worth exploring.
+            const strip = document.getElementById('ovTabStrip');
+            if (!strip) return;
+            strip.style.display = ovDrillableEntries().length ? 'flex' : 'none';
+        }
+        function renderOvSkillsTab() {
+            const container = document.getElementById('results');
+            const board = ovCurrentBoard();
+            const entries = ovDrillableEntries();
+            if (!entries.length) { container.innerHTML = '<div class="pr-empty">No member breakdowns yet.</div>'; return; }
+            const ids = entries.map((e) => e.user_id);
+            if (!ids.includes(state.skillsMember)) state.skillsMember = entries[0].user_id;
+            const encId = board.encounter_id;
+            const picker = '<div class="ov-cmp-pickers"><select onchange="ovSkillsMemberChange(this.value)">' + ovMemberOptions(state.skillsMember) + '</select></div>';
+            ovEnsureDetail(encId, state.skillsMember);
+            const rot = ovRotationFor(encId, state.skillsMember);
+            let body;
+            if (!rot) body = '<div class="ov-detail-loading">Loading…</div>';
+            else if (!rot.length) body = '<div class="pr-empty">No breakdown for this member.</div>';
+            else body = PartyRender.skillTableHtml(rot, { compact: true }) + PartyRender.rotationChartHtml(rot, { compact: true });
+            container.innerHTML = picker + body;
+            document.getElementById('playerCount').textContent = entries.length + ' player' + (entries.length !== 1 ? 's' : '');
+        }
+        function ovSkillsMemberChange(uid) { state.skillsMember = uid || null; render(); }
+        function renderOvCompareTab() {
+            const container = document.getElementById('results');
+            const board = ovCurrentBoard();
+            const entries = ovDrillableEntries();
+            if (entries.length < 2) { container.innerHTML = '<div class="pr-empty">Need two members with data to compare.</div>'; return; }
+            const ids = entries.map((e) => e.user_id);
+            if (!ids.includes(state.cmpA)) state.cmpA = entries[0].user_id;
+            if (!ids.includes(state.cmpB) || state.cmpB === state.cmpA) state.cmpB = (entries.find((e) => e.user_id !== state.cmpA) || entries[1]).user_id;
+            const encId = board.encounter_id;
+            const nameOf = (uid) => { const e = entries.find((x) => x.user_id === uid); return e ? e.username : uid; };
+            ovEnsureDetail(encId, state.cmpA); ovEnsureDetail(encId, state.cmpB);
+            const rotA = ovRotationFor(encId, state.cmpA), rotB = ovRotationFor(encId, state.cmpB);
+            const pickers = '<div class="ov-cmp-pickers"><select onchange="ovCmpChange(\'A\', this.value)">' + ovMemberOptions(state.cmpA)
+                + '</select><span class="pr-cmp-vs-lbl">VS</span><select onchange="ovCmpChange(\'B\', this.value)">' + ovMemberOptions(state.cmpB) + '</select></div>';
+            let body;
+            if (!rotA || !rotB) body = '<div class="ov-detail-loading">Loading…</div>';
+            else body = PartyRender.compareHtml(rotA, rotB, { name: nameOf(state.cmpA) }, { name: nameOf(state.cmpB) }, { compact: true });
+            container.innerHTML = pickers + body;
+        }
+        function ovCmpChange(slot, uid) {
+            if (slot === 'A') state.cmpA = uid || null; else state.cmpB = uid || null;
+            if (state.cmpA && state.cmpA === state.cmpB) {
+                const other = ovDrillableEntries().find((e) => e.user_id !== uid);
+                if (other) { if (slot === 'A') state.cmpB = other.user_id; else state.cmpA = other.user_id; }
+            }
+            render();
+        }
+
     function render() {
         if (state.detail) { renderOvDetail(); return; }
+        ovUpdateTabStrip();
+        // C4: route non-board tabs.
+        if (state.activeTab === 'skills')  { renderOvSkillsTab();  return; }
+        if (state.activeTab === 'compare') { renderOvCompareTab(); return; }
         const container = document.getElementById('results');
         // Resolve the viewed encounter's board (explicit selection, else active).
         const viewId = state.viewingId || state.activeId;
