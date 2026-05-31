@@ -124,3 +124,113 @@ def test_extract_weapon_passives_maps_item_weapon_type():
     details = {"bow_x": {"passives": {"name": "Skywatch Salvo"}}}
     out = rgd.extract_weapon_passives(items, details)
     assert out == [{"name": "Skywatch Salvo", "weapon": "longbow"}]
+
+
+# --- reconcile_skills (G2) -----------------------------------------------------------------
+def test_reconcile_exact_match_counts_and_no_diff():
+    d = rgd.reconcile_skills({"Shadow Strike": "dagger"}, {"Shadow Strike": "dagger"})
+    assert d["matched"] == 1
+    assert d["retagged"] == []
+    assert d["orphaned"] == []
+    assert d["new"] == []
+
+
+def test_reconcile_retag_when_feed_disagrees():
+    # feed #5 attributes the wand proc that weapon_config currently mis-tags 'other'
+    d = rgd.reconcile_skills(
+        {"Enraged Tevent's Hunger": "wand"}, {"Enraged Tevent's Hunger": "other"})
+    assert d["retagged"] == [{"name": "Enraged Tevent's Hunger", "from": "other", "to": "wand"}]
+    assert d["matched"] == 0
+    assert d["new"] == []
+
+
+def test_reconcile_folds_prefix_variants_not_counted_new():
+    # combat log emits spec names; meter keys the base "Manaball" -> variants fold in, not new
+    extracted = {"Manaball Eruption": "wand", "Manaball Salvo": "wand"}
+    d = rgd.reconcile_skills(extracted, {"Manaball": "wand"})
+    assert d["matched"] == 1
+    assert d["new"] == []
+    assert d["retagged"] == []
+
+
+def test_reconcile_prefix_variant_disagreement_goes_to_review_not_retag():
+    # a variant (not exact) match that disagrees is ambiguous -> review, never a confident retag
+    d = rgd.reconcile_skills({"Manaball Eruption": "orb"}, {"Manaball": "wand"})
+    assert d["retagged"] == []
+    assert len(d["review"]) == 1
+    r = d["review"][0]
+    assert r["name"] == "Manaball" and r["from"] == "wand" and r["feed"] == ["orb"]
+    assert r["via"] == "variant" and r["tokens"] == ["Manaball Eruption"]
+
+
+def test_reconcile_conflicting_variants_go_to_review():
+    # Manaball Eruption=staff vs Manaball Salvo=mastery -> conflicting evidence -> review
+    d = rgd.reconcile_skills(
+        {"Manaball Eruption": "staff", "Manaball Salvo": "mastery"}, {"Manaball": "wand"})
+    assert d["retagged"] == []
+    assert len(d["review"]) == 1
+    assert d["review"][0]["feed"] == ["staff", "mastery"]  # concrete weapon sorts before fallback
+
+
+def test_reconcile_exact_match_to_only_a_fallback_bucket_is_review():
+    # the only feed token of this name is a mastery -> not a confident weapon retag
+    d = rgd.reconcile_skills({"Venomous Edge": "mastery"}, {"Venomous Edge": "dagger"})
+    assert d["retagged"] == []
+    assert len(d["review"]) == 1
+    assert d["review"][0]["feed"] == ["mastery"] and d["review"][0]["via"] == "exact"
+
+
+def test_reconcile_does_not_fold_distinct_same_length_skills():
+    # "Brutal Fury" must NOT fold into "Brutal Incision" (equal-length, not a prefix)
+    extracted = {"Brutal Incision": "spear"}
+    d = rgd.reconcile_skills(extracted, {"Brutal Fury": "spear"})
+    assert d["matched"] == 0
+    assert d["orphaned"][0]["name"] == "Brutal Fury"
+    assert {"name": "Brutal Incision", "weapon": "spear"} in d["new"]
+
+
+def test_reconcile_orphaned_meter_key_no_feed_match():
+    d = rgd.reconcile_skills({"Gale Rush": "spear"}, {"Totally Removed Skill": "mastery"})
+    assert len(d["orphaned"]) == 1
+    assert d["orphaned"][0]["name"] == "Totally Removed Skill"
+    assert d["orphaned"][0]["weapon"] == "mastery"
+    assert d["matched"] == 0
+    assert {"name": "Gale Rush", "weapon": "spear"} in d["new"]
+
+
+def test_reconcile_new_tokens_grouped_by_weapon():
+    extracted = {"Power Shot": "longbow", "Rain of Arrows": "longbow", "Heavy Cleave": "greatsword"}
+    d = rgd.reconcile_skills(extracted, {})
+    assert {n["weapon"] for n in d["new"]} == {"longbow", "greatsword"}
+    assert len(d["new"]) == 3
+    # sorted by (weapon, name)
+    assert d["new"][0]["weapon"] == "greatsword"
+
+
+def test_reconcile_normalizes_icon_markup_in_meter_key():
+    d = rgd.reconcile_skills(
+        {"Sword of Judgment": "other"}, {"^<imgf=IMG_X> Sword of Judgment": "other"})
+    assert d["matched"] == 1
+    assert d["new"] == []
+
+
+# --- reconcile_bosses / flatten_known_targets (G2) -----------------------------------------
+def test_flatten_known_targets_ignores_non_list_values():
+    data = {"archboss": ["Tevent"], "adds": ["Goblin", "Orc"], "last_updated": "2026-04-09"}
+    assert sorted(rgd.flatten_known_targets(data)) == ["Goblin", "Orc", "Tevent"]
+
+
+def test_reconcile_bosses_flags_new_only():
+    pulled = {"boss": [{"name": "New Field Boss"}, {"name": "Morokai"}]}
+    out = rgd.reconcile_bosses(pulled, ["Morokai", "Adentus"])
+    assert out == {"boss": ["New Field Boss"]}
+
+
+def test_reconcile_bosses_dedupes_and_normalizes():
+    pulled = {"boss-world": [{"name": "Tevent"}, {"name": "tevent"}, {"name": "Ascended Tevent"}]}
+    out = rgd.reconcile_bosses(pulled, ["Tevent"])
+    assert out == {"boss-world": ["Ascended Tevent"]}  # base + case-dupe filtered; ascended is new
+
+
+def test_reconcile_bosses_empty_when_all_known():
+    assert rgd.reconcile_bosses({"boss": [{"name": "Morokai"}]}, ["Morokai"]) == {}

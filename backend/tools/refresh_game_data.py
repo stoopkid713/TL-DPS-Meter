@@ -7,11 +7,14 @@ KNOWN_BOSSES, dungeons.json) GENERATED so the layers can never drift.
 Full design + the reverse-engineered API map: TL-DPS-Meter-oracle/docs/WORKSTREAM-GAME-DATA-REFRESH.md
 
 The full workflow is pull -> extract -> reconcile -> diff -> review-gate -> regenerate -> verify,
-built in gated segments. THIS FILE currently implements **G1 (pull + extract, read-only)**:
-  * the questlog tRPC pull layer (GET, no auth, raw `input`),
-  * the questlog-mainCategory -> meter-weapon-slug map (the 11 existing UI cards),
-  * combat-log token normalization + the multi-feed skill->weapon extractor (recipe doc S7).
-Later segments add reconcile/diff (G2), regenerate skills (G3), and derive bosses/dungeons (G4).
+built in gated segments. THIS FILE currently implements **G1 + G2 (pull/extract + reconcile/diff,
+read-only)**:
+  * G1: the questlog tRPC pull layer (GET, no auth, raw `input`), the questlog-mainCategory ->
+    meter-weapon-slug map (the 11 existing UI cards), combat-log token normalization + the
+    multi-feed skill->weapon extractor (recipe doc S7).
+  * G2: fuzzy reconcile of the extracted map vs the meter's skillAssignments + a boss-name diff
+    vs default_target_assignments.json, emitted as a human-readable patch diff (`--report`).
+Later segments regenerate skills (G3) and derive bosses/dungeons (G4).
 
 CLI (read-only; never touches canonical or derived files):
   py backend/tools/refresh_game_data.py --counts
@@ -20,6 +23,9 @@ CLI (read-only; never touches canonical or derived files):
       pull every feed live and write the raw JSON + the extracted skill->weapon map to DIR
       (default backend/tools/_refresh_cache/, gitignored). --passives also pulls each weapon's
       item detail for feed #5 (slow: ~hundreds of getItem calls).
+  py backend/tools/refresh_game_data.py --report [--passives]
+      pull every feed live, reconcile against canonical (weapon_config.json skillAssignments +
+      default_target_assignments.json), and print the human-readable patch diff (read-only).
 
 Run with the venv python (stdlib-only; no third-party deps):
   backend/.venv/Scripts/python.exe backend/tools/refresh_game_data.py --counts
@@ -27,6 +33,7 @@ Run with the venv python (stdlib-only; no third-party deps):
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import re
 import sys
@@ -118,6 +125,27 @@ def pull_weapon_items() -> list:
 def pull_item(item_id: str) -> dict:
     """Item detail: `.passives.name` = the combat-log weapon-skill token (feed #5)."""
     return _trpc("database.getItem", {"language": LANG, "id": item_id})
+
+
+def pull_weapon_passives_live(items: list, progress: bool = True) -> list:
+    """Feed #5 live pull: fetch each weapon's item detail and extract its non-null passive
+    token. Shared by ``--dump --passives`` and ``--report --passives`` (slow: one getItem
+    per weapon -> ~hundreds of calls). Returns [{"name", "weapon"}] (see extract_weapon_passives)."""
+    total = len(items or [])
+    if progress:
+        print(f"  pulling {total} weapon item details (feed #5)...")
+    details: dict = {}
+    for i, it in enumerate(items or [], 1):
+        iid = str(it.get("id") or "")
+        if not iid:
+            continue
+        try:
+            details[iid] = pull_item(iid)
+        except RuntimeError as err:
+            print(f"    [warn] getItem {iid}: {err}")
+        if progress and i % 50 == 0:
+            print(f"    {i}/{total}")
+    return extract_weapon_passives(items, details)
 
 
 # --------------------------------------------------------------------------------------------
@@ -235,10 +263,165 @@ def extract_weapon_passives(items: list, details: dict) -> list:
 
 
 # --------------------------------------------------------------------------------------------
+# reconcile + diff (G2) -- read-only: compares pulled feeds vs canonical, never writes
+# --------------------------------------------------------------------------------------------
+def _norm_key(name) -> str:
+    """Normalize a name for matching: strip icon markup, collapse whitespace, casefold."""
+    return normalize_token(name).casefold()
+
+
+def _is_variant(a_words: list, b_words: list) -> bool:
+    """True if one whole-word list is a STRICT leading prefix of the other.
+
+    Folds combat-log specialization tokens onto their base skill key
+    (e.g. meter "Manaball" <- questlog "Manaball Eruption"/"Manaball Salvo") -- a case
+    difflib's ratio alone misses, because a short base and a longer spec share too few
+    characters to clear the cutoff. Equal-length lists are never variants (that's the
+    exact-match tier), so distinct same-length skills (Brutal Fury vs Brutal Incision)
+    are NOT folded.
+    """
+    if not a_words or not b_words or len(a_words) == len(b_words):
+        return False
+    short, long = sorted((a_words, b_words), key=len)
+    return long[: len(short)] == short
+
+
+_FALLBACK_SLUGS = ("mastery", "other")
+
+
+def reconcile_skills(extracted: dict, current: dict, cutoff: float = 0.84) -> dict:
+    """Reconcile the feed-extracted {token->slug} map against the meter's current
+    skillAssignments {name->slug}. Pure (no network). Returns a structured diff:
+
+      matched  : int                                meter key found, a feed slug agrees
+      retagged : [{name, from, to}]                 HIGH-confidence mis-tag: EXACT-name feed
+                                                    match, one concrete weapon, disagrees
+      review   : [{name, from, feed:[..], via,      AMBIGUOUS: feed disagrees but evidence is
+                   tokens:[..]}]                      a variant/fuzzy match, conflicting weapons,
+                                                      or only a mastery/other fallback bucket
+      orphaned : [{name, weapon, near:[token..]}]   meter key no feed carries (renamed/removed)
+      new      : [{name, weapon}]                   feed tokens no meter key matched (G3 adds)
+
+    Matching is tiered per meter key: exact-normalized -> whole-word prefix/containment
+    (variant fold; the Manaball <- Manaball Eruption case) -> difflib close-match (>= cutoff).
+    Icon markup + casing are normalized on both sides. Matched feed tokens are consumed so they
+    are NOT also counted as `new`. A weapon disagreement is only called a confident `retag` when
+    the meter key matched a feed token EXACTLY and the feed offers exactly one concrete weapon;
+    every other disagreement is surfaced under `review` with its evidence for the human gate.
+    """
+    feed = []
+    for tok, slug in extracted.items():
+        nk = _norm_key(tok)
+        feed.append((tok, nk, nk.split(), slug))
+    feed_norms = [f[1] for f in feed]
+    norm_to_token: dict = {}
+    for tok, nk, _w, _s in feed:
+        norm_to_token.setdefault(nk, tok)
+
+    consumed: set = set()
+    matched = 0
+    retagged: list = []
+    review: list = []
+    orphaned: list = []
+
+    for name, mslug in sorted(current.items()):
+        nk = _norm_key(name)
+        words = nk.split()
+        exact = [i for i, (_t, tnk, _tw, _s) in enumerate(feed) if tnk == nk]
+        variant = [i for i, (_t, tnk, tw, _s) in enumerate(feed)
+                   if tnk != nk and _is_variant(words, tw)]
+        if exact:
+            idxs, via = exact + variant, "exact"
+        elif variant:
+            idxs, via = variant, "variant"
+        else:
+            cand = difflib.get_close_matches(nk, feed_norms, n=1, cutoff=cutoff)
+            idxs = [i for i, f in enumerate(feed) if f[1] == cand[0]] if cand else []
+            via = "fuzzy"
+        if not idxs:
+            near = difflib.get_close_matches(nk, feed_norms, n=3, cutoff=0.6)
+            orphaned.append({
+                "name": name,
+                "weapon": mslug,
+                "near": [norm_to_token[k] for k in near],
+            })
+            continue
+        consumed.update(idxs)
+        feed_slugs = sorted({feed[i][3] for i in idxs},
+                            key=lambda s: -_SLUG_PRIORITY.get(s, 0))
+        if mslug in feed_slugs:
+            matched += 1
+            continue
+        concrete = [s for s in feed_slugs if s not in _FALLBACK_SLUGS]
+        if via == "exact" and feed_slugs == concrete and len(concrete) == 1:
+            retagged.append({"name": name, "from": mslug, "to": feed_slugs[0]})
+        else:
+            review.append({
+                "name": name,
+                "from": mslug,
+                "feed": feed_slugs,
+                "via": via,
+                "tokens": sorted(feed[i][0] for i in idxs),
+            })
+
+    new = sorted(
+        ({"name": feed[i][0], "weapon": feed[i][3]}
+         for i in range(len(feed)) if i not in consumed),
+        key=lambda d: (d["weapon"], d["name"].casefold()),
+    )
+    return {"matched": matched, "retagged": retagged, "review": review,
+            "orphaned": orphaned, "new": new}
+
+
+def flatten_known_targets(assignments: dict) -> list:
+    """Flatten every category list in default_target_assignments.json into one name list
+    (non-list values like `last_updated` are ignored)."""
+    names: list = []
+    for value in (assignments or {}).values():
+        if isinstance(value, list):
+            names.extend(value)
+    return names
+
+
+def reconcile_bosses(pulled_by_cat: dict, known_names: list) -> dict:
+    """Diff pulled NPC names (by questlog mainCategory) against the names already in
+    default_target_assignments.json. Pure (no network). Per the locked HYBRID strategy this
+    flags NEW names ONLY -- the curated file stays the category authority -- and does NOT
+    auto-assign a meter category (categorizing is the human review-gate step). Names are
+    compared normalized (case/whitespace) and deduped; the verbatim questlog `name` is
+    returned. Returns {questlog_category: [new name, ...]} (empty cats omitted)."""
+    known = {_norm_key(n) for n in (known_names or [])}
+    new_by_cat: dict = {}
+    for cat, npcs in (pulled_by_cat or {}).items():
+        seen: set = set()
+        fresh: list = []
+        for npc in npcs or []:
+            name = npc.get("name") if isinstance(npc, dict) else str(npc)
+            if not name:
+                continue
+            nk = _norm_key(name)
+            if nk in known or nk in seen:
+                continue
+            seen.add(nk)
+            fresh.append(name)
+        if fresh:
+            new_by_cat[cat] = sorted(fresh, key=str.casefold)
+    return new_by_cat
+
+
+# --------------------------------------------------------------------------------------------
 # CLI (read-only)
 # --------------------------------------------------------------------------------------------
 NPC_BOSS_CATEGORIES = ("boss-world", "boss", "solo-elite")
 DEFAULT_CACHE = Path(__file__).resolve().parent / "_refresh_cache"
+# Canonical files live at the repo root (backend/tools/refresh_game_data.py -> parents[2]).
+ROOT = Path(__file__).resolve().parents[2]
+WEAPON_CONFIG_PATH = ROOT / "weapon_config.json"
+TARGET_ASSIGNMENTS_PATH = ROOT / "default_target_assignments.json"
+
+
+def _load_json(path: Path):
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def _counts() -> int:
@@ -290,19 +473,7 @@ def _dump(out_dir: Path, with_passives: bool) -> int:
 
     passives: list = []
     if with_passives:
-        print(f"  pulling {len(items)} weapon item details (feed #5)...")
-        details = {}
-        for i, it in enumerate(items, 1):
-            iid = str(it.get("id"))
-            if not iid:
-                continue
-            try:
-                details[iid] = pull_item(iid)
-            except RuntimeError as err:
-                print(f"    [warn] getItem {iid}: {err}")
-            if i % 50 == 0:
-                print(f"    {i}/{len(items)}")
-        passives = extract_weapon_passives(items, details)
+        passives = pull_weapon_passives_live(items)
         _save("weapon_passives", passives)
 
     skill_map = extract_skill_weapons(sets, traits, specs, passives or None)
@@ -311,18 +482,104 @@ def _dump(out_dir: Path, with_passives: bool) -> int:
     return 0
 
 
+def _render_skill_diff(diff: dict) -> None:
+    print("\n=== SKILL -> WEAPON RECONCILE (vs weapon_config.json skillAssignments) ===")
+    print(f"  meter keys matched (weapon agrees)   : {diff['matched']}")
+    print(f"  retagged  (exact match, confident)   : {len(diff['retagged'])}")
+    print(f"  review    (ambiguous match)          : {len(diff['review'])}")
+    print(f"  orphaned  (no feed carries it)       : {len(diff['orphaned'])}")
+    print(f"  new feed tokens (G3 would add)       : {len(diff['new'])}")
+
+    if diff["retagged"]:
+        print("\n  -- RETAG: exact-name match, feed weapon differs (high-confidence G3 fixes) --")
+        for r in sorted(diff["retagged"], key=lambda d: d["name"].casefold()):
+            print(f"     {r['name']:<42} {r['from']} -> {r['to']}")
+
+    if diff["review"]:
+        print("\n  -- REVIEW: ambiguous (variant/fuzzy match, conflicting, or fallback-only) --")
+        for r in sorted(diff["review"], key=lambda d: d["name"].casefold()):
+            ev = ", ".join(r["tokens"][:4]) + (" ..." if len(r["tokens"]) > 4 else "")
+            print(f"     {r['name']:<42} {r['from']} -> {'/'.join(r['feed'])}  [{r['via']}: {ev}]")
+
+    if diff["orphaned"]:
+        print("\n  -- ORPHANED meter keys (renamed/removed? -> curated overlay) --")
+        for o in sorted(diff["orphaned"], key=lambda d: d["name"].casefold()):
+            hint = f"   ~ {', '.join(o['near'])}" if o["near"] else ""
+            print(f"     {o['name']:<42} [{o['weapon']}]{hint}")
+
+    if diff["new"]:
+        by_slug: dict = {}
+        for n in diff["new"]:
+            by_slug.setdefault(n["weapon"], []).append(n["name"])
+        print("\n  -- NEW feed tokens by weapon (questlog-suggested; G3 populates these) --")
+        for slug in sorted(by_slug):
+            names = by_slug[slug]
+            print(f"     {slug} ({len(names)}):")
+            for nm in names:
+                print(f"        + {nm}")
+
+
+def _render_boss_diff(diff: dict) -> None:
+    print("\n=== NEW BOSSES (vs default_target_assignments.json) ===")
+    total = sum(len(v) for v in diff.values())
+    if not total:
+        print("  none -- every pulled boss name is already categorized.")
+        return
+    print(f"  {total} new boss name(s) to categorize (hybrid: assign a meter category by hand):")
+    for cat in sorted(diff):
+        names = diff[cat]
+        print(f"\n  questlog[{cat}] -- {len(names)} new:")
+        for nm in names:
+            print(f"     + {nm}")
+
+
+def _report(with_passives: bool) -> int:
+    print("Pulling questlog feeds (live)...")
+    sets = pull_skill_sets()
+    traits = pull_skill_traits()
+    specs = pull_weapon_specializations()
+    npcs_by_cat = {cat: pull_npcs(cat) for cat in NPC_BOSS_CATEGORIES}
+    items = pull_weapon_items()
+    passives = pull_weapon_passives_live(items) if with_passives else None
+    if not with_passives:
+        print("  (feed #5 weapon passives SKIPPED -- pass --passives to fold them in; without it,\n"
+              "   unique-weapon procs like \"Enraged Tevent's Hunger\" show as ORPHANED, not retagged.)")
+
+    extracted = extract_skill_weapons(sets, traits, specs, passives)
+    current = _load_json(WEAPON_CONFIG_PATH).get("skillAssignments", {})
+    skill_diff = reconcile_skills(extracted, current)
+
+    known = flatten_known_targets(_load_json(TARGET_ASSIGNMENTS_PATH))
+    boss_diff = reconcile_bosses(npcs_by_cat, known)
+
+    _render_skill_diff(skill_diff)
+    _render_boss_diff(boss_diff)
+    print("\n(read-only: no canonical or derived files were touched. G3/G4 regenerate from this diff.)")
+    return 0
+
+
 def main(argv=None) -> int:
+    # questlog names carry non-ASCII glyphs (e.g. U+25B2); Windows' default cp1252 stdout
+    # crashes on them when output is redirected. Force UTF-8 so the diff renders intact.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
     parser = argparse.ArgumentParser(description="Game-data refresh (G1: pull + extract, read-only)")
     grp = parser.add_mutually_exclusive_group(required=True)
     grp.add_argument("--counts", action="store_true", help="live-probe every feed and print counts")
     grp.add_argument("--dump", nargs="?", const=str(DEFAULT_CACHE), metavar="DIR",
                      help="pull every feed live and write raw JSON + the extracted map to DIR")
+    grp.add_argument("--report", action="store_true",
+                     help="pull live, reconcile vs canonical, print the patch diff (read-only)")
     parser.add_argument("--passives", action="store_true",
-                        help="with --dump: also pull each weapon's item detail (feed #5; slow)")
+                        help="with --dump/--report: also pull each weapon's item detail (feed #5; slow)")
     args = parser.parse_args(argv)
     try:
         if args.counts:
             return _counts()
+        if args.report:
+            return _report(args.passives)
         return _dump(Path(args.dump), args.passives)
     except RuntimeError as err:
         print(f"ERROR: {err}", file=sys.stderr)
