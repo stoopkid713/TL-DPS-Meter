@@ -113,6 +113,76 @@ def test_duration_floors_at_one_second():
     assert res["targets"][0]["dps"] == 1000.0
 
 
+def test_c1b_full_hit_retention_and_rotation_slice():
+    """C1b: every hit is retained in the solo-hit shape; the final post
+    (``include_hits=True``) emits them as ``rotation`` while the live default stays
+    byte-identical, and the retained hits drop straight into the solo aggregators."""
+    from combat_log_parser import parse_line
+    from combat_stats import _skills, _targets
+    ps = PartyState()
+    ps.start_recording("ROOM")
+    parts = [parse_line(line) for line in HITS]
+    for p in parts:
+        # Mirror the server call: thread skill + clock through (A3/C1b).
+        ps.record_hit(p["target"], p["damage"], p["is_crit"], p["is_heavy"],
+                      p["_timestamp"], skill=p["skill"], time=p["time"])
+
+    # Default (live-tick) path is unchanged — no rotation key leaks in.
+    assert "rotation" not in ps.get_results()
+
+    # Final post carries the full hit-by-hit slice, in solo-hit shape.
+    full = ps.get_results(include_hits=True)
+    rot = full["rotation"]
+    assert len(rot) == 3
+    assert [h["skill"] for h in rot] == ["Fireball", "Slash", "Smash"]
+    assert [h["target"] for h in rot] == ["Goblin", "Goblin", "Orc"]
+    assert [h["damage"] for h in rot] == [1000, 500, 800]
+    # relative_time = seconds from the encounter's first hit (1 dp); first = 0.0.
+    assert [h["relative_time"] for h in rot] == [0.0, 1.0, 2.0]
+    assert rot[0]["is_crit"] is True and rot[2]["is_heavy"] is True
+    assert rot[0]["time"] == parts[0]["time"]
+    # Keys match the solo hit shape so the solo renderers drop in unchanged.
+    assert set(rot[0]) == {"time", "relative_time", "skill", "target",
+                           "damage", "is_crit", "is_heavy"}
+
+    # The retained hits feed the solo aggregators directly (no transform = no drift).
+    skills = _skills(rot, full["total_damage"])
+    assert {s["name"] for s in skills} == {"Fireball", "Slash", "Smash"}
+    assert next(s for s in skills if s["name"] == "Fireball")["crits"] == 1
+    targets = _targets(rot, full["total_damage"])
+    assert {t["name"]: t["damage"] for t in targets} == {"Goblin": 1500, "Orc": 800}
+
+    # stop_recording is a final post → carries the slice; the bare default stays light.
+    assert len(ps.stop_recording(include_hits=True)["rotation"]) == 3
+    ps2 = PartyState()
+    ps2.start_recording()
+    for p in parts:
+        ps2.record_hit(p["target"], p["damage"], p["is_crit"], p["is_heavy"], p["_timestamp"])
+    assert "rotation" not in ps2.stop_recording()
+    # Empty encounter still yields an empty list (not a missing key) when asked.
+    assert PartyState().get_results(include_hits=True)["rotation"] == []
+
+
+def test_c1b_rotation_scoped_per_encounter():
+    """Each PartyEncounter retains only its OWN hits; a boundary (leader id) starts a
+    fresh slice with relative_time re-zeroed."""
+    from combat_log_parser import parse_line
+    ps = PartyState()
+    ps.start_recording()
+    a = parse_line(_line("20260530-12:00:00:000", "Fireball", 1000, False, False, "BossA"))
+    ps.record_hit(a["target"], a["damage"], a["is_crit"], a["is_heavy"], a["_timestamp"],
+                  encounter_id="E1", skill=a["skill"], time=a["time"])
+    b = parse_line(_line("20260530-12:05:00:000", "Slash", 700, False, False, "BossB"))
+    ps.record_hit(b["target"], b["damage"], b["is_crit"], b["is_heavy"], b["_timestamp"],
+                  encounter_id="E2", skill=b["skill"], time=b["time"])
+    assert len(ps.encounters) == 2
+    e1 = ps.get_results(encounter_id="E1", include_hits=True)
+    e2 = ps.get_results(encounter_id="E2", include_hits=True)
+    assert [h["skill"] for h in e1["rotation"]] == ["Fireball"]
+    assert [h["skill"] for h in e2["rotation"]] == ["Slash"]
+    assert e2["rotation"][0]["relative_time"] == 0.0
+
+
 # ===========================================================================
 # Integration: real WS client.
 # ===========================================================================

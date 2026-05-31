@@ -22285,8 +22285,11 @@ ${attemptLine}
                                 encounter_id: msg.results.encounter_id || (msg.results.fight_ts ? String(msg.results.fight_ts) : undefined),
                                 targets: msg.results.targets,
                                 summary: { total_damage: msg.results.total_damage, duration: msg.results.duration },
-                                skills: null,    // Phase 3 fills these (per-skill / rotation);
-                                rotation: null    // the room stores them opaquely now.
+                                // C1b: the final post carries the full hit slice (rotation); the
+                                // room stores it opaquely (C1a SQLite) for drill-down (C3). `skills`
+                                // is derived later — stays null for now.
+                                skills: null,
+                                rotation: msg.results.rotation || null
                             }));
                             console.log('[Party] Posted fight to room:', nTargets, 'targets');
                             partyDebug('party.post_fight.sent', { targets: nTargets, fight_ts: msg.results.fight_ts });
@@ -22315,7 +22318,7 @@ ${attemptLine}
                     const totals = msg.totals;
                     if (totals && totals.targets && totals.targets.length &&
                         partyWS && partyWS.readyState === WebSocket.OPEN && partyState.party_code) {
-                        const postEncounter = () => {
+                        const postEncounter = (includeRotation = false) => {
                             partyWS.send(JSON.stringify({
                                 type: 'post_fight',
                                 v: 2,
@@ -22326,7 +22329,9 @@ ${attemptLine}
                                 targets: totals.targets,
                                 summary: { total_damage: totals.total_damage, duration: totals.duration },
                                 skills: null,
-                                rotation: null
+                                // C1b: only the FINAL post (boundary close) carries the heavy hit
+                                // slice; debounced live ticks stay light (rotation null).
+                                rotation: includeRotation ? (totals.rotation || null) : null
                             }));
                         };
                         if (msg.final) {
@@ -22334,7 +22339,7 @@ ${attemptLine}
                             // board NOW (don't debounce; the next encounter is already arming).
                             if (partyLiveHitDebounce) { clearTimeout(partyLiveHitDebounce); partyLiveHitDebounce = null; }
                             try {
-                                postEncounter();
+                                postEncounter(true);  // C1b: final post carries the hit slice
                                 partyDebug('party.live_post.final', { encounter_id: totals.encounter_id, targets: totals.targets.length });
                             } catch (err) {
                                 partyDebug('party.live_post.error', { err: String(err) });

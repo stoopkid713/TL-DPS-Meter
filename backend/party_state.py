@@ -53,8 +53,16 @@ class PartyEncounter:
         self.first_hit_time = None
         self.last_hit_time = None
         self.target_damage: dict[str, dict[str, int]] = defaultdict(_new_target_stats)
+        # Full hit-by-hit retention (Phase 3 / C1b). One dict per hit in the SAME
+        # shape the solo path emits (``combat_log_parser.finalize_hit`` →
+        # ``combat_stats`` rotation), so the solo renderers (``_skills`` /
+        # ``_targets`` / ``_gap_stats`` / ``renderRotationChart``) consume it
+        # unchanged on drill-down. Emitted as ``rotation`` only on the final post
+        # (``results(include_hits=True)``) — never on the light live tick.
+        self.hits: list[dict] = []
 
-    def record(self, target, damage, is_crit, is_heavy, hit_time) -> None:
+    def record(self, target, damage, is_crit, is_heavy, hit_time,
+               skill: Optional[str] = None, time: Optional[str] = None) -> None:
         if self.first_hit_time is None:
             self.first_hit_time = hit_time
         self.last_hit_time = hit_time
@@ -65,6 +73,18 @@ class PartyEncounter:
             stats["crits"] += 1
         if is_heavy:
             stats["heavies"] += 1
+        # Retain the raw hit (solo-hit shape). ``relative_time`` is seconds from the
+        # encounter's first hit (1 dp, matching ``ROUND_REL_TIME``); ``first_hit_time``
+        # is set above so the first hit is 0.0.
+        self.hits.append({
+            "time": time,
+            "relative_time": round((hit_time - self.first_hit_time).total_seconds(), 1),
+            "skill": skill,
+            "target": target,
+            "damage": damage,
+            "is_crit": is_crit,
+            "is_heavy": is_heavy,
+        })
 
     def fight_ts(self) -> Optional[int]:
         """Epoch-ms of the first hit (the encounter key); ``None`` before any hit."""
@@ -80,14 +100,21 @@ class PartyEncounter:
             return 0
         return max((last - first).total_seconds(), 1.0)
 
-    def results(self) -> dict:
+    def results(self, include_hits: bool = False) -> dict:
         """Final per-target breakdown + totals — the ``results`` payload shape.
 
         Byte-identical to the pre-A2 ``PartyState.get_results`` output (per-target
-        keys, rounding, ``fight_ts``)."""
+        keys, rounding, ``fight_ts``) when ``include_hits`` is False (the default,
+        and the live-tick path). With ``include_hits=True`` (the final post only) a
+        ``rotation`` key carries the full retained hit list (Phase 3 / C1b) — a copy
+        of each :attr:`hits` dict, in solo-hit shape, for the room to store opaquely
+        and serve on drill-down (C1a/C3)."""
         fight_ts = self.fight_ts()
         if not self.target_damage:
-            return {"targets": [], "total_damage": 0, "duration": 0, "fight_ts": fight_ts}
+            empty = {"targets": [], "total_damage": 0, "duration": 0, "fight_ts": fight_ts}
+            if include_hits:
+                empty["rotation"] = []
+            return empty
         duration = self.duration()
         total_damage = self.total_damage()
         targets = []
@@ -108,12 +135,15 @@ class PartyEncounter:
                 "crit_rate": round(crit_rate, 1),
                 "heavy_rate": round(heavy_rate, 1),
             })
-        return {
+        out = {
             "targets": targets,
             "total_damage": total_damage,
             "duration": round(duration, 1),
             "fight_ts": fight_ts,
         }
+        if include_hits:
+            out["rotation"] = [dict(h) for h in self.hits]
+        return out
 
     def meta(self) -> dict:
         """Lightweight enumeration entry for the room/UI encounter list (A4)."""
@@ -150,10 +180,13 @@ class PartyState:
         self.party_code = party_code
         self.reset_stats()
 
-    def stop_recording(self) -> dict:
-        """Disarm and return the final :meth:`get_results` snapshot (current encounter)."""
+    def stop_recording(self, include_hits: bool = False) -> dict:
+        """Disarm and return the final :meth:`get_results` snapshot (current encounter).
+
+        ``include_hits=True`` carries the full ``rotation`` hit slice for the final
+        post (Phase 3 / C1b)."""
         self.encounter_active = False
-        return self.get_results()
+        return self.get_results(include_hits=include_hits)
 
     def _open_encounter(self, encounter_id: Optional[str] = None) -> PartyEncounter:
         enc = PartyEncounter(encounter_id)
@@ -174,7 +207,8 @@ class PartyState:
 
     def record_hit(self, target, damage, is_crit, is_heavy, hit_time,
                    encounter_id: Optional[str] = None,
-                   category: Optional[str] = None) -> None:
+                   category: Optional[str] = None,
+                   skill: Optional[str] = None, time: Optional[str] = None) -> None:
         """Fold one hit into the current encounter, rolling to a new one at a boundary.
 
         Boundary rules (open a fresh encounter *before* folding the hit):
@@ -200,7 +234,8 @@ class PartyState:
               and is_new_encounter(self.current.last_hit_time, hit_time, category)):
             self._open_encounter()
 
-        self.current.record(target, damage, is_crit, is_heavy, hit_time)
+        self.current.record(target, damage, is_crit, is_heavy, hit_time,
+                            skill=skill, time=time)
         # Lazily key the encounter to its first hit (Foundations F1) when no leader
         # id was supplied.
         if self.current.encounter_id is None:
@@ -210,17 +245,24 @@ class PartyState:
         """Wall-clock span of the current encounter (0 before any hit)."""
         return self.current.duration() if self.current else 0
 
-    def get_results(self, encounter_id: Optional[str] = None) -> dict:
+    def get_results(self, encounter_id: Optional[str] = None,
+                    include_hits: bool = False) -> dict:
         """Per-target breakdown + totals for one encounter (the ``results`` payload).
 
         Defaults to the **current** encounter (the legacy behaviour); pass an
         ``encounter_id`` to fetch a specific past encounter (A4 enumeration). Returns
         the empty shape when the target encounter doesn't exist / nothing recorded.
+
+        ``include_hits=True`` (final post only) adds the full ``rotation`` hit list
+        (Phase 3 / C1b); the default keeps the live tick light + byte-identical.
         """
         enc = self._find(encounter_id) if encounter_id is not None else self.current
         if enc is None:
-            return {"targets": [], "total_damage": 0, "duration": 0, "fight_ts": None}
-        return enc.results()
+            empty = {"targets": [], "total_damage": 0, "duration": 0, "fight_ts": None}
+            if include_hits:
+                empty["rotation"] = []
+            return empty
+        return enc.results(include_hits=include_hits)
 
     def _find(self, encounter_id: str) -> Optional[PartyEncounter]:
         for enc in self.encounters:

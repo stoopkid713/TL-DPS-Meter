@@ -280,6 +280,9 @@ class DPSMeterServer:
             is_heavy=partial["is_heavy"],
             hit_time=partial["_timestamp"],
             category=category,
+            # Per-hit detail (Phase 3 / C1b) — retained for the final post's rotation.
+            skill=partial["skill"],
+            time=partial["time"],
         )
         cur = self.party.current
 
@@ -294,7 +297,9 @@ class DPSMeterServer:
         # (flagged so the frontend posts it immediately, bypassing the live debounce)
         # before the new encounter starts hydrating.
         if prev is not None and cur is not prev:
-            closed = prev.results()
+            # Final post for the just-closed encounter — carry the full hit slice
+            # (Phase 3 / C1b); the live tick below stays light (no rotation).
+            closed = prev.results(include_hits=True)
             closed["encounter_id"] = prev.encounter_id
             self._emit({"type": "party_live_hit", "hit": hit,
                         "totals": closed, "final": True})
@@ -836,7 +841,8 @@ def _h_party_start_recording(s: DPSMeterServer, msg: dict) -> dict:
 
 def _h_party_stop_recording(s: DPSMeterServer, msg: dict) -> dict:
     """Disarm recording; reply with the final results + status (current encounter)."""
-    results = s.party.stop_recording()
+    # Final post — carry the full hit slice for the room to store (Phase 3 / C1b).
+    results = s.party.stop_recording(include_hits=True)
     results["encounter_id"] = s.party.current.encounter_id if s.party.current else None
     return {"type": "party_recording_stopped",
             "results": results, "status": s.party.get_status()}
