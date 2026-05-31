@@ -443,3 +443,177 @@ def test_skill_counts_by_slug_basic():
 
 def test_skill_counts_by_slug_empty():
     assert rgd._skill_counts_by_slug({}) == {}
+
+
+# --- G4: derive_known_bosses_map -----------------------------------------------------------
+def test_derive_known_bosses_includes_boss_categories():
+    data = {
+        "archboss": ["Tevent", "Ascended Tevent"],
+        "field_boss": ["Morokai", "Adentus"],
+        "raid_boss": ["Calanthia"],
+        "dungeon_boss": ["Belkros"],
+    }
+    result = rgd.derive_known_bosses_map(data)
+    assert result["tevent"] == "archboss"
+    assert result["ascended tevent"] == "archboss"
+    assert result["morokai"] == "field_boss"
+    assert result["calanthia"] == "raid_boss"
+    assert result["belkros"] == "dungeon_boss"
+
+
+def test_derive_known_bosses_excludes_adds_and_other():
+    data = {
+        "archboss": ["Tevent"],
+        "adds": ["Goblin Fighter", "Orc Soldier"],
+        "other": ["Practice Dummy"],
+    }
+    result = rgd.derive_known_bosses_map(data)
+    assert "goblin fighter" not in result
+    assert "orc soldier" not in result
+    assert "practice dummy" not in result
+    assert "tevent" in result
+
+
+def test_derive_known_bosses_normalizes_keys():
+    data = {"field_boss": ["Grand Aelon", "  Morokai  "]}
+    result = rgd.derive_known_bosses_map(data)
+    assert "grand aelon" in result
+    assert "morokai" in result
+
+
+def test_derive_known_bosses_result_sorted():
+    data = {
+        "archboss": ["Tevent", "Giant Cordy"],
+        "field_boss": ["Adentus"],
+    }
+    result = rgd.derive_known_bosses_map(data)
+    keys = list(result.keys())
+    assert keys == sorted(keys)
+
+
+def test_derive_known_bosses_empty_input():
+    assert rgd.derive_known_bosses_map({}) == {}
+    assert rgd.derive_known_bosses_map(None) == {}
+
+
+def test_derive_known_bosses_ignores_non_list_values():
+    data = {
+        "archboss": ["Tevent"],
+        "last_updated": "2026-04-09",  # non-list; not a boss category either
+    }
+    result = rgd.derive_known_bosses_map(data)
+    assert result == {"tevent": "archboss"}
+
+
+# --- G4: build_known_bosses_js_lines -------------------------------------------------------
+def test_build_known_bosses_js_lines_basic():
+    boss_map = {"morokai": "field_boss", "tevent": "archboss"}
+    lines = rgd.build_known_bosses_js_lines(boss_map)
+    assert '"morokai": "field_boss",' in lines
+    assert '"tevent": "archboss",' in lines
+
+
+def test_build_known_bosses_js_lines_sorted_input():
+    # Given a sorted map (as derive_known_bosses_map always returns), output should be sorted
+    boss_map = {"adentus": "field_boss", "tevent": "archboss"}
+    lines = rgd.build_known_bosses_js_lines(boss_map)
+    idx_adentus = lines.index("adentus")
+    idx_tevent = lines.index("tevent")
+    assert idx_adentus < idx_tevent
+
+
+def test_build_known_bosses_js_lines_empty():
+    assert rgd.build_known_bosses_js_lines({}) == ""
+
+
+def test_build_known_bosses_js_lines_each_line_indented():
+    boss_map = {"tevent": "archboss"}
+    lines = rgd.build_known_bosses_js_lines(boss_map)
+    for line in lines.splitlines():
+        assert line.startswith("  "), f"Line not indented: {repr(line)}"
+
+
+# --- G4: rewrite_known_bosses_sentinel -----------------------------------------------------
+_FIXTURE_WITH_SENTINELS = """\
+const KNOWN_BOSSES = {
+  // @gen:known_bosses:start
+  "tevent": "archboss",
+  // @gen:known_bosses:end
+};
+"""
+
+_FIXTURE_WITHOUT_SENTINELS = """\
+const KNOWN_BOSSES = {
+  tevent: "archboss",
+  // add more as needed...
+};
+"""
+
+_FIXTURE_EMPTY_BLOCK = """\
+const KNOWN_BOSSES = {
+  // @gen:known_bosses:start
+  // @gen:known_bosses:end
+};
+"""
+
+
+def test_rewrite_sentinel_replaces_content_between_markers():
+    new_map = {"morokai": "field_boss", "tevent": "archboss"}
+    new_source, changed = rgd.rewrite_known_bosses_sentinel(_FIXTURE_WITH_SENTINELS, new_map)
+    assert changed
+    assert '"morokai": "field_boss",' in new_source
+    assert '"tevent": "archboss",' in new_source
+    # Sentinels themselves must still be present
+    assert "// @gen:known_bosses:start" in new_source
+    assert "// @gen:known_bosses:end" in new_source
+
+
+def test_rewrite_sentinel_preserves_surrounding_code():
+    new_map = {"tevent": "archboss"}
+    new_source, _ = rgd.rewrite_known_bosses_sentinel(_FIXTURE_WITH_SENTINELS, new_map)
+    assert "const KNOWN_BOSSES = {" in new_source
+    assert "};" in new_source
+
+
+def test_rewrite_sentinel_noop_when_sentinels_absent():
+    source_out, changed = rgd.rewrite_known_bosses_sentinel(
+        _FIXTURE_WITHOUT_SENTINELS, {"tevent": "archboss"})
+    assert not changed
+    assert source_out == _FIXTURE_WITHOUT_SENTINELS
+
+
+def test_rewrite_sentinel_noop_when_content_already_matches():
+    # Build source with sentinels whose content already matches what we'd generate
+    boss_map = {"tevent": "archboss"}
+    js_lines = rgd.build_known_bosses_js_lines(boss_map)
+    source = (
+        "const KNOWN_BOSSES = {\n"
+        "  // @gen:known_bosses:start\n"
+        + js_lines + "\n"
+        "  // @gen:known_bosses:end\n"
+        "};\n"
+    )
+    _, changed = rgd.rewrite_known_bosses_sentinel(source, boss_map)
+    assert not changed
+
+
+def test_rewrite_sentinel_handles_empty_boss_map():
+    new_source, changed = rgd.rewrite_known_bosses_sentinel(_FIXTURE_WITH_SENTINELS, {})
+    # Content between sentinels removed; sentinels still present
+    assert "// @gen:known_bosses:start" in new_source
+    assert "// @gen:known_bosses:end" in new_source
+
+
+def test_rewrite_sentinel_full_roundtrip_fixture():
+    """End-to-end: derive boss map from a minimal target_assignments dict, render, rewrite fixture."""
+    data = {
+        "archboss": ["Tevent"],
+        "field_boss": ["Morokai"],
+        "adds": ["Goblin Fighter"],
+    }
+    boss_map = rgd.derive_known_bosses_map(data)
+    new_source, changed = rgd.rewrite_known_bosses_sentinel(_FIXTURE_EMPTY_BLOCK, boss_map)
+    assert changed
+    assert '"morokai": "field_boss",' in new_source
+    assert '"tevent": "archboss",' in new_source
+    assert "goblin fighter" not in new_source

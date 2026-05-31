@@ -1,0 +1,90 @@
+name: Refresh Game Data
+
+# Runs weekly on Monday at noon UTC, or on-demand via workflow_dispatch.
+# Pulls the latest skill/boss/dungeon data from questlog.gg, regenerates:
+#   - skills_canonical.json
+#   - weapon_config.json (skillAssignments)
+#   - workers/party/src/index.js (KNOWN_BOSSES sentinel block, if sentinels present)
+#   - dungeons.json
+# If any of those files changed, commits and pushes them back to the repo.
+# The party worker then redeploys automatically via Cloudflare git-connect on that commit.
+
+on:
+  schedule:
+    # Every Monday at 12:00 UTC
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (print what would change, write nothing)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to push the commit back
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history so the commit we push back doesn't lose provenance
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        # The refresh tool is stdlib-only; pytest is only needed for CI verify step.
+        # uv is available on ubuntu-latest runners as of 2024; fall back to pip if not.
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+
+      - name: Run game data refresh (G3 + G4)
+        id: refresh
+        run: |
+          DRY_FLAG=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            DRY_FLAG="--dry-run"
+          fi
+          python backend/tools/refresh_game_data.py --regenerate $DRY_FLAG
+
+      - name: Run unit tests (verify)
+        run: |
+          cd backend
+          python -m pytest tests/test_refresh_game_data.py -q
+
+      - name: Commit and push changed files
+        # Skip commit if this was a dry run
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          git config user.name "stoopkid713"
+          git config user.email "kjricciardi@gmail.com"
+
+          # Stage only the files this workflow is responsible for
+          git add \
+            skills_canonical.json \
+            weapon_config.json \
+            dungeons.json \
+            workers/party/src/index.js \
+            || true
+
+          # Only commit if something actually changed
+          if git diff --cached --quiet; then
+            echo "No game-data files changed — nothing to commit."
+          else
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            MSG="chore(gamedata): auto-refresh game data [${TIMESTAMP}] -- source: questlog.gg tRPC API -- files: skills_canonical.json, weapon_config.json, dungeons.json, index.js (KNOWN_BOSSES)"
+            git commit -m "${MSG}"
+            git push
+            echo "Pushed refreshed game-data files."
+          fi

@@ -7,7 +7,7 @@ KNOWN_BOSSES, dungeons.json) GENERATED so the layers can never drift.
 Full design + the reverse-engineered API map: TL-DPS-Meter-oracle/docs/WORKSTREAM-GAME-DATA-REFRESH.md
 
 The full workflow is pull -> extract -> reconcile -> diff -> review-gate -> regenerate -> verify,
-built in gated segments. THIS FILE currently implements **G1 + G2 + G3**:
+built in gated segments. THIS FILE currently implements **G1 + G2 + G3 + G4**:
   * G1: the questlog tRPC pull layer (GET, no auth, raw `input`), the questlog-mainCategory ->
     meter-weapon-slug map (the 11 existing UI cards), combat-log token normalization + the
     multi-feed skill->weapon extractor (recipe doc S7). Masteries (feed #4) map to their
@@ -16,7 +16,9 @@ built in gated segments. THIS FILE currently implements **G1 + G2 + G3**:
     vs default_target_assignments.json, emitted as a human-readable patch diff (`--report`).
   * G3: regenerate skills_canonical.json from feeds + curated overlay, then DERIVE
     weapon_config.json skillAssignments from canonical so the layers can never drift.
-G4 (next) regenerates boss/dungeon derived files (worker KNOWN_BOSSES, dungeons.json).
+  * G4: derive KNOWN_BOSSES JS object from default_target_assignments.json and rewrite the
+    sentinel block in workers/party/src/index.js (no-op if sentinels absent); also regenerate
+    dungeons.json from the questlog dungeons feed (or leave untouched if offline).
 
 CLI:
   py backend/tools/refresh_game_data.py --counts
@@ -537,6 +539,184 @@ def write_weapon_config(weapon_cfg: dict, path: Path) -> None:
 
 
 # --------------------------------------------------------------------------------------------
+# G4 — derive KNOWN_BOSSES + rewrite index.js sentinel block + regenerate dungeons.json
+# --------------------------------------------------------------------------------------------
+# The sentinel-rewrite targets these EXACT markers inside workers/party/src/index.js:
+#   // @gen:known_bosses:start
+#   ...generated JS object lines...
+#   // @gen:known_bosses:end
+#
+# If either sentinel is absent the function is a no-op (the lane that owns index.js may not
+# have wired the sentinels yet; we never touch the file in that case).
+#
+# Which categories from default_target_assignments.json feed KNOWN_BOSSES?
+# Only the "boss" categories — not "adds" or "other" (those are trash).
+KNOWN_BOSSES_CATEGORIES = {"archboss", "field_boss", "raid_boss", "dungeon_boss"}
+
+_SENTINEL_START = "// @gen:known_bosses:start"
+_SENTINEL_END = "// @gen:known_bosses:end"
+
+
+def derive_known_bosses_map(target_assignments: dict) -> dict:
+    """Derive the {normalized_name: category} map for KNOWN_BOSSES in index.js.
+
+    Only entries whose top-level key is in KNOWN_BOSSES_CATEGORIES are included
+    (i.e. archboss/field_boss/raid_boss/dungeon_boss — NOT adds/other).
+    Normalization matches the worker's `norm()` fn: trim + lowercase.
+
+    Returns a plain dict {normalized_name: category_string} sorted by key.
+    """
+    out: dict = {}
+    for category, names in (target_assignments or {}).items():
+        if category not in KNOWN_BOSSES_CATEGORIES:
+            continue
+        if not isinstance(names, list):
+            continue
+        for name in names:
+            if not name:
+                continue
+            key = str(name).strip().lower()
+            if key:
+                # Last-write wins on collision (shouldn't happen, but be deterministic)
+                out[key] = category
+    return dict(sorted(out.items()))
+
+
+def build_known_bosses_js_lines(boss_map: dict) -> str:
+    """Render the boss_map as JS object-literal lines, one per entry, trailing comma on each.
+
+    The output is meant to be inserted BETWEEN the sentinel comments so that the block
+    (including sentinels) looks like:
+
+        // @gen:known_bosses:start
+          "tevent": "archboss",
+          "ascended tevent": "archboss",
+          ...
+        // @gen:known_bosses:end
+
+    Entries are sorted (derive_known_bosses_map guarantees this). Each line is indented
+    with two spaces to match the surrounding object literal style in index.js.
+    """
+    if not boss_map:
+        return ""
+    lines = [f'  "{k}": "{v}",' for k, v in boss_map.items()]
+    return "\n".join(lines)
+
+
+def rewrite_known_bosses_sentinel(source: str, boss_map: dict) -> tuple[str, bool]:
+    """Rewrite the KNOWN_BOSSES sentinel block inside `source` (string content of index.js).
+
+    Finds the lines containing _SENTINEL_START and _SENTINEL_END (exact substring match,
+    preserving the line's leading whitespace), replaces everything BETWEEN them with the
+    generated JS lines.  Lines that ARE the sentinels themselves are kept verbatim.
+
+    Returns:
+        (new_source, changed) where `changed` is True if the content differs from `source`.
+        If either sentinel is absent, returns (source, False) — guaranteed no-op.
+    """
+    lines = source.splitlines(keepends=True)
+    start_idx: int | None = None
+    end_idx: int | None = None
+    for i, line in enumerate(lines):
+        if _SENTINEL_START in line:
+            start_idx = i
+        elif _SENTINEL_END in line and start_idx is not None:
+            end_idx = i
+            break
+
+    if start_idx is None or end_idx is None:
+        # Sentinels absent — guaranteed no-op
+        return source, False
+
+    generated = build_known_bosses_js_lines(boss_map)
+    # Preserve the newline character that ended the start-sentinel line
+    start_line = lines[start_idx]
+    end_line = lines[end_idx]
+
+    new_lines = lines[: start_idx + 1]
+    if generated:
+        # Ensure generated block ends with a newline before the closing sentinel
+        new_lines.append(generated + "\n")
+    new_lines.append(end_line)
+    if end_idx + 1 < len(lines):
+        new_lines.extend(lines[end_idx + 1 :])
+
+    new_source = "".join(new_lines)
+    return new_source, new_source != source
+
+
+def rewrite_index_js_known_bosses(index_js_path: Path, boss_map: dict, dry_run: bool = False) -> bool:
+    """Read index.js, rewrite the KNOWN_BOSSES sentinel block, and write back if changed.
+
+    Returns True if a write was performed (or would be, under dry_run).
+    Is a no-op (returns False) if sentinels are absent — safe to call unconditionally.
+    """
+    if not index_js_path.exists():
+        print(f"  [warn] index.js not found at {index_js_path} — KNOWN_BOSSES rewrite skipped")
+        return False
+
+    source = index_js_path.read_text(encoding="utf-8")
+    new_source, changed = rewrite_known_bosses_sentinel(source, boss_map)
+
+    if not changed:
+        if _SENTINEL_START not in source:
+            print("  KNOWN_BOSSES sentinels absent in index.js — no-op (another lane will add them)")
+        else:
+            print("  KNOWN_BOSSES block already up-to-date in index.js — no changes")
+        return False
+
+    if dry_run:
+        print(f"  [dry-run] Would rewrite KNOWN_BOSSES block in {index_js_path}")
+        return True
+
+    index_js_path.write_text(new_source, encoding="utf-8")
+    print(f"  Rewrote KNOWN_BOSSES block in {index_js_path} ({len(boss_map)} entries)")
+    return True
+
+
+def regenerate_dungeons_json(dungeons_path: Path, dry_run: bool = False) -> bool:
+    """Pull the questlog dungeons feed and regenerate dungeons.json.
+
+    The existing dungeons.json groups dungeon names by type string (e.g. "Co-op Dungeon",
+    "Raid", "Field Boss"). The questlog feed carries a `type` field on each dungeon row.
+
+    Returns True if a write was performed (or would be, under dry_run).
+    On network failure, prints a warning and returns False (leaves existing file untouched).
+    """
+    try:
+        print("  Pulling questlog dungeons feed...")
+        rows = pull_dungeons()
+        print(f"  Got {len(rows)} dungeon rows from questlog")
+    except RuntimeError as err:
+        print(f"  [warn] Dungeons feed unreachable: {err}")
+        print("  Leaving existing dungeons.json untouched.")
+        return False
+
+    # Group by type
+    grouped: dict = {}
+    for row in rows or []:
+        dtype = str(row.get("type") or "").strip()
+        name = str(row.get("name") or "").strip()
+        if not dtype or not name:
+            continue
+        grouped.setdefault(dtype, [])
+        if name not in grouped[dtype]:
+            grouped[dtype].append(name)
+
+    # Sort each group; sort groups by key
+    out = {k: sorted(v) for k, v in sorted(grouped.items())}
+
+    if dry_run:
+        print(f"  [dry-run] Would write {dungeons_path} ({sum(len(v) for v in out.values())} dungeons)")
+        return True
+
+    dungeons_path.write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"  Wrote {dungeons_path} ({sum(len(v) for v in out.values())} dungeons, "
+          f"{len(out)} types)")
+    return True
+
+
+# --------------------------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------------------------
 NPC_BOSS_CATEGORIES = ("boss-world", "boss", "solo-elite")
@@ -546,6 +726,8 @@ ROOT = Path(__file__).resolve().parents[2]
 WEAPON_CONFIG_PATH = ROOT / "weapon_config.json"
 SKILLS_CANONICAL_PATH = ROOT / SKILLS_CANONICAL_PATH_NAME
 TARGET_ASSIGNMENTS_PATH = ROOT / "default_target_assignments.json"
+DUNGEONS_JSON_PATH = ROOT / "dungeons.json"
+INDEX_JS_PATH = ROOT / "workers" / "party" / "src" / "index.js"
 
 
 def _load_json(path: Path):
@@ -783,6 +965,19 @@ def _regenerate(cache_dir: Path | None, with_passives: bool, dry_run: bool) -> i
         print("\n[dry-run] No files written.")
         print(f"  Would write: {SKILLS_CANONICAL_PATH}")
         print(f"  Would write: {WEAPON_CONFIG_PATH}")
+        # G4 dry-run output is handled inside rewrite_index_js_known_bosses /
+        # regenerate_dungeons_json — fall through to G4 block which checks dry_run itself.
+        # Early return here would skip G4 dry-run reporting, so we continue instead.
+        # (The G4 functions print "[dry-run] Would write ..." and return without writing.)
+        try:
+            target_assignments_dry = _load_json(TARGET_ASSIGNMENTS_PATH)
+        except (FileNotFoundError, json.JSONDecodeError):
+            target_assignments_dry = {}
+        boss_map_dry = derive_known_bosses_map(target_assignments_dry)
+        print(f"  KNOWN_BOSSES: {len(boss_map_dry)} entries from "
+              f"{TARGET_ASSIGNMENTS_PATH.name}")
+        rewrite_index_js_known_bosses(INDEX_JS_PATH, boss_map_dry, dry_run=True)
+        regenerate_dungeons_json(DUNGEONS_JSON_PATH, dry_run=True)
         return 0
 
     # --- write canonical ---
@@ -795,7 +990,22 @@ def _regenerate(cache_dir: Path | None, with_passives: bool, dry_run: bool) -> i
     write_weapon_config(weapon_cfg, WEAPON_CONFIG_PATH)
     print(f"Wrote {WEAPON_CONFIG_PATH}  ({len(new_assignments)} skillAssignments)")
 
-    print("\nDone. G3 complete. Run pytest to verify.")
+    # --- G4: KNOWN_BOSSES sentinel rewrite ---
+    print("\n=== G4: KNOWN_BOSSES + dungeons.json ===")
+    try:
+        target_assignments = _load_json(TARGET_ASSIGNMENTS_PATH)
+    except (FileNotFoundError, json.JSONDecodeError) as err:
+        print(f"  [warn] Could not load {TARGET_ASSIGNMENTS_PATH}: {err}")
+        target_assignments = {}
+
+    boss_map = derive_known_bosses_map(target_assignments)
+    print(f"  Derived {len(boss_map)} KNOWN_BOSSES entries from {TARGET_ASSIGNMENTS_PATH.name}")
+    rewrite_index_js_known_bosses(INDEX_JS_PATH, boss_map, dry_run=dry_run)
+
+    # --- G4: regenerate dungeons.json ---
+    regenerate_dungeons_json(DUNGEONS_JSON_PATH, dry_run=dry_run)
+
+    print("\nDone. G3 + G4 complete. Run pytest to verify.")
     return 0
 
 
@@ -806,7 +1016,7 @@ def main(argv=None) -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except (AttributeError, ValueError):
         pass
-    parser = argparse.ArgumentParser(description="Game-data refresh (G1+G2+G3)")
+    parser = argparse.ArgumentParser(description="Game-data refresh (G1+G2+G3+G4)")
     grp = parser.add_mutually_exclusive_group(required=True)
     grp.add_argument("--counts", action="store_true", help="live-probe every feed and print counts")
     grp.add_argument("--dump", nargs="?", const=str(DEFAULT_CACHE), metavar="DIR",
@@ -814,7 +1024,8 @@ def main(argv=None) -> int:
     grp.add_argument("--report", action="store_true",
                      help="pull live, reconcile vs canonical, print the patch diff (read-only)")
     grp.add_argument("--regenerate", action="store_true",
-                     help="G3: write skills_canonical.json + derive weapon_config.json skillAssignments")
+                     help="G3+G4: write skills_canonical.json + derive weapon_config.json skillAssignments, "
+                          "rewrite index.js KNOWN_BOSSES sentinel, regenerate dungeons.json")
     parser.add_argument("--passives", action="store_true",
                         help="with --dump/--report/--regenerate: also pull each weapon's item detail "
                              "(feed #5; slow when live; uses cached weapon_passives.json if --cache)")
