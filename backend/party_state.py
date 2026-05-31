@@ -180,6 +180,17 @@ class PartyState:
         self.party_code = party_code
         self.reset_stats()
 
+    def arm(self) -> None:
+        """Arm without resetting accumulators (auto-arm path — no button click needed).
+
+        Called by the server when the first combat hit arrives and the party_code is
+        already set but encounter_active is still False (the user joined a room but
+        hadn't clicked Start, or Start was idempotent on a running encounter).
+        Does NOT touch encounters / current — the first call to record_hit will open
+        the initial encounter lazily as before.
+        """
+        self.encounter_active = True
+
     def stop_recording(self, include_hits: bool = False) -> dict:
         """Disarm and return the final :meth:`get_results` snapshot (current encounter).
 

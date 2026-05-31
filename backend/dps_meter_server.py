@@ -50,6 +50,7 @@ import persistence as p
 from combat_log_parser import parse_line
 from combat_stats import (
     CombatStats,
+    _skills as _agg_skills,
     build_first_60s_block,
     build_overall_block,
     slice_first_60s,
@@ -63,6 +64,11 @@ log = logging.getLogger(__name__)
 # URL and hard-stopped after an expiry date; the rebuild drops both checks but
 # still reports a license object so the frontend's license panel renders.
 PERPETUAL_LICENSE = {"version": "1.0", "days_remaining": None, "expires": None}
+
+# Seconds of combat silence that auto-closes (idles out) the active party
+# encounter and emits the authoritative final frame to the worker.  Mirrors
+# the boss gap threshold so a wipe boundary and an idle-out use the same rule.
+PARTY_IDLE_CLOSE_S: float = 45.0
 
 # Commands we deliberately no-op. `set_skill_weapon` has no old handler (the old
 # exe drops it silently — confirmed live), so we match that.
@@ -100,6 +106,14 @@ class DPSMeterServer:
         # so per-hit boundary detection (A3) doesn't rebuild it from disk every hit.
         # Populated when recording starts; None falls back to a lazy build.
         self._party_assignments: Optional[dict[str, str]] = None
+        # Wall-clock instant of the last party hit — used by the idle-close checker
+        # (see _check_party_idle / PARTY_IDLE_CLOSE_S) to auto-finalize an encounter
+        # after a sustained silence without requiring a manual Stop button click.
+        self._party_last_hit_time: Optional[datetime] = None
+        # True while the user is in an active party session (party_code registered and
+        # recording not explicitly stopped).  Gating auto-arm on this flag prevents
+        # hits from re-arming after a manual party_stop_recording.
+        self._party_session_active: bool = False
         self._overlay_proc: Optional[Any] = None  # spawned tldps-overlay.exe (Tauri)
         self.clients: set[Any] = set()
         self._server: Optional[Any] = None
@@ -212,10 +226,48 @@ class DPSMeterServer:
         try:
             while True:
                 await asyncio.sleep(self.broadcast_interval)
+                # Contract 3: idle-close — auto-finalize the active party encounter
+                # after PARTY_IDLE_CLOSE_S seconds of combat silence so the worker
+                # receives the authoritative final frame without a manual Stop click.
+                self._check_party_idle()
                 if self.clients:
                     await self._broadcast(self._stats_envelope())
         except asyncio.CancelledError:
             raise
+
+    def _check_party_idle(self) -> None:
+        """Close the active party encounter if combat has been silent long enough.
+
+        Runs every broadcast tick (0.5s by default). Idles out when:
+          * a party recording is active (encounter_active),
+          * at least one hit has been recorded (party.current is not None),
+          * wall-clock silence since the last hit exceeds PARTY_IDLE_CLOSE_S.
+
+        Emits a ``party_final`` frame (via _emit_encounter_final) then disarms.
+        Resets ``_party_last_hit_time`` so a subsequent fight auto-re-arms cleanly.
+        """
+        if not self.party.encounter_active:
+            return
+        if self.party.current is None:
+            return
+        if self._party_last_hit_time is None:
+            return
+        elapsed = (datetime.now() - self._party_last_hit_time).total_seconds()
+        if elapsed < PARTY_IDLE_CLOSE_S:
+            return
+        # Silence threshold crossed — close and finalize.
+        enc = self.party.current
+        log.debug("party idle-close: encounter %s silent for %.1fs", enc.encounter_id, elapsed)
+        self.party.encounter_active = False
+        self._party_last_hit_time = None
+        # Set current to None so the next auto-arm + record_hit cycle opens a FRESH
+        # encounter without triggering the gap/wipe-boundary logic against the old
+        # encounter's last_hit_time (which would emit a spurious double-final).
+        self.party.current = None
+        # Leave _party_session_active True so the NEXT fight auto-arms when combat
+        # resumes (the user is still in the room; this was a between-fight gap, not
+        # a deliberate Stop).  Only party_stop_recording clears _party_session_active.
+        self._emit_encounter_final(enc)  # no hit= → party_final type
 
     # --- stats ingestion + serialization -----------------------------------
     def ingest_lines(self, lines) -> None:
@@ -244,6 +296,18 @@ class DPSMeterServer:
                 continue
             self.stats.add_partial(partial)
             added += 1
+            # Contract 1: auto-arm the party encounter on the first combat hit once a
+            # party session has been registered (_party_session_active). This removes
+            # the requirement for a manual "Start" button click before data is
+            # collected.  If encounter_active is already True (user clicked Start or a
+            # prior auto-arm fired), this is a no-op. reset_stats is NOT called here —
+            # the accumulators are preserved so a late Start click can't wipe a fight
+            # already in progress.  Auto-arm does NOT fire after an explicit
+            # party_stop_recording (which clears _party_session_active).
+            if self._party_session_active and not self.party.encounter_active:
+                self.party.arm()
+                self._party_assignments = self._effective_target_assignments()
+                log.debug("party auto-armed on first combat hit")
             if self.party.encounter_active:
                 self._record_party_hit(partial)
         if added or dropped:
@@ -267,10 +331,15 @@ class DPSMeterServer:
 
         Phase 2 / A3: pass the target's category so the accumulator can segment on a
         gap/wipe boundary (rule #3). The emitted ``totals`` carry the **current**
-        encounter's ``encounter_id`` so the frontend posts each fight under the right
-        id. When a boundary closes the previous encounter, emit a ``final`` frame for
-        it first so its board is posted authoritatively before the new one hydrates.
+        encounter's ``encounter_id`` AND ``fight_ts`` so the worker can key everything
+        on the real fight-start timestamp. When a boundary closes the previous
+        encounter, emit a ``final`` frame for it first so its board is posted
+        authoritatively before the new one hydrates.
         """
+        # Contract 3: track wall-clock of last hit so the idle-close checker can
+        # auto-finalize when combat goes quiet for PARTY_IDLE_CLOSE_S seconds.
+        self._party_last_hit_time = datetime.now()
+
         category = self._party_category(partial["target"])
         prev = self.party.current
         self.party.record_hit(
@@ -298,15 +367,71 @@ class DPSMeterServer:
         # before the new encounter starts hydrating.
         if prev is not None and cur is not prev:
             # Final post for the just-closed encounter — carry the full hit slice
-            # (Phase 3 / C1b); the live tick below stays light (no rotation).
-            closed = prev.results(include_hits=True)
-            closed["encounter_id"] = prev.encounter_id
-            self._emit({"type": "party_live_hit", "hit": hit,
-                        "totals": closed, "final": True})
+            # (Phase 3 / C1b) and per-skill breakdown (incl. crit/heavy damage).
+            self._emit_encounter_final(prev, hit=hit)
 
         totals = self.party.get_results()
+        # Contract 2: emit fight_ts consistently on every live frame so the worker
+        # can key each frame to the real fight-start timestamp without relying on the
+        # encounter_id string comparison.
         totals["encounter_id"] = cur.encounter_id if cur else None
+        totals["fight_ts"] = cur.fight_ts() if cur else None
         self._emit({"type": "party_live_hit", "hit": hit, "totals": totals})
+
+    def _build_detail(self, enc) -> dict:
+        """Build the full drill-down detail block for a closed encounter.
+
+        Combines the per-target results with a per-skill breakdown (including
+        ``crit_damage`` and ``heavy_damage``) computed from the retained hit list.
+        This is the ``detail`` block carried in every final/close frame so the worker
+        can store and serve drill-down without a second request.
+        """
+        results = enc.results(include_hits=True)
+        rotation = results.get("rotation", [])
+        total_damage = results.get("total_damage", 0)
+        skills = _agg_skills(rotation, total_damage) if rotation else []
+        return {
+            "targets": results.get("targets", []),
+            "skills": skills,
+            "total_damage": total_damage,
+            "duration": results.get("duration", 0),
+            "fight_ts": enc.fight_ts(),
+            "rotation": rotation,
+        }
+
+    def _emit_encounter_final(self, enc, *, hit: Optional[dict] = None) -> None:
+        """Emit the authoritative final frame for ``enc`` (wipe boundary or idle-close).
+
+        When called from the wipe-boundary path a ``hit`` dict is provided (the first
+        hit of the NEW encounter that triggered the close) so we can re-use the
+        ``party_live_hit`` envelope for backwards compat with the existing test suite
+        and any already-deployed worker code.  When called from the idle-close path
+        (no triggering hit) we use the distinct ``party_final`` type so the worker
+        can branch on type rather than the ``final`` flag alone.
+        """
+        detail = self._build_detail(enc)
+        if hit is not None:
+            # Wipe-boundary close: keep the party_live_hit envelope (backwards compat)
+            # but add the full detail block alongside the legacy totals.
+            totals = enc.results()
+            totals["encounter_id"] = enc.encounter_id
+            totals["fight_ts"] = enc.fight_ts()
+            self._emit({
+                "type": "party_live_hit",
+                "hit": hit,
+                "totals": totals,
+                "final": True,
+                "detail": detail,
+            })
+        else:
+            # Idle-close (no triggering hit): distinct type for clean worker branching.
+            self._emit({
+                "type": "party_final",
+                "final": True,
+                "encounter_id": enc.encounter_id,
+                "fight_ts": enc.fight_ts(),
+                "detail": detail,
+            })
 
     def _emit(self, payload: dict) -> None:
         """Schedule a broadcast of ``payload`` on the event loop, from any thread.
@@ -832,18 +957,48 @@ def _h_test_hotkey(s: DPSMeterServer, msg: dict) -> dict:
 
 
 def _h_party_start_recording(s: DPSMeterServer, msg: dict) -> dict:
-    """Arm party recording (optional ``party_code``); reply with live status."""
-    s.party.start_recording(msg.get("party_code"))
-    # Snapshot the category map once for this recording's boundary detection (A3).
-    s._party_assignments = s._effective_target_assignments()
+    """Arm party recording (optional ``party_code``); reply with live status.
+
+    Contract 1 (idempotent): if a recording is already active (auto-armed by the
+    first combat hit), do NOT reset accumulators — just update the party_code if
+    one was provided and return the current status.  This keeps the frontend's
+    Start button harmless even when combat has already begun.
+
+    If not yet active, full start_recording (arm + reset + code) as before.
+    """
+    # Mark the session active so auto-arm fires on the next combat hit.
+    s._party_session_active = True
+    if s.party.encounter_active:
+        # Already armed — idempotent: update code without wiping accumulated hits.
+        if msg.get("party_code"):
+            s.party.party_code = msg.get("party_code")
+    else:
+        s.party.start_recording(msg.get("party_code"))
+        # Snapshot the category map once for this recording's boundary detection (A3).
+        s._party_assignments = s._effective_target_assignments()
     return {"type": "party_recording_started", "status": s.party.get_status()}
 
 
 def _h_party_stop_recording(s: DPSMeterServer, msg: dict) -> dict:
-    """Disarm recording; reply with the final results + status (current encounter)."""
+    """Disarm recording; reply with the final results + status (current encounter).
+
+    Emits a ``party_final`` broadcast to all connected clients (the idle-close path
+    uses the same helper) so the worker receives the authoritative final frame whether
+    the stop was manual or automatic.  Resets ``_party_last_hit_time`` so the idle
+    checker does not double-fire after a manual stop.
+    """
+    enc = s.party.current  # capture before stop_recording disarms
     # Final post — carry the full hit slice for the room to store (Phase 3 / C1b).
     results = s.party.stop_recording(include_hits=True)
-    results["encounter_id"] = s.party.current.encounter_id if s.party.current else None
+    results["encounter_id"] = enc.encounter_id if enc else None
+    results["fight_ts"] = enc.fight_ts() if enc else None
+    # Reset idle timer + session flag so _check_party_idle / auto-arm don't fire
+    # after a manual stop — the user explicitly ended the session.
+    s._party_last_hit_time = None
+    s._party_session_active = False
+    # Broadcast the authoritative final frame to all clients (incl. any room relay).
+    if enc is not None:
+        s._emit_encounter_final(enc)  # party_final type (no hit= arg)
     return {"type": "party_recording_stopped",
             "results": results, "status": s.party.get_status()}
 
