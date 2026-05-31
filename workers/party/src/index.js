@@ -117,6 +117,9 @@ const KNOWN_BOSSES = {
 // @gen:known_bosses:end
 const norm = (s) => String(s || "").trim().toLowerCase();
 
+import { handleSkills } from "./gamedata.js";
+import { handleFeedback } from "./feedback.js";
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -136,6 +139,12 @@ export default {
       const id = env.PARTY_ROOM.idFromName(code);
       return env.PARTY_ROOM.get(id).fetch(request);
     }
+
+    // Game-data service: app "Update" button pulls the skill->weapon map from here.
+    if (url.pathname === "/skills") return handleSkills(request, env);
+
+    // Feedback intake (KV-only). Handler self-handles OPTIONS preflight + method.
+    if (url.pathname === "/feedback") return handleFeedback(request, env);
 
     return new Response("not found", { status: 404 });
   },

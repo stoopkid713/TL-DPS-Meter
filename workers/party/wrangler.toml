@@ -21,3 +21,9 @@ class_name = "PartyRoom"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["PartyRoom"]
+
+# Feedback intake (KV-only). POST /feedback writes here; the handler guards a
+# missing binding, so the worker still serves party/skills if this is ever absent.
+[[kv_namespaces]]
+binding = "FEEDBACK_KV"
+id = "a61e7c1245a14bcc9c96b3cec7da6318"
