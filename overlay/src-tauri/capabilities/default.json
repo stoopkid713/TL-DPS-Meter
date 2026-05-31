@@ -5,6 +5,7 @@
   "windows": ["overlay"],
   "permissions": [
     "core:default",
+    "core:window:allow-start-dragging",
     "global-shortcut:default"
   ]
 }

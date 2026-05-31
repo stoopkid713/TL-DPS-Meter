@@ -266,6 +266,20 @@
     // Rust emits 'lock-changed' (true/false) when the hotkey or button toggles.
     if (TAURI?.event?.listen) { TAURI.event.listen('lock-changed', (e) => applyLockUI(!!e.payload)); }
 
+    // Robust window drag: the data-tauri-drag-region cursor shows on its own, but some
+    // Windows/WebView2 setups need an explicit startDragging() on mousedown to actually move.
+    if (TAURI?.window?.getCurrentWindow) {
+        const appWin = TAURI.window.getCurrentWindow();
+        document.addEventListener('mousedown', (e) => {
+            if (e.button !== 0 || !e.target || !e.target.closest) return;
+            if (e.target.closest('button')) return;                 // buttons still click
+            if (e.target.closest('[data-tauri-drag-region]')) {
+                ovlog('drag-start');
+                appWin.startDragging().catch((err) => ovlog('drag-error', { err: String(err) }));
+            }
+        });
+    }
+
     connect();
     </script>
 </body>
