@@ -3,17 +3,20 @@
 Mimic N party members hitting the LIVE Cloudflare room from ONE machine, fed by a real
 combat log — so we can test the merged board + live hydration without a second PC.
 
-Each simulated member parses the SAME combat log (via the real parser + PartyState) into a
-per-target breakdown, then posts ``post_fight`` to the room in ROUNDS — each round a bigger
-slice of the fight — to mimic T&L flushing the log in bursts at combat-exit (the live
-hydration cadence). Members are scaled differently so they rank distinctly.
+Three modes (all feed the bots from a real combat log; members are scaled so they rank
+distinctly):
+  --live    LIVE-tail your log: while the run is active the bots post your GROWING totals as
+            TL flushes new lines — so data lands when YOUR fights do. Closest to real players
+            fighting alongside you. (Recommended.)
+  (default) reactive: replay a one-time log snapshot in climbing slices when the leader Starts.
+  --now     post a snapshot immediately, ignoring leader Start/Stop (quick board check).
 
-Watch it: open the real app (or the overlay) joined to the SAME party code, and you'll see
-Bot1..BotN climb the board live alongside you.
+Watch it: open the real app (or the overlay) joined to the SAME party code → Bot1..BotN
+appear alongside you and hydrate as you fight (live mode) or on Start (reactive).
 
-Usage (with the venv python; create/join the party code in the app first):
-  backend/.venv/Scripts/python.exe backend/tools/sim_party.py <PARTY_CODE>
-      [--members 4] [--log PATH] [--rounds 5] [--delay 1.5] [--host wss://...]
+Usage (with the venv python; create the party in the app first, then pass its code):
+  backend/.venv/Scripts/python.exe backend/tools/sim_party.py <PARTY_CODE> --live
+      [--members 4] [--log PATH] [--delay 1.5] [--rounds 5] [--host wss://...]
 
 If --log is omitted it auto-picks the newest TLCombatLog-*.txt under
 %LOCALAPPDATA%\\TL\\Saved\\CombatLogs.
@@ -66,6 +69,33 @@ def base_targets(log_path: Path) -> list[dict]:
     return res["targets"]
 
 
+def line_count(log_path: Path) -> int:
+    """Current number of lines in the log (used to mark the run start cutoff)."""
+    try:
+        return len(log_path.read_text(encoding="utf-8", errors="replace").splitlines())
+    except OSError:
+        return 0
+
+
+def parse_run(log_path: Path, cutoff_line: int) -> list[dict]:
+    """Re-parse the log from line `cutoff_line` to EOF into the current running targets[].
+
+    Rebuilt from scratch each call — robust to the file being actively written by the game
+    (a mid-write partial last line just fails to parse and is picked up on the next poll).
+    This is the LIVE-tail path: as you fight and TL flushes new lines, the running total grows."""
+    ps = PartyState()
+    ps.start_recording("SIM")
+    try:
+        lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    for line in lines[cutoff_line:]:
+        p = parse_line(line)
+        if p is not None:
+            ps.record_hit(p["target"], p["damage"], p["is_crit"], p["is_heavy"], p["_timestamp"])
+    return ps.get_results()["targets"]
+
+
 def scaled(targets: list[dict], frac: float, mult: float) -> list[dict]:
     """A round slice: `frac` of the fight so far, member damage `mult`. dps ~ constant."""
     out = []
@@ -82,28 +112,32 @@ def scaled(targets: list[dict], frac: float, mult: float) -> list[dict]:
     return out
 
 
-async def member(host: str, code: str, idx: int, targets: list[dict],
-                 rounds: int, delay: float, now: bool):
+async def member(host: str, code: str, idx: int, base: list[dict], rounds: int,
+                 delay: float, mode: str, log_path: Path, run: dict):
     """A persistent simulated member that behaves like a real client.
 
-    Stays connected and reacts to the LEADER's encounter:
-      - on encounter_start (leader hit Start): reset and hydrate live over `rounds`
-      - on encounter_end (leader hit Stop): post the final full snapshot
-    So when you Start an encounter in the app, the bots fill the board live and stay
-    through End — across as many Start/Stop cycles as you run. (--now ignores the leader
-    and posts immediately, for a quick standalone board check.) Ctrl+C to stop the bots."""
+    Modes:
+      live      — mirror YOUR real combat: while the run is active, Bot1 re-tails the log
+                  (parse_run) and the bots post the GROWING totals as TL flushes new lines.
+                  This is "other players fighting alongside you" — data lands when your fights do.
+      reactive  — replay a one-time snapshot of the log in climbing slices (no live tail).
+      now       — post the full snapshot immediately, ignoring leader Start/Stop (quick check).
+
+    live/reactive react to the leader's encounter_start/encounter_end (relayed by the room);
+    `run` is shared state (the live running totals + cutoff). Ctrl+C to remove the bots."""
     uid = f"sim{idx}"
     name = f"Bot{idx}"
     mult = round(1.0 - 0.15 * (idx - 1), 3)  # Bot1 hardest, descending
     url = f"{host}/party/{code}?user_id={uid}&username={name}&leader=0"
-    st = {"active": now, "frac": 0.0}
+    st = {"active": False, "frac": 0.0}  # per-bot state (reactive mode)
     try:
         async with websockets.connect(url, max_size=None) as ws:
-            print(f"  {name} connected (x{mult})" + ("" if now else " - waiting for leader Start..."))
+            tail = " (LIVE-tailing your log)" if mode == "live" else ""
+            wait = "" if mode == "now" else " - waiting for leader Start..."
+            print(f"  {name} connected (x{mult}){tail}{wait}")
 
-            async def post(frac):
-                await ws.send(json.dumps({"type": "post_fight", "fight_ts": FIGHT_TS,
-                                          "targets": scaled(targets, frac, mult)}))
+            async def post(targets):
+                await ws.send(json.dumps({"type": "post_fight", "fight_ts": FIGHT_TS, "targets": targets}))
 
             async def reader():
                 async for raw in ws:
@@ -112,24 +146,46 @@ async def member(host: str, code: str, idx: int, targets: list[dict],
                     except Exception:
                         continue
                     t = m.get("type")
-                    if t == "welcome" and m.get("encounter_active") and not now:
-                        st["active"], st["frac"] = True, 0.0
-                    elif t == "encounter_start" and not now:
-                        st["active"], st["frac"] = True, 0.0
-                        if idx == 1:
-                            print("  >> leader started — bots hydrating")
-                    elif t == "encounter_end" and not now:
-                        st["active"] = False
-                        await post(1.0)  # final full snapshot
-                        if idx == 1:
-                            print("  >> leader ended — bots posted final")
+                    if mode == "now":
+                        continue
+                    started = t == "encounter_start" or (t == "welcome" and m.get("encounter_active"))
+                    if started:
+                        if mode == "live":
+                            if idx == 1:
+                                run["cutoff_line"] = line_count(log_path)
+                                run["targets"] = []
+                                run["active"] = True
+                                print("  >> leader started - bots now tailing your live combat")
+                        else:
+                            st["active"], st["frac"] = True, 0.0
+                            if idx == 1:
+                                print("  >> leader started - bots hydrating")
+                    elif t == "encounter_end":
+                        if mode == "live":
+                            if idx == 1:
+                                run["active"] = False
+                                run["targets"] = parse_run(log_path, run["cutoff_line"])  # final
+                                print("  >> leader ended - bots posted final")
+                        else:
+                            st["active"] = False
+                            await post(scaled(base, 1.0, mult))
+                            if idx == 1:
+                                print("  >> leader ended - bots posted final")
 
             async def poster():
                 while True:
                     await asyncio.sleep(delay)
-                    if st["active"] and st["frac"] < 1.0:
-                        st["frac"] = min(1.0, st["frac"] + 1.0 / rounds)
-                        await post(st["frac"])
+                    if mode == "now":
+                        await post(scaled(base, 1.0, mult))
+                    elif mode == "live":
+                        if idx == 1 and run["active"]:
+                            run["targets"] = parse_run(log_path, run["cutoff_line"])
+                        if run["targets"]:
+                            await post(scaled(run["targets"], 1.0, mult))
+                    else:  # reactive snapshot
+                        if st["active"] and st["frac"] < 1.0:
+                            st["frac"] = min(1.0, st["frac"] + 1.0 / rounds)
+                            await post(scaled(base, st["frac"], mult))
 
             await asyncio.gather(reader(), poster())
     except (asyncio.CancelledError, KeyboardInterrupt):
@@ -144,17 +200,26 @@ async def main_async(args) -> int:
         print("No combat log found. Pass --log <path to a TLCombatLog-*.txt>.", file=sys.stderr)
         return 2
     print(f"log: {log_path}")
-    targets = base_targets(log_path)
-    if not targets:
-        print("No DamageDone hits parsed from that log.", file=sys.stderr)
-        return 2
-    mode = "post NOW (ignoring leader)" if args.now else "waiting for the leader to Start"
-    print(f"connecting {args.members} members -> {args.host}/party/{args.code.upper()} - {mode}")
-    if not args.now:
-        print("  (now hit Start in the app; hit Stop to finalize. Ctrl+C here to remove the bots.)")
+
+    mode = "now" if args.now else ("live" if args.live else "reactive")
+    base: list[dict] = []
+    if mode != "live":
+        base = base_targets(log_path)  # snapshot the log once
+        if not base:
+            print("No DamageDone hits parsed from that log.", file=sys.stderr)
+            return 2
+
+    blurb = {"live": "LIVE - mirror your real combat as the log flushes",
+             "reactive": "REACTIVE - replay a log snapshot in climbing slices on Start",
+             "now": "NOW - post immediately, ignoring leader"}[mode]
+    print(f"connecting {args.members} members -> {args.host}/party/{args.code.upper()}  [{blurb}]")
+    if mode != "now":
+        print("  Hit Start in the app to begin; play normally; hit Stop to finalize. Ctrl+C here to remove bots.")
+
+    run = {"active": False, "cutoff_line": 0, "targets": []}  # shared live-tail state
     try:
         await asyncio.gather(*[
-            member(args.host, args.code.upper(), i, targets, args.rounds, args.delay, args.now)
+            member(args.host, args.code.upper(), i, base, args.rounds, args.delay, mode, log_path, run)
             for i in range(1, args.members + 1)
         ])
     except KeyboardInterrupt:
@@ -168,11 +233,13 @@ def main() -> int:
     ap.add_argument("code", help="party code to join (create/join it in the app first)")
     ap.add_argument("--members", type=int, default=4)
     ap.add_argument("--log", default="")
-    ap.add_argument("--rounds", type=int, default=5)
-    ap.add_argument("--delay", type=float, default=1.5)
+    ap.add_argument("--rounds", type=int, default=5, help="reactive mode: slices to climb over")
+    ap.add_argument("--delay", type=float, default=1.5, help="seconds between posts / live polls")
     ap.add_argument("--host", default=DEFAULT_HOST)
+    ap.add_argument("--live", action="store_true",
+                    help="LIVE-tail the log: bots mirror your real combat as it flushes (most realistic)")
     ap.add_argument("--now", action="store_true",
-                    help="post immediately, ignoring leader Start/Stop (quick standalone board check)")
+                    help="post a snapshot immediately, ignoring leader Start/Stop (quick board check)")
     args = ap.parse_args()
     try:
         return asyncio.run(main_async(args))
