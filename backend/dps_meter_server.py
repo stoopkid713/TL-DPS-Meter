@@ -636,6 +636,19 @@ def _h_merge_encounters(s: DPSMeterServer, msg: dict) -> dict:
 
 # --- saved runs ------------------------------------------------------------
 def _h_save_run(s: DPSMeterServer, msg: dict) -> dict:
+    # F3 — PERSISTENCE BOUNDARY (Foundations). Saved runs (solo AND party) live LOCALLY in
+    # saved_runs.json. A *party* run is the same record + a `party: true` marker + `party_code`;
+    # its `encounters` carry the per-encounter party scoreboards (F1 shape) the room produced —
+    # Phase 2 fills these in. Solo runs are byte-identical to before (the party fields are added
+    # only when msg.party is set), so this is additive.
+    #   Party-run schema (saved_runs.json entry):
+    #     { id, created_at, run_name, party: true, party_code,
+    #       encounters: [ { encounter_id, boss, boss_category, started_at, total_damage,
+    #                        entries: [ {username, user_id, total_damage, dps, contribution,
+    #                                    crit_rate, heavy_rate, hits} ] } ] }
+    #   BOUNDARY (decided at F3, so Phase 4 isn't a 4th migration): global leaderboards /
+    #   personal bests are a SEPARATE future worker (KV vs D1 decided at Phase 4). The party-room
+    #   Durable Object NEVER holds global/cross-room data; do not wire leaderboards into it.
     runs = p.load_saved_runs(s.data_dir)
     run_id = time.strftime("%Y%m%d_%H%M%S")
     run = {
@@ -653,6 +666,9 @@ def _h_save_run(s: DPSMeterServer, msg: dict) -> dict:
         "stats": msg.get("stats", {}),
         "created_at": p._now_iso(),
     }
+    if msg.get("party"):  # party run — additive marker; solo runs stay byte-identical
+        run["party"] = True
+        run["party_code"] = msg.get("party_code")
     runs.append(run)
     p.save_saved_runs(runs, s.data_dir)
     return {"type": "run_saved", "run_id": run_id,
