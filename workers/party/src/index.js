@@ -11,6 +11,15 @@
 //   - Presence = the set of connected WebSockets. Reconnect-safe via WS Hibernation.
 //   - Bounded to small parties (<=12).
 //
+// F1 — ENCOUNTER KEYING (the keystone). Storage is keyed by encounter, not by member:
+//   encounters[encounter_id].submissions[user_id]. `active_encounter_id` is the encounter that
+//   incoming post_fights land in. The leader's `encounter_start` FILES the closing board (marks
+//   it ended, keeps it) and arms a fresh active encounter — everyone files under the id they all
+//   heard (F1b leader-stamped boundary). If a post_fight arrives with no armed encounter
+//   (open-world, nobody pressed Start), the room server-assigns one (F1b time-bucket fallback).
+//   Behavior is held constant: the room still broadcasts ONE (the active) scoreboard. The Phase-2
+//   encounter switcher will expose the others; the substrate is in.
+//
 // Wire protocol — see README.md.
 
 const CODE_RE = /^[A-Z0-9]{4,8}$/;
@@ -149,29 +158,40 @@ export class PartyRoom {
         }
         return;
 
-      case "clear": // leader starts a fresh board (new pull)
+      case "clear": // leader empties the active board for a fresh pull (keeps the encounter)
         if (att.is_leader) {
-          logEvent("clear", { by: att.username, user_id: att.user_id });
-          await this.ctx.storage.put("fights", {});
+          const encs = await this._getEncounters();
+          const id = await this.ctx.storage.get("active_encounter_id");
+          if (id && encs[id]) { encs[id].submissions = {}; await this.ctx.storage.put("encounters", encs); }
+          logEvent("clear", { by: att.username, user_id: att.user_id, encounter_id: id || null });
           this.broadcast(await this.buildScoreboard());
         }
         return;
 
-      case "encounter_start": // leader: arm the whole party for a fresh pull
+      case "encounter_start": // leader: file the current board, arm a fresh encounter for everyone
         if (att.is_leader) {
-          logEvent("encounter_start", { by: att.username, user_id: att.user_id });
+          const encs = await this._getEncounters();
+          const prev = await this.ctx.storage.get("active_encounter_id");
+          if (prev && encs[prev]) encs[prev].ended = true; // FILE the closing board (don't wipe)
+          const id = String(Date.now());                   // leader-armed encounter id (F1b B1)
+          encs[id] = { encounter_id: id, started_at: Date.now(), ended: false, submissions: {} };
+          await this.ctx.storage.put("encounters", encs);
+          await this.ctx.storage.put("active_encounter_id", id);
           await this.ctx.storage.put("encounter_active", true);
-          await this.ctx.storage.put("fights", {}); // fresh board for the new pull
-          this.broadcast({ type: "encounter_start", by: att.username });
+          logEvent("encounter_start", { by: att.username, user_id: att.user_id, encounter_id: id });
+          this.broadcast({ type: "encounter_start", by: att.username, encounter_id: id });
           this.broadcast(await this.buildScoreboard());
         }
         return;
 
       case "encounter_end": // leader: everyone stop recording + post their fight
         if (att.is_leader) {
-          logEvent("encounter_end", { by: att.username, user_id: att.user_id });
+          const encs = await this._getEncounters();
+          const id = await this.ctx.storage.get("active_encounter_id");
+          if (id && encs[id]) { encs[id].ended = true; await this.ctx.storage.put("encounters", encs); }
           await this.ctx.storage.put("encounter_active", false);
-          this.broadcast({ type: "encounter_end", by: att.username });
+          logEvent("encounter_end", { by: att.username, user_id: att.user_id, encounter_id: id || null });
+          this.broadcast({ type: "encounter_end", by: att.username, encounter_id: id || null });
         }
         return;
 
@@ -197,13 +217,26 @@ export class PartyRoom {
     try { await this.webSocketClose(ws); } catch (_) {}
   }
 
+  // --- encounter storage helpers ---
+  async _getEncounters() {
+    return (await this.ctx.storage.get("encounters")) || {};
+  }
+
   // --- state mutations ---
-  // Store this member's latest fight: their full per-target breakdown. The room (not the
-  // client) decides which target is the boss at scoreboard-build time.
+  // Store this member's latest fight under the ACTIVE encounter. The room (not the client)
+  // decides which target is the boss at scoreboard-build time. If no encounter is armed (no
+  // leader pressed Start — e.g. open-world), the room server-assigns one (F1b fallback).
   async postFight(user_id, username, fight_ts, targets, payload = {}) {
-    const fights = (await this.ctx.storage.get("fights")) || {};
+    const encs = await this._getEncounters();
+    let id = await this.ctx.storage.get("active_encounter_id");
+    if (!id || !encs[id]) {
+      id = String(Date.now()); // F1b fallback: server-assigned encounter (no leader-armed boundary)
+      encs[id] = { encounter_id: id, started_at: Date.now(), ended: false, submissions: {} };
+      await this.ctx.storage.put("active_encounter_id", id);
+      logEvent("encounter_autostart", { encounter_id: id, by: user_id });
+    }
     const v = Number(payload.v) || 1; // missing v = legacy Phase-1 client
-    fights[user_id] = {
+    encs[id].submissions[user_id] = {
       user_id,
       username,
       v,
@@ -225,22 +258,29 @@ export class PartyRoom {
       skills: payload.skills ?? null,
       rotation: payload.rotation ?? null,
     };
-    await this.ctx.storage.put("fights", fights);
+    await this.ctx.storage.put("encounters", encs);
     logEvent("post_fight", {
-      user_id, username, v,
-      fight_ts: fights[user_id].fight_ts,
-      n_targets: fights[user_id].targets.length,
-      has_skills: fights[user_id].skills != null,
+      user_id, username, v, encounter_id: id,
+      fight_ts: encs[id].submissions[user_id].fight_ts,
+      n_targets: encs[id].submissions[user_id].targets.length,
+      has_skills: encs[id].submissions[user_id].skills != null,
     });
   }
 
   async removeMember(user_id) {
     const members = (await this.ctx.storage.get("members")) || {};
-    const fights = (await this.ctx.storage.get("fights")) || {};
     delete members[user_id];
-    delete fights[user_id];
     await this.ctx.storage.put("members", members);
-    await this.ctx.storage.put("fights", fights);
+    // Drop this member's submission from every encounter they appear in.
+    const encs = await this._getEncounters();
+    let touched = false;
+    for (const id of Object.keys(encs)) {
+      if (encs[id].submissions && encs[id].submissions[user_id]) {
+        delete encs[id].submissions[user_id];
+        touched = true;
+      }
+    }
+    if (touched) await this.ctx.storage.put("encounters", encs);
   }
 
   // --- boss detection (server-side, cross-party convergence) ---
@@ -270,16 +310,20 @@ export class PartyRoom {
   }
 
   // --- views ---
-  async buildScoreboard() {
-    const fights = (await this.ctx.storage.get("fights")) || {};
-    const submissions = Object.values(fights);
+  // Build the ranked boss scoreboard for ONE encounter (default: the active one). The current
+  // single-board behaviour = the special case of one (active) encounter.
+  async buildScoreboard(encounterId) {
+    const encs = await this._getEncounters();
+    const id = encounterId || (await this.ctx.storage.get("active_encounter_id")) || null;
+    const enc = id && encs[id] ? encs[id] : null;
+    const submissions = enc ? Object.values(enc.submissions) : [];
     const boss = this.detectBoss(submissions);
     if (!boss) {
-      logEvent("scoreboard_built", { boss: null, entries: 0, total_damage: 0, submissions: submissions.length });
-      return { type: "scoreboard", boss: null, boss_category: null, entries: [], total_damage: 0, updated_at: Date.now() };
+      logEvent("scoreboard_built", { encounter_id: id, boss: null, entries: 0, total_damage: 0, submissions: submissions.length });
+      return { type: "scoreboard", encounter_id: id, boss: null, boss_category: null, entries: [], total_damage: 0, updated_at: Date.now() };
     }
     logEvent("boss_detected", {
-      boss: boss.name, category: boss.category,
+      encounter_id: id, boss: boss.name, category: boss.category,
       pool_size: boss.pool_size, submissions: submissions.length,
     });
     const bossKey = norm(boss.name);
@@ -291,9 +335,10 @@ export class PartyRoom {
     }
     const total = board.reduce((s, e) => s + e.total_damage, 0);
     board.sort((a, b) => b.total_damage - a.total_damage);
-    logEvent("scoreboard_built", { boss: boss.name, entries: board.length, total_damage: total });
+    logEvent("scoreboard_built", { encounter_id: id, boss: boss.name, entries: board.length, total_damage: total });
     return {
       type: "scoreboard",
+      encounter_id: id,
       boss: boss.name,
       boss_category: boss.category,
       total_damage: total,
@@ -331,7 +376,7 @@ export class PartyRoom {
 
   async snapshot() {
     const roster = await this.buildRoster();
-    const scoreboard = await this.buildScoreboard();
+    const scoreboard = await this.buildScoreboard(); // active encounter
     const encounter_active = !!(await this.ctx.storage.get("encounter_active"));
     return { roster: roster.members, scoreboard, encounter_active };
   }

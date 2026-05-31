@@ -61,8 +61,8 @@ works (graceful rollout):
 |---|---|
 | `welcome` | `{ v:2, you, roster:[...], scoreboard:{...}, encounter_active }` — sent to the joiner (announces protocol version) |
 | `roster` | `{ members:[{user_id, username, is_leader, online}] }` |
-| `scoreboard` | `{ boss, boss_category, total_damage, updated_at, entries:[{rank, user_id, username, total_damage, dps, duration, hits, crit_rate, heavy_rate, contribution}] }` |
-| `encounter_start` / `encounter_end` | `{ by }` — leader-relayed; clients arm/stop local recording |
+| `scoreboard` | `{ encounter_id, boss, boss_category, total_damage, updated_at, entries:[{rank, user_id, username, total_damage, dps, duration, hits, crit_rate, heavy_rate, contribution}] }` — the board for the **active** encounter |
+| `encounter_start` / `encounter_end` | `{ by, encounter_id }` — leader-relayed; clients arm/stop local recording |
 | `member_joined` / `member_left` / `member_offline` | `{ user_id, username? }` |
 | `pong` | — |
 
@@ -70,6 +70,14 @@ works (graceful rollout):
 submissions and picks the boss = highest-aggregate-damage target (a `KNOWN_BOSSES` entry is
 preferred when present and supplies the `boss_category`). Everything that isn't the boss is
 trash → excluded from the board. (Phase-1: per-boss history/session view is Phase 2.)
+
+**Encounters (F1):** storage is keyed by encounter, not member —
+`encounters[encounter_id].submissions[user_id]`. `active_encounter_id` is the encounter incoming
+post_fights land in. The leader's `encounter_start` **files** the closing board (marks it `ended`,
+keeps it) and arms a fresh active encounter, broadcasting its `encounter_id` so every member files
+under the same id. If a post_fight arrives with no armed encounter (open-world, nobody pressed
+Start), the room **server-assigns** one (`encounter_autostart`). The room still broadcasts ONE (the
+active) `scoreboard`; the Phase-2 switcher will expose the filed encounters.
 
 ## Local dev (no Cloudflare account needed)
 ```
