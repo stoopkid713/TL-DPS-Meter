@@ -24,9 +24,6 @@
 
 const CODE_RE = /^[A-Z0-9]{4,8}$/;
 const MAX_MEMBERS = 12;
-// TTL/eviction (A4): cap stored encounters per room so a long raid night doesn't grow
-// unbounded; evict the oldest (never the active one) once over the cap.
-const MAX_ENCOUNTERS = 20;
 
 // Wire protocol version (F2). `welcome` announces it; `post_fight` carries it. A missing `v`
 // on an incoming post_fight = a legacy Phase-1 client (stored as v:1) — still slotted in, so an
@@ -48,10 +45,76 @@ const logEvent = (t, fields) => {
 // convergence picks the boss); this only adds a category label and disambiguates when a
 // known boss is present. Keyed by normalized (lowercased/trimmed) target name. Extend it
 // and `wrangler deploy` — no client update needed.
+// @gen:known_bosses:start
 const KNOWN_BOSSES = {
-  tevent: "archboss",
-  // add more as needed: "morokai": "archboss", "<field boss>": "field_boss", ...
+  "tevent": "archboss",
+  "ascended tevent": "archboss",
+  "queen bellandir": "archboss",
+  "ascended queen bellandir": "archboss",
+  "deluzhnoa": "archboss",
+  "ascended deluzhnoa": "archboss",
+  "giant cordy": "archboss",
+  "ascended giant cordy": "archboss",
+  "adentus": "field_boss",
+  "ahzreil": "field_boss",
+  "aridus": "field_boss",
+  "ascended adentus": "field_boss",
+  "ascended ahzreil": "field_boss",
+  "ascended aridus": "field_boss",
+  "ascended chernobog": "field_boss",
+  "ascended cornelius": "field_boss",
+  "ascended excavator-9": "field_boss",
+  "ascended grand aelon": "field_boss",
+  "ascended junobote": "field_boss",
+  "ascended kowazan": "field_boss",
+  "ascended lycan kowazan": "field_boss",
+  "ascended malakar": "field_boss",
+  "ascended minezerok": "field_boss",
+  "ascended morokai": "field_boss",
+  "ascended nirma": "field_boss",
+  "ascended pakilo naru": "field_boss",
+  "ascended talus": "field_boss",
+  "chernobog": "field_boss",
+  "cornelius": "field_boss",
+  "excavator-9": "field_boss",
+  "grand aelon": "field_boss",
+  "junobote": "field_boss",
+  "kowazan": "field_boss",
+  "malakar": "field_boss",
+  "minezerok": "field_boss",
+  "morokai": "field_boss",
+  "nirma": "field_boss",
+  "pakilo naru": "field_boss",
+  "talus": "field_boss",
+  "calanthia": "raid_boss",
+  "calanthia of destruction": "raid_boss",
+  "dragaryle": "raid_boss",
+  "radeth": "raid_boss",
+  "vulkan": "raid_boss",
+  "zairos": "raid_boss",
+  "belkros": "dungeon_boss",
+  "belog": "dungeon_boss",
+  "blath": "dungeon_boss",
+  "blatras": "dungeon_boss",
+  "duke magna": "dungeon_boss",
+  "gaitan": "dungeon_boss",
+  "grayeye": "dungeon_boss",
+  "heliber": "dungeon_boss",
+  "kaiser crimson": "dungeon_boss",
+  "karnix": "dungeon_boss",
+  "king chimaerus": "dungeon_boss",
+  "lacune": "dungeon_boss",
+  "lequirus": "dungeon_boss",
+  "limuny bercant": "dungeon_boss",
+  "lucien": "dungeon_boss",
+  "red chimaerus": "dungeon_boss",
+  "rex chimaerus": "dungeon_boss",
+  "shaikal": "dungeon_boss",
+  "shakarux": "dungeon_boss",
+  "star-engulfed demonhoof head shaman": "dungeon_boss",
+  "toublek": "dungeon_boss",
 };
+// @gen:known_bosses:end
 const norm = (s) => String(s || "").trim().toLowerCase();
 
 export default {
@@ -171,9 +234,11 @@ export class PartyRoom {
 
       case "clear": // leader empties the active board for a fresh pull (keeps the encounter)
         if (att.is_leader) {
-          const encs = await this._getEncounters();
           const id = await this.ctx.storage.get("active_encounter_id");
-          if (id && encs[id]) { encs[id].submissions = {}; await this.ctx.storage.put("encounters", encs); }
+          if (id) {
+            this._ensureTables();
+            this.ctx.storage.sql.exec("DELETE FROM submissions WHERE encounter_id = ?", id);
+          }
           logEvent("clear", { by: att.username, user_id: att.user_id, encounter_id: id || null });
           this.broadcast(await this.buildScoreboard());
           this.broadcast(await this.buildEncounters());
@@ -182,12 +247,17 @@ export class PartyRoom {
 
       case "encounter_start": // leader: file the current board, arm a fresh encounter for everyone
         if (att.is_leader) {
-          const encs = await this._getEncounters();
+          this._ensureTables();
           const prev = await this.ctx.storage.get("active_encounter_id");
-          if (prev && encs[prev]) encs[prev].ended = true; // FILE the closing board (don't wipe)
-          const id = String(Date.now());                   // leader-armed encounter id (F1b B1)
-          encs[id] = { encounter_id: id, started_at: Date.now(), ended: false, submissions: {} };
-          await this.ctx.storage.put("encounters", encs);
+          if (prev) {
+            // FILE the closing board (mark ended = 1, don't wipe)
+            this.ctx.storage.sql.exec("UPDATE encounters SET ended = 1 WHERE id = ?", prev);
+          }
+          const id = String(Date.now()); // leader-armed encounter id (F1b B1)
+          this.ctx.storage.sql.exec(
+            "INSERT OR REPLACE INTO encounters (id, started_at, ended) VALUES (?, ?, 0)",
+            id, Date.now()
+          );
           await this.ctx.storage.put("active_encounter_id", id);
           await this.ctx.storage.put("encounter_active", true);
           logEvent("encounter_start", { by: att.username, user_id: att.user_id, encounter_id: id });
@@ -199,9 +269,11 @@ export class PartyRoom {
 
       case "encounter_end": // leader: everyone stop recording + post their fight
         if (att.is_leader) {
-          const encs = await this._getEncounters();
+          this._ensureTables();
           const id = await this.ctx.storage.get("active_encounter_id");
-          if (id && encs[id]) { encs[id].ended = true; await this.ctx.storage.put("encounters", encs); }
+          if (id) {
+            this.ctx.storage.sql.exec("UPDATE encounters SET ended = 1 WHERE id = ?", id);
+          }
           await this.ctx.storage.put("encounter_active", false);
           logEvent("encounter_end", { by: att.username, user_id: att.user_id, encounter_id: id || null });
           this.broadcast({ type: "encounter_end", by: att.username, encounter_id: id || null });
@@ -232,9 +304,76 @@ export class PartyRoom {
     try { await this.webSocketClose(ws); } catch (_) {}
   }
 
+  // --- SQLite table setup ---
+  // Two tables replace the single KV "encounters" blob:
+  //   encounters: one row per encounter (metadata only)
+  //   submissions: one row per (encounter, member) — targets JSON stored inline
+  // member_detail stays as-is (already SQLite, per-hit heavy data served lazily).
+  _ensureTables() {
+    if (this._tablesReady) return;
+    this.ctx.storage.sql.exec(
+      `CREATE TABLE IF NOT EXISTS encounters (
+        id TEXT PRIMARY KEY,
+        started_at INTEGER NOT NULL,
+        ended INTEGER NOT NULL DEFAULT 0
+      )`
+    );
+    this.ctx.storage.sql.exec(
+      `CREATE TABLE IF NOT EXISTS submissions (
+        encounter_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        username TEXT NOT NULL,
+        v INTEGER NOT NULL DEFAULT 1,
+        fight_ts INTEGER NOT NULL,
+        posted_at INTEGER NOT NULL,
+        targets TEXT NOT NULL,
+        summary TEXT,
+        has_detail INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (encounter_id, user_id)
+      )`
+    );
+    // Heavy per-hit detail table (already existed; idempotent)
+    this.ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS member_detail (encounter_id TEXT, user_id TEXT, blob TEXT, PRIMARY KEY (encounter_id, user_id))"
+    );
+    this._tablesReady = true;
+  }
+
   // --- encounter storage helpers ---
+  // Read all encounters + their submissions from SQLite and reconstruct the same object shape
+  // the rest of the code expects: { [id]: { encounter_id, started_at, ended, submissions: { [uid]: sub } } }
   async _getEncounters() {
-    return (await this.ctx.storage.get("encounters")) || {};
+    this._ensureTables();
+    const encRows = [...this.ctx.storage.sql.exec("SELECT id, started_at, ended FROM encounters ORDER BY started_at ASC")];
+    if (!encRows.length) return {};
+    const subRows = [...this.ctx.storage.sql.exec(
+      "SELECT encounter_id, user_id, username, v, fight_ts, posted_at, targets, summary, has_detail FROM submissions"
+    )];
+    const encs = {};
+    for (const r of encRows) {
+      encs[r.id] = {
+        encounter_id: r.id,
+        started_at: r.started_at,
+        ended: !!r.ended,
+        submissions: {},
+      };
+    }
+    for (const s of subRows) {
+      if (!encs[s.encounter_id]) continue; // orphan — skip
+      let targets = [];
+      try { targets = JSON.parse(s.targets); } catch (_) {}
+      encs[s.encounter_id].submissions[s.user_id] = {
+        user_id: s.user_id,
+        username: s.username,
+        v: s.v,
+        fight_ts: s.fight_ts,
+        posted_at: s.posted_at,
+        targets,
+        summary: s.summary ? (() => { try { return JSON.parse(s.summary); } catch (_) { return null; } })() : null,
+        has_detail: !!s.has_detail,
+      };
+    }
+    return encs;
   }
 
   // --- state mutations ---
@@ -252,88 +391,107 @@ export class PartyRoom {
   // FIFO guarantees a final(A) is delivered before the next encounter's post(B) on that socket,
   // so B never pollutes A's board. The room (not the client) still picks the boss at build time.
   async postFight(user_id, username, fight_ts, targets, payload = {}) {
-    const encs = await this._getEncounters();
+    this._ensureTables();
     const activeId = await this.ctx.storage.get("active_encounter_id");
-    const activeOpen = !!(activeId && encs[activeId] && !encs[activeId].ended);
-    const postedId = payload.encounter_id != null ? String(payload.encounter_id) : null;
     const ts = Number(fight_ts) || Date.now();
+
+    // Check if the active encounter is open (not ended) without loading all submissions.
+    let activeEnded = true;
+    if (activeId) {
+      const rows = [...this.ctx.storage.sql.exec("SELECT ended FROM encounters WHERE id = ?", activeId)];
+      activeEnded = !rows.length || !!rows[0].ended;
+    }
+    const activeOpen = !!(activeId && !activeEnded);
+    const postedId = payload.encounter_id != null ? String(payload.encounter_id) : null;
 
     let id;
     if (activeOpen) {
       id = activeId; // (1) merge into the open active encounter
-    } else if (postedId && encs[postedId]) {
-      id = postedId; // (2a) an existing encounter named by the client
-      if (!encs[postedId].ended) await this.ctx.storage.put("active_encounter_id", id);
     } else if (postedId) {
-      id = postedId; // (2b) a fresh client-segmented encounter
-      encs[id] = { encounter_id: id, started_at: ts, ended: false, submissions: {} };
-      await this.ctx.storage.put("active_encounter_id", id);
-      logEvent("encounter_from_post", { encounter_id: id, by: user_id });
+      // Check if this encounter exists already
+      const existing = [...this.ctx.storage.sql.exec("SELECT ended FROM encounters WHERE id = ?", postedId)];
+      if (existing.length) {
+        id = postedId; // (2a) an existing encounter named by the client
+        if (!existing[0].ended) await this.ctx.storage.put("active_encounter_id", id);
+      } else {
+        id = postedId; // (2b) a fresh client-segmented encounter
+        this.ctx.storage.sql.exec(
+          "INSERT OR REPLACE INTO encounters (id, started_at, ended) VALUES (?, ?, 0)",
+          id, ts
+        );
+        await this.ctx.storage.put("active_encounter_id", id);
+        logEvent("encounter_from_post", { encounter_id: id, by: user_id });
+      }
     } else {
       id = String(Date.now()); // (3) F1b fallback: server-assigned (no leader, no client id)
-      encs[id] = { encounter_id: id, started_at: Date.now(), ended: false, submissions: {} };
+      this.ctx.storage.sql.exec(
+        "INSERT OR REPLACE INTO encounters (id, started_at, ended) VALUES (?, ?, 0)",
+        id, Date.now()
+      );
       await this.ctx.storage.put("active_encounter_id", id);
       logEvent("encounter_autostart", { encounter_id: id, by: user_id });
     }
+
     const v = Number(payload.v) || 1; // missing v = legacy Phase-1 client
-    encs[id].submissions[user_id] = {
-      user_id,
-      username,
-      v,
-      fight_ts: Number(fight_ts) || Date.now(),
-      posted_at: Date.now(),
-      // `targets` = boss-detection input (read by buildScoreboard).
-      targets: targets.slice(0, 64).map((t) => ({
-        target: String(t.target || "Unknown").slice(0, 80),
-        total_damage: Number(t.total_damage) || 0,
-        dps: Number(t.dps) || 0,
-        duration: Number(t.duration) || 0,
-        hits: Number(t.hits) || 0,
-        crit_rate: Number(t.crit_rate) || 0,
-        heavy_rate: Number(t.heavy_rate) || 0,
-      })),
-      // `summary` is tiny (overall totals) — keep it in the KV blob. The HEAVY per-hit detail
-      // (skills/rotation) does NOT go here (the KV "encounters" blob is capped at 128 KiB and
-      // holds the whole room); it goes to a SQLite row below, fetched lazily on drill-down.
-      summary: payload.summary ?? null,
-      has_detail: !!(payload.skills || payload.rotation),
-    };
+    const postedAt = Date.now();
+    const cleanTargets = targets.slice(0, 64).map((t) => ({
+      target: String(t.target || "Unknown").slice(0, 80),
+      total_damage: Number(t.total_damage) || 0,
+      dps: Number(t.dps) || 0,
+      duration: Number(t.duration) || 0,
+      hits: Number(t.hits) || 0,
+      crit_rate: Number(t.crit_rate) || 0,
+      heavy_rate: Number(t.heavy_rate) || 0,
+    }));
+    const has_detail = !!(payload.skills || payload.rotation);
+    const summaryJson = payload.summary != null ? JSON.stringify(payload.summary) : null;
+
+    this.ctx.storage.sql.exec(
+      `INSERT OR REPLACE INTO submissions
+        (encounter_id, user_id, username, v, fight_ts, posted_at, targets, summary, has_detail)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, user_id, username, v,
+      Number(fight_ts) || postedAt,
+      postedAt,
+      JSON.stringify(cleanTargets),
+      summaryJson,
+      has_detail ? 1 : 0
+    );
+
     // Heavy per-hit detail -> SQLite (Phase 3 / C1): unbounded vs the 128 KiB KV cap, queryable
     // per (encounter, member), served on demand via get_member_detail. Today's clients send null
     // (no-op); C1b starts sending the full hit slice.
-    if (payload.skills || payload.rotation) {
-      this._ensureDetailTable();
+    if (has_detail) {
       this.ctx.storage.sql.exec(
         "INSERT OR REPLACE INTO member_detail (encounter_id, user_id, blob) VALUES (?, ?, ?)",
         id, user_id, JSON.stringify({ skills: payload.skills ?? null, rotation: payload.rotation ?? null })
       );
     }
+
     // Client closing a segment at a boundary -> file the encounter so the next fight rolls
     // forward to a new one instead of merging into this (now-finished) board.
-    if (payload.final) encs[id].ended = true;
-    this._evictOldEncounters(encs, id);
-    await this.ctx.storage.put("encounters", encs);
+    if (payload.final) {
+      this.ctx.storage.sql.exec("UPDATE encounters SET ended = 1 WHERE id = ?", id);
+    }
+
     logEvent("post_fight", {
       user_id, username, v, encounter_id: id, final: !!payload.final,
-      fight_ts: encs[id].submissions[user_id].fight_ts,
-      n_targets: encs[id].submissions[user_id].targets.length,
-      has_detail: encs[id].submissions[user_id].has_detail,
+      fight_ts: Number(fight_ts) || postedAt,
+      n_targets: cleanTargets.length,
+      has_detail,
     });
   }
 
   // --- per-member heavy detail (Phase 3 / C1): SQLite-backed, off the KV board blob ---
   _ensureDetailTable() {
-    if (this._detailReady) return;
-    this.ctx.storage.sql.exec(
-      "CREATE TABLE IF NOT EXISTS member_detail (encounter_id TEXT, user_id TEXT, blob TEXT, PRIMARY KEY (encounter_id, user_id))"
-    );
-    this._detailReady = true;
+    // Now folded into _ensureTables(); keep this as a no-op alias for any external callers.
+    this._ensureTables();
   }
 
   async _sendMemberDetail(ws, encounter_id, user_id) {
     let detail = { skills: null, rotation: null };
     try {
-      this._ensureDetailTable();
+      this._ensureTables();
       const rows = [...this.ctx.storage.sql.exec(
         "SELECT blob FROM member_detail WHERE encounter_id = ? AND user_id = ?",
         String(encounter_id || ""), String(user_id || "")
@@ -348,36 +506,16 @@ export class PartyRoom {
     } catch (_) {}
   }
 
-  // TTL/eviction (A4): drop the oldest encounters once over the cap, never the one just
-  // touched (`keepId`). Mutates `encs` in place; caller persists.
-  _evictOldEncounters(encs, keepId) {
-    let ids = Object.keys(encs);
-    if (ids.length <= MAX_ENCOUNTERS) return;
-    ids.sort((a, b) => (encs[a].started_at || 0) - (encs[b].started_at || 0)); // oldest first
-    for (const id of ids) {
-      if (Object.keys(encs).length <= MAX_ENCOUNTERS) break;
-      if (id === keepId) continue;
-      delete encs[id];
-      try { this._ensureDetailTable(); this.ctx.storage.sql.exec("DELETE FROM member_detail WHERE encounter_id = ?", id); } catch (_) {}
-      logEvent("encounter_evicted", { encounter_id: id });
-    }
-  }
-
   async removeMember(user_id) {
     const members = (await this.ctx.storage.get("members")) || {};
     delete members[user_id];
     await this.ctx.storage.put("members", members);
     // Drop this member's submission from every encounter they appear in.
-    const encs = await this._getEncounters();
-    let touched = false;
-    for (const id of Object.keys(encs)) {
-      if (encs[id].submissions && encs[id].submissions[user_id]) {
-        delete encs[id].submissions[user_id];
-        touched = true;
-      }
-    }
-    if (touched) await this.ctx.storage.put("encounters", encs);
-    try { this._ensureDetailTable(); this.ctx.storage.sql.exec("DELETE FROM member_detail WHERE user_id = ?", user_id); } catch (_) {}
+    try {
+      this._ensureTables();
+      this.ctx.storage.sql.exec("DELETE FROM submissions WHERE user_id = ?", user_id);
+      this.ctx.storage.sql.exec("DELETE FROM member_detail WHERE user_id = ?", user_id);
+    } catch (_) {}
   }
 
   // --- boss detection (server-side, cross-party convergence) ---
