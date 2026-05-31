@@ -22272,8 +22272,12 @@ ${attemptLine}
                         try {
                             partyWS.send(JSON.stringify({
                                 type: 'post_fight',
+                                v: 2,
                                 fight_ts: msg.results.fight_ts || Date.now(),
-                                targets: msg.results.targets
+                                targets: msg.results.targets,
+                                summary: { total_damage: msg.results.total_damage, duration: msg.results.duration },
+                                skills: null,    // Phase 3 fills these (per-skill / rotation);
+                                rotation: null    // the room stores them opaquely now.
                             }));
                             console.log('[Party] Posted fight to room:', nTargets, 'targets');
                             partyDebug('party.post_fight.sent', { targets: nTargets, fight_ts: msg.results.fight_ts });
@@ -22308,8 +22312,12 @@ ${attemptLine}
                             try {
                                 partyWS.send(JSON.stringify({
                                     type: 'post_fight',
+                                    v: 2,
                                     fight_ts: totals.fight_ts || Date.now(),
-                                    targets: totals.targets
+                                    targets: totals.targets,
+                                    summary: { total_damage: totals.total_damage, duration: totals.duration },
+                                    skills: null,
+                                    rotation: null
                                 }));
                                 partyDebug('party.live_post', { targets: totals.targets.length });
                             } catch (err) {

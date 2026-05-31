@@ -137,7 +137,12 @@ async def member(host: str, code: str, idx: int, base: list[dict], rounds: int,
             print(f"  {name} connected (x{mult}){tail}{wait}")
 
             async def post(targets):
-                await ws.send(json.dumps({"type": "post_fight", "fight_ts": FIGHT_TS, "targets": targets}))
+                # F2 protocol v2 envelope: targets (boss-detection input) + opaque summary.
+                summary = {"total_damage": sum(t.get("total_damage", 0) for t in targets),
+                           "duration": max((t.get("duration", 0) for t in targets), default=0)}
+                await ws.send(json.dumps({"type": "post_fight", "v": 2, "fight_ts": FIGHT_TS,
+                                          "targets": targets, "summary": summary,
+                                          "skills": None, "rotation": None}))
 
             async def reader():
                 async for raw in ws:

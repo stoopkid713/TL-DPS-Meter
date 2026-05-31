@@ -16,6 +16,14 @@
 const CODE_RE = /^[A-Z0-9]{4,8}$/;
 const MAX_MEMBERS = 12;
 
+// Wire protocol version (F2). `welcome` announces it; `post_fight` carries it. A missing `v`
+// on an incoming post_fight = a legacy Phase-1 client (stored as v:1) — still slotted in, so an
+// un-updated installed app keeps working during rollout. The post_fight envelope is
+// enrichment-ready: { v, fight_ts, targets, summary, skills, rotation }. The room reads `targets`
+// for boss detection and stores summary/skills/rotation OPAQUELY (Phase 3 fills skills/rotation
+// with zero further protocol change).
+const PROTOCOL_V = 2;
+
 // Structured logging (F6). One JSON line per meaningful event -> `wrangler tail` becomes a
 // real monitor. Mirrors the backend's `debug.trace` philosophy so the whole system traces
 // consistently. Pure observability: no behavior change, no protocol change. [observability]
@@ -104,6 +112,7 @@ export class PartyRoom {
 
     server.send(JSON.stringify({
       type: "welcome",
+      v: PROTOCOL_V,
       you: { user_id, username, is_leader, is_spectator },
       ...(await this.snapshot()),
     }));
@@ -135,7 +144,7 @@ export class PartyRoom {
 
       case "post_fight": // member's full per-target breakdown for one fight
         if (Array.isArray(msg.targets)) {
-          await this.postFight(att.user_id, att.username, msg.fight_ts, msg.targets);
+          await this.postFight(att.user_id, att.username, msg.fight_ts, msg.targets, msg);
           this.broadcast(await this.buildScoreboard());
         }
         return;
@@ -191,13 +200,16 @@ export class PartyRoom {
   // --- state mutations ---
   // Store this member's latest fight: their full per-target breakdown. The room (not the
   // client) decides which target is the boss at scoreboard-build time.
-  async postFight(user_id, username, fight_ts, targets) {
+  async postFight(user_id, username, fight_ts, targets, payload = {}) {
     const fights = (await this.ctx.storage.get("fights")) || {};
+    const v = Number(payload.v) || 1; // missing v = legacy Phase-1 client
     fights[user_id] = {
       user_id,
       username,
+      v,
       fight_ts: Number(fight_ts) || Date.now(),
       posted_at: Date.now(),
+      // `targets` = boss-detection input (read by buildScoreboard).
       targets: targets.slice(0, 64).map((t) => ({
         target: String(t.target || "Unknown").slice(0, 80),
         total_damage: Number(t.total_damage) || 0,
@@ -207,12 +219,18 @@ export class PartyRoom {
         crit_rate: Number(t.crit_rate) || 0,
         heavy_rate: Number(t.heavy_rate) || 0,
       })),
+      // Enrichment-ready envelope fields — stored OPAQUELY, not read yet (Phase 3 reads
+      // skills/rotation). Kept null-safe so legacy clients (no envelope) store nulls.
+      summary: payload.summary ?? null,
+      skills: payload.skills ?? null,
+      rotation: payload.rotation ?? null,
     };
     await this.ctx.storage.put("fights", fights);
     logEvent("post_fight", {
-      user_id, username,
+      user_id, username, v,
       fight_ts: fights[user_id].fight_ts,
       n_targets: fights[user_id].targets.length,
+      has_skills: fights[user_id].skills != null,
     });
   }
 
