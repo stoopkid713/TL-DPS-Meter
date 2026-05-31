@@ -10467,6 +10467,10 @@
                         <div class="skill-assignment-info">
                             <h3>⚔️ Skill Assignment</h3>
                             <p>Drag skills to weapon cards to assign them. Click "Show Assigned" to view/manage skills for each weapon.</p>
+                            <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                                <button id="updateSkillsBtn" onclick="updateSkillAssignmentsFromCloud()" style="padding: 8px 14px; background: linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(59, 130, 246, 0.15)); border: 1px solid rgba(34, 211, 238, 0.5); color: #22d3ee; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: all 0.2s;" onmouseover="this.style.background='rgba(34, 211, 238, 0.25)'" onmouseout="this.style.background='linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(59, 130, 246, 0.15))'">⬇️ Update from Cloud</button>
+                                <span id="updateSkillsStatus" style="font-size: 0.8rem; color: #94a3b8;"></span>
+                            </div>
                         </div>
 
                         <!-- Weapon Drop Cards - Larger Style -->
@@ -16502,11 +16506,42 @@ ${attemptLine}
             }
         }
         
+        // Normalize 60s stats from a stats payload. Loaded encounters carry a
+        // first_60s object; live data carries flat *_60s keys. Previously the BT
+        // consumers did `data.first_60s || data` and fell through to the whole
+        // (lifetime) buffer for live data, mixing lifetime numbers into the
+        // build-test display. This reads the flat _60s keys instead — same source
+        // the loaded-encounter path (updateSummaryTab) uses. Returns an object
+        // with the field names the BT consumers already expect.
+        function get60sStats(data) {
+            if (!data) return {};
+            if (data.first_60s && typeof data.first_60s === 'object') {
+                return data.first_60s;
+            }
+            const damage = data.damage_60s || 0;
+            const hits = data.hit_count_60s || 0;
+            const critRate = data.crit_rate_60s || 0;
+            const heavyRate = data.heavy_rate_60s || 0;
+            const critHeavyRate = data.crit_heavy_rate_60s || 0;
+            return {
+                dps: data.dps_60s || 0,
+                total_damage: damage,
+                hit_count: hits,
+                raw_crit_rate: critRate,
+                raw_heavy_rate: heavyRate,
+                crit_heavy_rate: critHeavyRate,
+                normal_rate: Math.max(0, 100 - critRate - heavyRate + critHeavyRate),
+                avg_hit: hits > 0 ? Math.round(damage / hits) : 0,
+                skills: data.skills_60s || [],
+                rotation: data.rotation_60s || []
+            };
+        }
+
         function updateBuildTestStats(data) {
             // Only update if test is active or complete
             if (!buildTestActive && !buildTestComplete) return;
-            
-            const first60 = data.first_60s || data;
+
+            const first60 = get60sStats(data);
             
             // Update main stats
             document.getElementById('btDps').textContent = Math.round(first60.dps || 0).toLocaleString();
@@ -16572,7 +16607,7 @@ ${attemptLine}
                 // Get target name from the data
                 const targets = data.targets || [];
                 const targetName = targets.length > 0 ? targets[0].name : 'Unknown Target';
-                const first60 = data.first_60s || data;
+                const first60 = get60sStats(data);
                 
                 // Capture the test data
                 lastTestData = {
@@ -16680,7 +16715,7 @@ ${attemptLine}
 
         function queueCompletedRun(data) {
             sessionRunCounter++;
-            const first60 = data.first_60s || data;
+            const first60 = get60sStats(data);
             const targets = data.targets || [];
             const targetName = targets.length > 0 ? targets[0].name : 'Unknown';
             const placeholderTag = `__sq_${Date.now()}_${sessionRunCounter}__`;
@@ -20156,6 +20191,72 @@ ${attemptLine}
                 skill_name: skillName,
                 category: 'unassigned'
             });
+        }
+
+        // === CLOUD SKILL UPDATE ===
+        // Fetches the canonical skill->weapon map from the party worker and MERGES
+        // it into the local assignments. Merge is purely additive/refresh: every
+        // mapping in the cloud payload is applied via the app's existing
+        // 'assign_skill' command (which the backend persists to weapon_config.json
+        // and echoes back as a 'weapon_config' message, re-rendering the UI). Local
+        // assignments NOT present in the cloud payload are left untouched, so any
+        // user-custom assignments survive. We skip cloud entries that already match
+        // the local value to avoid redundant round-trips.
+        const SKILLS_CLOUD_URL = 'https://tldps-party.kyle-526.workers.dev/skills';
+        const VALID_WEAPON_SLUGS = new Set([
+            'greatsword','sns','dagger','spear','crossbow','longbow',
+            'staff','wand','orb','mastery','other'
+        ]);
+
+        async function updateSkillAssignmentsFromCloud() {
+            const btn = document.getElementById('updateSkillsBtn');
+            const statusEl = document.getElementById('updateSkillsStatus');
+            const setStatus = (msg, color) => {
+                if (statusEl) {
+                    statusEl.textContent = msg;
+                    statusEl.style.color = color || '#94a3b8';
+                }
+            };
+
+            if (btn) btn.disabled = true;
+            setStatus('Updating…', '#fbbf24');
+
+            try {
+                const resp = await fetch(SKILLS_CLOUD_URL, {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (!resp.ok) {
+                    throw new Error('HTTP ' + resp.status);
+                }
+                const payload = await resp.json();
+                const cloudAssignments = (payload && payload.assignments) || {};
+                const patch = (payload && payload.patch) != null ? payload.patch : '?';
+
+                const local = (weaponConfig && weaponConfig.skillAssignments) || {};
+                let applied = 0;
+                let skippedInvalid = 0;
+
+                Object.keys(cloudAssignments).forEach(skillName => {
+                    const slug = cloudAssignments[skillName];
+                    if (!VALID_WEAPON_SLUGS.has(slug)) { skippedInvalid++; return; }
+                    // Skip if local already matches — additive/refresh only.
+                    if (local[skillName] === slug) return;
+                    // Reuse the app's existing persist+render path.
+                    assignSkill(skillName, slug);
+                    applied++;
+                });
+
+                let msg = `Updated ${applied} skill${applied === 1 ? '' : 's'} (patch ${patch})`;
+                if (skippedInvalid > 0) msg += ` · ${skippedInvalid} skipped`;
+                setStatus(msg, '#22c55e');
+            } catch (err) {
+                console.error('[CloudSkills] update failed:', err);
+                setStatus('Update failed — ' + (err && err.message ? err.message : 'network error'), '#ef4444');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
         }
 
         // === MODALS ===
