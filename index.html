@@ -22263,18 +22263,24 @@ ${attemptLine}
                     // Post this member's full per-target breakdown to the room. The room
                     // picks the boss server-side, filters trash, and broadcasts the merged
                     // ranked scoreboard back to everyone (post-combat model).
-                    if (msg.results && msg.results.targets && msg.results.targets.length &&
-                        partyWS && partyWS.readyState === WebSocket.OPEN && partyState.party_code) {
+                    const nTargets = (msg.results && msg.results.targets) ? msg.results.targets.length : 0;
+                    const wsOpen = !!(partyWS && partyWS.readyState === WebSocket.OPEN);
+                    if (nTargets && wsOpen && partyState.party_code) {
                         try {
                             partyWS.send(JSON.stringify({
                                 type: 'post_fight',
                                 fight_ts: msg.results.fight_ts || Date.now(),
                                 targets: msg.results.targets
                             }));
-                            console.log('[Party] Posted fight to room:', msg.results.targets.length, 'targets');
+                            console.log('[Party] Posted fight to room:', nTargets, 'targets');
+                            partyDebug('party.post_fight.sent', { targets: nTargets, fight_ts: msg.results.fight_ts });
                         } catch (err) {
                             console.warn('[Party] Error posting fight:', err);
+                            partyDebug('party.post_fight.error', { err: String(err) });
                         }
+                    } else {
+                        // No post — explains an empty board. (no damage, room socket down, or not in a party)
+                        partyDebug('party.post_fight.skipped', { targets: nTargets, wsOpen: wsOpen, code: partyState.party_code || null });
                     }
                 }
                 else if (msg.type === 'party_stats') {
@@ -22720,10 +22726,12 @@ ${attemptLine}
 
             ws.onopen = () => {
                 overlayState.connected = true;
+                partyDebug('overlay.open', { code: code });
                 updateOverlayStatus(overlayState.encounterActive ? 'recording' : 'connected');
             };
             ws.onmessage = (ev) => {
                 let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+                partyDebug('overlay.msg', { type: m.type, entries: m.scoreboard ? (m.scoreboard.entries || []).length : undefined });
                 switch (m.type) {
                     case 'welcome':
                         overlayState.scoreboard = m.scoreboard || null;
@@ -22745,10 +22753,11 @@ ${attemptLine}
                         break;
                 }
             };
-            ws.onerror = () => { console.warn('[Overlay] Room socket error'); };
-            ws.onclose = () => {
+            ws.onerror = () => { console.warn('[Overlay] Room socket error'); partyDebug('overlay.error', {}); };
+            ws.onclose = (ev) => {
                 overlayState.connected = false;
                 updateOverlayStatus('disconnected');
+                partyDebug('overlay.close', { code: (ev && ev.code), wanted: overlayWSWantOpen });
                 if (!overlayWSWantOpen) return;
                 overlayWSReconnect = setTimeout(() => {
                     if (overlayWSWantOpen) initOverlayConnection(code);
@@ -22950,6 +22959,15 @@ ${attemptLine}
 
         // --- WebSocket relay to the owned room ---
         const PARTY_WS_BASE = 'wss://tldps-party.kyle-526.workers.dev';
+
+        // Bridge party/overlay room-WS events into the backend tracer so `TLDPS_DEBUG=1`
+        // captures the whole party flow in tldps-debug.jsonl (+ live _monitor.py sink) — the
+        // transport is client-side and otherwise invisible to the Python tracer. Always
+        // console.logs (prefix [PartyDbg]); forwards to the server only when its socket is open.
+        function partyDebug(event, fields) {
+            try { console.log('[PartyDbg] ' + event, fields || ''); } catch (e) {}
+            try { sendCommand('client_debug', { event: event, fields: fields || {} }); } catch (e) {}
+        }
         let partyWS = null;
         let partyWSConnected = false;
         let partyWSWantOpen = false;   // we intend to stay connected (drives reconnect)
@@ -22976,6 +22994,7 @@ ${attemptLine}
             if (partyWSReconnect) { clearTimeout(partyWSReconnect); partyWSReconnect = null; }
             partyWSWantOpen = true;
             partyWelcomed = false;
+            partyDebug('party.connect', { code: code, leader: !!isLeader });
             if (partyWS) { try { partyWS.onclose = null; partyWS.close(); } catch (e) {} partyWS = null; }
 
             const qs = new URLSearchParams({
@@ -22991,6 +23010,7 @@ ${attemptLine}
 
             ws.onopen = () => {
                 console.log('[Party] Room connected:', code);
+                partyDebug('party.open', { code: code });
                 partyWSConnected = true;
                 startPartyPing();
                 startExpirationTimer();
@@ -23000,10 +23020,11 @@ ${attemptLine}
                 let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
                 handlePartyRoomMessage(m);
             };
-            ws.onerror = (e) => { console.warn('[Party] Room socket error'); };
-            ws.onclose = () => {
+            ws.onerror = (e) => { console.warn('[Party] Room socket error'); partyDebug('party.error', {}); };
+            ws.onclose = (ev) => {
                 partyWSConnected = false;
                 stopPartyPing();
+                partyDebug('party.close', { code: (ev && ev.code), wanted: partyWSWantOpen, welcomed: partyWelcomed });
                 if (diagnosticsOpen) refreshDiagnostics();
                 if (!partyWSWantOpen) return;  // intentional leave
                 if (!partyWelcomed) {
@@ -23039,6 +23060,13 @@ ${attemptLine}
 
         // Dispatch a frame from the room (see workers/party/README.md wire protocol).
         function handlePartyRoomMessage(m) {
+            partyDebug('party.msg', {
+                type: m && m.type,
+                boss: m && m.scoreboard ? m.scoreboard.boss : (m && m.boss),
+                entries: m && m.scoreboard ? (m.scoreboard.entries || []).length : (m && m.entries ? m.entries.length : undefined),
+                roster: m && m.roster ? m.roster.length : (m && m.members ? m.members.length : undefined),
+                enc: m && m.encounter_active,
+            });
             switch (m && m.type) {
                 case 'welcome':
                     partyWelcomed = true;

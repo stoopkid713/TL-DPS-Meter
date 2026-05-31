@@ -788,6 +788,24 @@ def _h_party_reset_stats(s: DPSMeterServer, msg: dict) -> dict:
     return {"type": "party_stats_reset", "status": s.party.get_status()}
 
 
+def _h_client_debug(s: DPSMeterServer, msg: dict) -> None:
+    """Bridge a frontend debug event into the backend tracer.
+
+    The party/overlay transport is client-side (browser WS to the Cloudflare room),
+    invisible to the Python tracer. The frontend forwards its room-WS lifecycle here so
+    ``TLDPS_DEBUG=1`` captures the whole party flow in ``tldps-debug.jsonl`` (and the live
+    sink → ``_monitor.py``) alongside backend events. No-op when tracing is off; never
+    replies (returns ``None`` → dispatch skips the send)."""
+    if debug.enabled():
+        event = str(msg.get("event", "client.event"))
+        fields = msg.get("fields") or {}
+        if isinstance(fields, dict):
+            debug.trace("client." + event, **fields)
+        else:
+            debug.trace("client." + event, value=fields)
+    return None
+
+
 # --- GUI / system commands -------------------------------------------------
 def _h_open_logs_folder(s: DPSMeterServer, msg: dict) -> Optional[dict]:
     """Open the combat-log directory in the OS file browser.
@@ -937,6 +955,7 @@ HANDLERS: dict[str, Callable[[DPSMeterServer, dict], Optional[dict]]] = {
     "party_start_recording": _h_party_start_recording,
     "party_stop_recording": _h_party_stop_recording,
     "party_reset_stats": _h_party_reset_stats,
+    "client_debug": _h_client_debug,
 }
 
 
