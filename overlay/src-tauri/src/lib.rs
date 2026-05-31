@@ -8,18 +8,44 @@
 // Launched by the main app's open_overlay command as a separate process:
 //   tldps-overlay.exe --code ABCD --name "Player"
 
+use std::io::Write as _;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 /// Click-through state. true = locked = clicks pass through to the game.
 struct LockState(AtomicBool);
 
+/// Append one timestamped line to `overlay-debug.log` next to the exe (best-effort).
+/// This is the overlay's own debug log — it's a separate process from the main app, so
+/// it can't write to the Python tldps-debug.jsonl.
+fn overlay_log(line: &str) {
+    let ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let path = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("overlay-debug.log")))
+        .unwrap_or_else(|| std::path::PathBuf::from("overlay-debug.log"));
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = writeln!(f, "{} {}", ms, line);
+    }
+}
+
+/// Frontend → log sink (the overlay HTML calls this via `ovlog`).
+#[tauri::command]
+fn log_line(msg: String) {
+    overlay_log(&format!("[ui] {}", msg));
+}
+
 fn apply_lock(app: &tauri::AppHandle, locked: bool) {
     if let Some(win) = app.get_webview_window("overlay") {
         let _ = win.set_ignore_cursor_events(locked);
     }
     app.state::<LockState>().0.store(locked, Ordering::SeqCst);
+    overlay_log(&format!("[rs] lock {}", locked));
     // Notify the renderer so it can update the lock icon / hint.
     let _ = app.emit("lock-changed", locked);
 }
@@ -73,6 +99,7 @@ pub fn run() {
         urlencoding::encode(&code),
         urlencoding::encode(&name)
     );
+    overlay_log(&format!("[rs] startup code={} name={}", code, name));
 
     tauri::Builder::default()
         .manage(LockState(AtomicBool::new(false)))
@@ -80,7 +107,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             toggle_lock,
             get_lock_state,
-            close_overlay
+            close_overlay,
+            log_line
         ])
         .setup(move |app| {
             let win = WebviewWindowBuilder::new(
@@ -97,6 +125,7 @@ pub fn run() {
             .skip_taskbar(false)
             .resizable(true)
             .build()?;
+            overlay_log("[rs] overlay window built");
 
             // Park it top-right of the primary monitor (the original did the same).
             if let Ok(Some(mon)) = win.primary_monitor() {
