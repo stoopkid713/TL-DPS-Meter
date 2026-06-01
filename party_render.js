@@ -335,4 +335,244 @@ const PartyRender = {
       + '<div class="pr-rot-axis"><span>0s</span><span>15s</span><span>30s</span><span>45s</span><span>60s</span></div>'
       + '</div>';
   },
+
+  // ===== Trophies tab — post-fight superlatives =====
+  //
+  // computeTrophies(entries, memberDetails, encounterId)
+  //   entries       — array of scoreboard entry objects from the board
+  //                   ({user_id, username, total_damage, dps, hits, crit_rate,
+  //                     heavy_rate, crit_heavy_rate, crit_heavy_count, has_detail})
+  //   memberDetails — the partyState.memberDetails map (keys: "encId:userId")
+  //                   each value has a ``rotation`` array of per-hit objects:
+  //                   {relative_time, skill, damage, is_crit, is_heavy}
+  //   encounterId   — the encounter_id string used to build the lookup key
+  //
+  // Returns a trophies object with these awards (all nullable when data absent):
+  //   {
+  //     highestSustainedDps:  { username, dps (number), windowSec }  | null
+  //     hardestHit:           { username, skill, damage }            | null
+  //     mostDamage:           { username, damage }                   | null  (redundant with rank-1 but explicit)
+  //     mostCritHeavy:        { username, count, rate }              | null
+  //     biggestCritHit:       { username, skill, damage }            | null
+  //     missingDetail:        boolean  — true if ≥1 member lacks fetched rotation
+  //     totalMembers:         number
+  //     membersWithDetail:    number
+  //   }
+  //
+  // "Highest sustained DPS" uses a rolling WINDOW_SEC-second window over per-hit data.
+  // Members without fetched detail are skipped for hit-level trophies; ``missingDetail``
+  // flags the partial-data state so the renderer can show a loading nudge.
+  computeTrophies(entries, memberDetails, encounterId) {
+    const WINDOW_SEC = 10; // rolling window for sustained-DPS trophy
+    entries = entries || [];
+    memberDetails = memberDetails || {};
+
+    let highestSustainedDps = null;
+    let hardestHit = null;
+    let mostDamage = null;
+    let mostCritHeavy = null;
+    let biggestCritHit = null;
+    let missingDetail = false;
+    let membersWithDetail = 0;
+
+    // --- Most damage (from scoreboard totals — always available) ---
+    entries.forEach((e) => {
+      const dmg = Number(e && e.total_damage) || 0;
+      if (!mostDamage || dmg > mostDamage.damage) {
+        mostDamage = { username: (e && e.username) || '?', damage: dmg };
+      }
+    });
+
+    // --- Most crit+heavy hits (from scoreboard stats — always available) ---
+    entries.forEach((e) => {
+      const count = Number(e && e.crit_heavy_count) || 0;
+      const rate  = Number(e && e.crit_heavy_rate) || 0;
+      if (!mostCritHeavy || count > mostCritHeavy.count) {
+        mostCritHeavy = { username: (e && e.username) || '?', count: count, rate: rate };
+      }
+    });
+
+    // --- Hit-level trophies (need rotation detail) ---
+    entries.forEach((e) => {
+      if (!e || !e.user_id) return;
+      const key    = encounterId + ':' + e.user_id;
+      const detail = memberDetails[key];
+      const rot    = detail && Array.isArray(detail.rotation) ? detail.rotation : null;
+
+      if (!rot) {
+        // has_detail may be true (detail requested/in-flight) or false (still fighting) —
+        // either way we lack hit data for this member; mark partial.
+        missingDetail = true;
+        return;
+      }
+      membersWithDetail += 1;
+      if (!rot.length) return;
+
+      const uname = (e && e.username) || '?';
+
+      // Hardest single hit
+      rot.forEach((h) => {
+        const dmg = Number(h && h.damage) || 0;
+        if (!hardestHit || dmg > hardestHit.damage) {
+          hardestHit = { username: uname, skill: (h && h.skill) || 'Unknown', damage: dmg };
+        }
+      });
+
+      // Biggest crit+heavy hit (both flags must be set — highest-roll, 2× multiplier)
+      rot.forEach((h) => {
+        if (!(h && h.is_crit && h.is_heavy)) return;
+        const dmg = Number(h && h.damage) || 0;
+        if (!biggestCritHit || dmg > biggestCritHit.damage) {
+          biggestCritHit = { username: uname, skill: (h && h.skill) || 'Unknown', damage: dmg };
+        }
+      });
+
+      // Highest sustained DPS — rolling WINDOW_SEC window
+      // Sort hits by time, accumulate damage within each window.
+      const sorted = rot.slice().sort((a, b) => ((a && a.relative_time) || 0) - ((b && b.relative_time) || 0));
+      let winStart = 0;
+      let winDmg   = 0;
+      for (let head = 0; head < sorted.length; head++) {
+        winDmg += Number(sorted[head] && sorted[head].damage) || 0;
+        // Shrink the tail until the window fits within WINDOW_SEC
+        while (winStart < head) {
+          const span = ((sorted[head] && sorted[head].relative_time) || 0)
+                     - ((sorted[winStart] && sorted[winStart].relative_time) || 0);
+          if (span <= WINDOW_SEC) break;
+          winDmg -= Number(sorted[winStart] && sorted[winStart].damage) || 0;
+          winStart++;
+        }
+        const span = Math.max(
+          WINDOW_SEC,
+          ((sorted[head] && sorted[head].relative_time) || 0)
+            - ((sorted[winStart] && sorted[winStart].relative_time) || 0)
+        );
+        const sustDps = winDmg / span;
+        if (!highestSustainedDps || sustDps > highestSustainedDps.dps) {
+          highestSustainedDps = { username: uname, dps: sustDps, windowSec: WINDOW_SEC };
+        }
+      }
+    });
+
+    return {
+      highestSustainedDps,
+      hardestHit,
+      mostDamage,
+      mostCritHeavy,
+      biggestCritHit,
+      missingDetail,
+      totalMembers: entries.length,
+      membersWithDetail,
+    };
+  },
+
+  // trophiesHtml(trophies)
+  //   trophies — result of computeTrophies (or null/undefined for a full empty state)
+  // Renders the full Trophies tab panel HTML. Self-contained — no DOM globals needed.
+  trophiesHtml(trophies) {
+    const esc = PartyRender.escapeHtml;
+    const fnum = PartyRender.fmtNum;
+
+    if (!trophies || !trophies.totalMembers) {
+      return '<div class="party-empty-state">'
+        + '<div class="party-empty-icon">🏆</div>'
+        + '<div class="party-empty-title">No Trophies Yet</div>'
+        + '<div class="party-empty-text">Trophies appear after the encounter ends and member data is loaded.</div>'
+        + '</div>';
+    }
+
+    const t = trophies;
+
+    // Loading nudge — shown as a small banner if some members are still missing rotation data.
+    const loadingBanner = t.missingDetail
+      ? '<div class="pr-trophy-loading">'
+        + '⏳ Loading breakdowns for '
+        + (t.totalMembers - t.membersWithDetail)
+        + ' member' + (t.totalMembers - t.membersWithDetail !== 1 ? 's' : '')
+        + ' — hit-level trophies will update automatically.'
+        + '</div>'
+      : '';
+
+    // Helper: render one trophy card.
+    // icon, title, winner (string|null), detail (string|null)
+    const card = (icon, title, winner, detail) => {
+      if (!winner) {
+        // Trophy not yet computable (detail missing for all members, or no data at all).
+        return '<div class="pr-trophy-card pr-trophy-pending">'
+          + '<div class="pr-trophy-icon">' + icon + '</div>'
+          + '<div class="pr-trophy-body">'
+          + '<div class="pr-trophy-title">' + title + '</div>'
+          + '<div class="pr-trophy-winner pr-trophy-na">—</div>'
+          + '</div></div>';
+      }
+      return '<div class="pr-trophy-card">'
+        + '<div class="pr-trophy-icon">' + icon + '</div>'
+        + '<div class="pr-trophy-body">'
+        + '<div class="pr-trophy-title">' + title + '</div>'
+        + '<div class="pr-trophy-winner">' + esc(winner) + '</div>'
+        + (detail ? '<div class="pr-trophy-detail">' + detail + '</div>' : '')
+        + '</div></div>';
+    };
+
+    // --- Build each card ---
+
+    // 1. Most Damage (always available from scoreboard)
+    const mostDmgCard = card(
+      '💥',
+      'Most Damage',
+      t.mostDamage ? t.mostDamage.username : null,
+      t.mostDamage ? fnum(t.mostDamage.damage) + ' total' : null
+    );
+
+    // 2. Highest Sustained DPS (rolling 10s window — needs rotation detail)
+    const sustainCard = t.highestSustainedDps
+      ? card(
+          '⚡',
+          'Highest Sustained DPS',
+          t.highestSustainedDps.username,
+          fnum(Math.round(t.highestSustainedDps.dps)) + ' DPS (best ' + t.highestSustainedDps.windowSec + 's window)'
+        )
+      : card('⚡', 'Highest Sustained DPS', null, null);
+
+    // 3. Hardest Single Hit — needs rotation detail
+    const hardHitCard = t.hardestHit
+      ? card(
+          '🎯',
+          'Hardest Single Hit',
+          t.hardestHit.username,
+          esc(t.hardestHit.skill) + ' · ' + fnum(t.hardestHit.damage)
+        )
+      : card('🎯', 'Hardest Single Hit', null, null);
+
+    // 4. Biggest Crit+Heavy Hit — needs rotation detail (both is_crit AND is_heavy)
+    const bigCritCard = t.biggestCritHit
+      ? card(
+          '💢',
+          'Biggest Crit+Heavy Hit',
+          t.biggestCritHit.username,
+          esc(t.biggestCritHit.skill) + ' · ' + fnum(t.biggestCritHit.damage)
+        )
+      : card('💢', 'Biggest Crit+Heavy Hit', null, null);
+
+    // 5. Most Crit+Heavy Hits (count + rate — from scoreboard stats, always available)
+    const critHeavyCard = t.mostCritHeavy && t.mostCritHeavy.count > 0
+      ? card(
+          '✨',
+          'Most Crit+Heavy Hits',
+          t.mostCritHeavy.username,
+          t.mostCritHeavy.count + ' hits · ' + t.mostCritHeavy.rate.toFixed(1) + '% C+H rate'
+        )
+      : card('✨', 'Most Crit+Heavy Hits', null, null);
+
+    return '<div class="pr-trophies">'
+      + loadingBanner
+      + '<div class="pr-trophy-grid">'
+      + mostDmgCard
+      + sustainCard
+      + hardHitCard
+      + bigCritCard
+      + critHeavyCard
+      + '</div>'
+      + '</div>';
+  },
 };

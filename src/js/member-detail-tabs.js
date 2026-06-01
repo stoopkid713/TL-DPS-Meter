@@ -101,6 +101,10 @@
             if (tab === 'rotation') { renderPartyRotationTab(); return; }
             if (tab === 'compare')  { renderPartyCompareTab();  return; }
             if (tab === 'history')  { renderPartyHistoryTab();  return; }
+            // TODO (dispatcher — integration step): add the Trophies tab button to
+            // index.html's #partyTabStrip (line ~10962) — one line:
+            //   <button class="party-tab" data-ptab="trophies" onclick="switchPartyTab('trophies')">Trophies</button>
+            if (tab === 'trophies') { renderPartyTrophiesTab(); return; }
             // Phase 3 (C3): if drilled into a member, render their detail panel instead of the board.
             if (partyState.detail) { renderMemberDetail(); return; }
             // Resolve which encounter's board to show: the explicitly-viewed one, else the active.
@@ -337,6 +341,38 @@
                 if (other) partyState.compare[slot === 'a' ? 'b' : 'a'] = other.user_id;
             }
             renderPartyResults();
+        }
+
+        // ===== Trophies tab — post-fight superlatives =====
+        // Computes 5 awards from scoreboard totals (always available) + per-hit rotation
+        // detail (lazily fetched via ensureMemberDetail). Kicks off any missing fetches so
+        // the tab self-heals: once a member's detail arrives, the next render pass fills in
+        // the hit-level trophies (Hardest Hit, Biggest Crit+Heavy, Highest Sustained DPS).
+        function renderPartyTrophiesTab() {
+            const container = document.getElementById('partyResultsContainer');
+            const board = currentPartyBoard();
+            const entries = (board && Array.isArray(board.entries)) ? board.entries : [];
+
+            if (!entries.length) {
+                container.innerHTML = '<div class="party-empty-state">'
+                    + '<div class="party-empty-icon">🏆</div>'
+                    + '<div class="party-empty-title">No Trophies Yet</div>'
+                    + '<div class="party-empty-text">Start an encounter to earn trophies.</div>'
+                    + '</div>';
+                return;
+            }
+
+            const encId = board.encounter_id;
+
+            // Kick off detail fetches for every member that has stored breakdown but
+            // whose detail we haven't received yet. This is the same pattern used by
+            // the Skills/Rotation tabs — rate-safe + event-driven (one fetch per member).
+            entries.forEach((e) => {
+                if (e && e.user_id) ensureMemberDetail(encId, e.user_id);
+            });
+
+            const trophies = PartyRender.computeTrophies(entries, partyState.memberDetails, encId);
+            container.innerHTML = PartyRender.trophiesHtml(trophies);
         }
 
         function renderPartyHistoryTab() {
