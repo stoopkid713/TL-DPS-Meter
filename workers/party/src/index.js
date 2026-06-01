@@ -789,7 +789,7 @@ export class PartyRoom {
     const board = [];
     for (const sub of submissions) {
       const hit = sub.targets.find((t) => norm(t.target) === bossKey);
-      if (hit) board.push({ ...hit, user_id: sub.user_id, username: sub.username });
+      if (hit) board.push({ ...hit, user_id: sub.user_id, username: sub.username, has_detail: !!sub.has_detail });
     }
     const total = board.reduce((s, e) => s + e.total_damage, 0);
     board.sort((a, b) => b.total_damage - a.total_damage);
