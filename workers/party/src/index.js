@@ -376,6 +376,10 @@ export class PartyRoom {
           await this.postFight(att.user_id, att.username, msg.fight_ts, msg.targets, msg);
           this.broadcast(await this.buildScoreboard());
           this.broadcast(await this.buildEncounters());
+          // #14: a member's first post flips their roster has_posted false->true. Rebroadcast the
+          // roster so the leader's "not logging" badge clears live (was only refreshed on
+          // join/leave/kick/reset). Roster is <=12 members and post_fight is debounced -> cheap.
+          this.broadcast(await this.buildRoster());
         }
         return;
 
