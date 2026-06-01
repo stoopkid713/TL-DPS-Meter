@@ -5,6 +5,34 @@ All notable changes are documented here. Format loosely based on
 
 ---
 
+## [1.0.3] - 2026-06-01
+
+Party polish + quality-of-life. Validated in a live 2-player session.
+
+### Added
+- **Trophies tab** — party superlatives: hardest single hit, highest sustained DPS,
+  most damage on one boss, biggest crit+heavy hit.
+- **Feedback / report a bug** — a button right in the app to send feedback or a bug
+  report (with optional, consent-gated diagnostics — no combat logs, no account info).
+- **"Are you logging?" detection** — an unmissable warning when your combat logging is
+  off, and the party leader can see which members aren't transmitting yet.
+- **Crit + Heavy %** on the party scoreboard, plus a crit-heavy column in the skill breakdown.
+
+### Changed
+- **Party-first layout** — Party DPS is now the 2nd tab; the solo analysis tools tuck into
+  a **Solo Lab** menu; the left sidebar auto-collapses on the party view (hover to peek) so
+  the scoreboard gets more room.
+- **Check for updates** is now a prominent button (checks on demand).
+
+### Fixed
+- **Boss detection** — a real, current boss list + a trash filter, so practice dummies and
+  trash no longer get mistaken for bosses.
+- **Buttons that did nothing now work** — Leave / Clear / Kick / Reset Roster and several
+  Settings actions (they relied on a dialog the app couldn't show).
+- The app no longer crashes if you accidentally open a second copy.
+
+---
+
 ## [1.0.2] - 2026-06-01
 
 The **Party DPS** release — the party feature is now a real, shared boss scoreboard.

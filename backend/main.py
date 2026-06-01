@@ -36,6 +36,7 @@ exe so there is still a record without a console.
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import logging
 import os
@@ -274,7 +275,12 @@ class Backend:
         except BaseException as exc:  # noqa: BLE001 - surface bind failures to start()
             self._error = exc
             self._ready.set()  # unblock start() so it can re-raise
-            log.exception("backend loop crashed")
+            # Port already in use = another instance is running, not a crash. Log it
+            # quietly; main() turns the re-raised error into a friendly "already running".
+            if _is_address_in_use(exc):
+                log.info("port %s already in use — another instance is likely running", self.port)
+            else:
+                log.exception("backend loop crashed")
         finally:
             try:
                 self._loop.run_until_complete(self._loop.shutdown_asyncgens())
@@ -299,6 +305,29 @@ class Backend:
         self._ready.set()
 
 
+def _is_address_in_use(exc: BaseException) -> bool:
+    """True if `exc` is a socket-bind 'address already in use' (port taken by another
+    instance). Matches POSIX EADDRINUSE and Windows WSAEADDRINUSE (WinError 10048)."""
+    return (
+        isinstance(exc, OSError)
+        and (getattr(exc, "errno", None) == errno.EADDRINUSE
+             or getattr(exc, "winerror", None) == 10048)
+    )
+
+
+def _notify_already_running() -> None:
+    """Best-effort friendly notice that the app is already running (a second launch
+    can't bind the port). Windows MessageBox; falls back to a log line."""
+    msg = ("TL-DPS Meter is already running.\n\n"
+           "Look for the open window (check your taskbar). If you don't see it, "
+           "close the existing copy and try again.")
+    try:
+        import ctypes  # Windows only; harmless to attempt elsewhere
+        ctypes.windll.user32.MessageBoxW(0, msg, "TL-DPS Meter", 0x40)  # MB_ICONINFORMATION
+    except Exception:  # noqa: BLE001 - notification is best-effort
+        log.info(msg)
+
+
 def main() -> None:
     log_path = setup_logging()
     data_dir = resolve_data_dir()
@@ -308,7 +337,16 @@ def main() -> None:
         log.info("logging to %s", log_path)
 
     # Bind the WS (port 8765) BEFORE opening the window so the init burst answers.
-    backend = Backend(str(data_dir), host=HOST, port=PORT).start()
+    # If the port is already taken, another instance is running — show a friendly
+    # notice and exit cleanly instead of crashing with a traceback (Errno 10048).
+    try:
+        backend = Backend(str(data_dir), host=HOST, port=PORT).start()
+    except OSError as exc:
+        if _is_address_in_use(exc):
+            log.info("port %s in use — another instance running; exiting cleanly", PORT)
+            _notify_already_running()
+            return
+        raise
     log.info("backend bound on ws://%s:%s -> window=%s data_dir=%s",
              backend.host, backend.port, index, data_dir)
 

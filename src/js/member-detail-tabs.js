@@ -497,7 +497,7 @@
         // ============================================================
         // CHECK FOR UPDATES — compare APP_VERSION to latest GitHub release
         // ============================================================
-        const APP_VERSION = '1.0.2';
+        const APP_VERSION = '1.0.3';
         const RELEASES_LATEST_API = 'https://api.github.com/repos/stoopkid713/TL-DPS-Meter/releases/latest';
         const RELEASES_PAGE = 'https://github.com/stoopkid713/TL-DPS-Meter/releases/latest';
         function _verTuple(v) { return String(v || '').replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0); }
@@ -526,6 +526,123 @@
             } catch (e) {
                 status.innerHTML = `Couldn't check (${e.message}). `
                     + `<a href="${RELEASES_PAGE}" target="_blank" style="color:#22d3ee;">View releases</a>`;
+            }
+        }
+
+        // ============================================================
+        // UPDATE BANNER (prominent, auto-checked) + FEEDBACK / REPORT-A-BUG
+        // ============================================================
+        const FEEDBACK_URL = 'https://tldps-party.kyle-526.workers.dev/feedback';
+        const __recentErrors = [];
+        function __pushErr(kind, info) {
+            try {
+                __recentErrors.push({ t: new Date().toISOString().slice(11, 23), kind, info: String(info).slice(0, 400) });
+                if (__recentErrors.length > 25) __recentErrors.shift();
+            } catch (_) {}
+        }
+        window.addEventListener('error', (e) => __pushErr('error', (e && e.message) || e));
+        window.addEventListener('unhandledrejection', (e) => __pushErr('promise', (e && e.reason && e.reason.message) || (e && e.reason) || 'rejection'));
+
+        // Auto-checked on launch (core-init). Quiet when up to date; prominent banner when behind.
+        // Manual only (NOT auto-checked) — fired by the "Check for updates" button. `manual`
+        // shows progress + up-to-date/error feedback; an update shows the persistent banner.
+        async function checkUpdateBanner(manual) {
+            const banner = document.getElementById('updateBanner');
+            if (!banner) return;
+            const dismiss = '<button class="update-banner-x" title="Dismiss" onclick="document.getElementById(\'updateBanner\').style.display=\'none\'">✕</button>';
+            if (manual) { banner.innerHTML = 'Checking for updates…'; banner.style.display = 'flex'; }
+            try {
+                const r = await fetch(RELEASES_LATEST_API, { headers: { 'Accept': 'application/vnd.github+json' } });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const d = await r.json();
+                const latest = (d.tag_name || '').replace(/^v/, '');
+                if (latest && _verGt(latest, APP_VERSION)) {
+                    const url = d.html_url || RELEASES_PAGE;
+                    banner.innerHTML = '⬆ Update available: <strong>v' + latest + '</strong> — '
+                        + '<a href="' + url + '" target="_blank" rel="noopener">Download</a> '
+                        + '<span style="opacity:.65">(you have v' + APP_VERSION + ')</span>' + dismiss;
+                    banner.style.display = 'flex';
+                } else if (manual) {
+                    banner.innerHTML = '✓ You\'re up to date (v' + APP_VERSION + ')' + dismiss;
+                    banner.style.display = 'flex';
+                    setTimeout(function () { if (/up to date/.test(banner.innerHTML)) banner.style.display = 'none'; }, 4000);
+                } else {
+                    banner.style.display = 'none';
+                }
+            } catch (e) {
+                if (manual) {
+                    banner.innerHTML = 'Couldn\'t check — <a href="' + RELEASES_PAGE + '" target="_blank" rel="noopener">view releases</a>' + dismiss;
+                    banner.style.display = 'flex';
+                }
+                /* non-manual: stay quiet */
+            }
+        }
+
+        function openFeedbackModal(initialType) {
+            if (document.getElementById('fbOverlay')) return;
+            const ov = document.createElement('div');
+            ov.id = 'fbOverlay'; ov.className = 'fb-overlay';
+            const types = [['bug', '🐞 Bug'], ['idea', '💡 Idea'], ['feedback', '💬 Feedback']];
+            let curType = initialType || 'bug';
+            ov.innerHTML =
+                '<div class="fb-modal">'
+                + '<div class="fb-title">Send feedback</div>'
+                + '<div class="fb-types">' + types.map(function (t) {
+                    return '<button type="button" class="fb-type' + (t[0] === curType ? ' active' : '') + '" data-v="' + t[0] + '">' + t[1] + '</button>';
+                  }).join('') + '</div>'
+                + '<textarea id="fbMsg" class="fb-input" rows="5" placeholder="What happened? The more detail the better."></textarea>'
+                + '<input id="fbContact" class="fb-input" type="text" placeholder="Contact (optional — Discord/email, so we can follow up)">'
+                + '<label class="fb-consent"><input type="checkbox" id="fbConsent" checked> Include diagnostics '
+                + '<a href="#" id="fbWhat">(what\'s included?)</a></label>'
+                + '<div id="fbWhatBox" class="fb-what" style="display:none;">App version, your OS / browser build, recent in-app errors, and your party code (if any). No combat logs, no account info.</div>'
+                + '<div id="fbStatus" class="fb-status"></div>'
+                + '<div class="fb-actions"><button type="button" id="fbCancel" class="fb-btn">Cancel</button>'
+                + '<button type="button" id="fbSend" class="fb-btn fb-send">Send</button></div>'
+                + '</div>';
+            document.body.appendChild(ov);
+            ov.querySelectorAll('.fb-type').forEach(function (b) {
+                b.onclick = function () { curType = b.dataset.v; ov.querySelectorAll('.fb-type').forEach(function (x) { x.classList.toggle('active', x === b); }); };
+            });
+            ov.querySelector('#fbWhat').onclick = function (e) { e.preventDefault(); const w = ov.querySelector('#fbWhatBox'); w.style.display = (w.style.display === 'none' ? 'block' : 'none'); };
+            const close = function () { ov.remove(); };
+            ov.querySelector('#fbCancel').onclick = close;
+            ov.onclick = function (e) { if (e.target === ov) close(); };
+            ov.querySelector('#fbSend').onclick = function () { submitFeedback(ov, curType); };
+            ov.querySelector('#fbMsg').focus();
+        }
+
+        async function submitFeedback(ov, type) {
+            const msgEl = ov.querySelector('#fbMsg');
+            const statusEl = ov.querySelector('#fbStatus');
+            const message = (msgEl.value || '').trim();
+            if (!message) { statusEl.className = 'fb-status err'; statusEl.textContent = 'Please enter a message.'; msgEl.focus(); return; }
+            const contact = (ov.querySelector('#fbContact').value || '').trim();
+            const consent = ov.querySelector('#fbConsent').checked;
+            const sendBtn = ov.querySelector('#fbSend');
+            sendBtn.disabled = true; statusEl.className = 'fb-status'; statusEl.textContent = 'Sending…';
+            const context = { app_version: (typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown') };
+            if (consent) {
+                context.ua = navigator.userAgent;
+                context.screen = (window.screen ? window.screen.width + 'x' + window.screen.height : '');
+                try { if (window.partyState && partyState.party_code) context.party_code = partyState.party_code; } catch (_) {}
+                if (__recentErrors.length) context.recent_errors = __recentErrors.slice(-25);
+            }
+            const body = { type: type, message: message, context: context };
+            if (contact) body.contact = contact;
+            try {
+                const r = await fetch(FEEDBACK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                const d = await r.json().catch(function () { return {}; });
+                if (r.ok && d.ok) {
+                    statusEl.className = 'fb-status ok';
+                    statusEl.innerHTML = 'Thanks — sent ✓ <span style="opacity:.7">ref ' + String(d.ref || '').slice(0, 8) + '</span>';
+                    setTimeout(function () { ov.remove(); }, 1600);
+                } else {
+                    throw new Error((d && d.error) || ('HTTP ' + r.status));
+                }
+            } catch (e) {
+                statusEl.className = 'fb-status err';
+                statusEl.textContent = "Couldn't send (" + e.message + "). Try again, or message Kyle directly.";
+                sendBtn.disabled = false;
             }
         }
 

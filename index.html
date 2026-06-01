@@ -6563,6 +6563,32 @@
         .pr-trophy-detail { color: #22d3ee; font-size: 13px; margin-top: 2px; }
         .pr-trophy-na { color: #475569; }
         .pr-trophy-loading, .pr-trophy-pending { color: #94a3b8; font-size: 13px; padding: 8px 2px; }
+        /* Update banner (prominent) */
+        .update-banner { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 9px 14px;
+            background: linear-gradient(135deg, rgba(34,211,238,0.15), rgba(34,211,238,0.05));
+            border: 1px solid rgba(34,211,238,0.4); border-radius: 8px; color: #e2e8f0; font-size: 0.9rem; }
+        .update-banner a { color: #22d3ee; font-weight: 600; }
+        .update-banner-x { margin-left: auto; background: none; border: none; color: #64748b; cursor: pointer; font-size: 0.9rem; }
+        .update-banner-x:hover { color: #e2e8f0; }
+        /* Feedback / report-a-bug modal */
+        .fb-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+        .fb-modal { width: 440px; max-width: 92vw; background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 18px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        .fb-title { font-size: 1.05rem; font-weight: 700; color: #e2e8f0; margin-bottom: 12px; }
+        .fb-types { display: flex; gap: 6px; margin-bottom: 10px; }
+        .fb-type { flex: 1; padding: 7px; background: rgba(148,163,184,0.08); border: 1px solid #334155; border-radius: 6px; color: #94a3b8; cursor: pointer; font-size: 0.85rem; }
+        .fb-type.active { background: rgba(34,211,238,0.15); border-color: #22d3ee; color: #22d3ee; }
+        .fb-input { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 9px; background: rgba(15,23,42,0.8); border: 1px solid #475569; border-radius: 6px; color: #e2e8f0; font-family: inherit; font-size: 0.88rem; resize: vertical; }
+        .fb-input:focus { outline: none; border-color: #22d3ee; }
+        .fb-consent { display: block; color: #94a3b8; font-size: 0.8rem; margin-bottom: 6px; }
+        .fb-consent a { color: #22d3ee; }
+        .fb-what { color: #64748b; font-size: 0.75rem; background: rgba(15,23,42,0.6); border: 1px solid #334155; border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+        .fb-status { min-height: 18px; font-size: 0.82rem; margin-bottom: 8px; color: #94a3b8; }
+        .fb-status.ok { color: #34d399; }
+        .fb-status.err { color: #f87171; }
+        .fb-actions { display: flex; justify-content: flex-end; gap: 8px; }
+        .fb-btn { padding: 8px 16px; background: rgba(148,163,184,0.1); border: 1px solid #334155; border-radius: 6px; color: #cbd5e1; cursor: pointer; font-size: 0.85rem; }
+        .fb-btn.fb-send { background: linear-gradient(135deg, #22d3ee, #0891b2); border-color: #22d3ee; color: #06262e; font-weight: 700; }
+        .fb-btn:disabled { opacity: 0.5; cursor: default; }
 
         .party-result-row.rank-1 {
             background: rgba(251, 191, 36, 0.05);
@@ -9028,6 +9054,8 @@
                     <button class="btn-settings" onclick="openSettings()">⚙️ Settings</button>
                     <button class="btn-settings" onclick="openGuide()">📖 Guide</button>
                     <button class="btn-settings" onclick="startTour()" style="color:#a78bfa;">🗺️ Tour</button>
+                    <button class="btn-settings" onclick="openFeedbackModal()" title="Send feedback or report a bug" style="color:#22d3ee;">💬 Feedback</button>
+                    <button class="btn-settings" onclick="checkUpdateBanner(true)" title="Check for a newer version">⬆ Updates</button>
                 </div>
             </div>
 
@@ -9038,6 +9066,8 @@
                 <button class="sidebar-icon-btn" onclick="openGuide()" title="Guide">📖</button>
                 <button class="sidebar-icon-btn" onclick="startTour()" title="Tour" style="color:#a78bfa;">🗺️</button>
                 <button class="sidebar-icon-btn" onclick="openLogsFolder()" title="Open Logs Folder">📂</button>
+                <button class="sidebar-icon-btn" onclick="openFeedbackModal()" title="Feedback / report a bug" style="color:#22d3ee;">💬</button>
+                <button class="sidebar-icon-btn" onclick="checkUpdateBanner(true)" title="Check for updates">⬆</button>
                 <div class="sidebar-icon-strip-spacer"></div>
                 <button class="sidebar-icon-btn danger" onclick="purgeLogFile()" title="Purge LogFile">🗑️</button>
             </div>
@@ -9092,6 +9122,7 @@
                 <button class="close-btn" onclick="clearLoadedEncounter()">✕ Return to Live</button>
             </div>
 
+            <div id="updateBanner" class="update-banner" style="display:none;"></div>
             <div class="tabs">
                 <button class="tab active" data-tab="dashboard">🏠 Dashboard</button>
                 <span style="color: #334155; margin: 0 8px;">|</span>
@@ -26026,7 +26057,7 @@ const PartyRender = {
         // ============================================================
         // CHECK FOR UPDATES — compare APP_VERSION to latest GitHub release
         // ============================================================
-        const APP_VERSION = '1.0.2';
+        const APP_VERSION = '1.0.3';
         const RELEASES_LATEST_API = 'https://api.github.com/repos/stoopkid713/TL-DPS-Meter/releases/latest';
         const RELEASES_PAGE = 'https://github.com/stoopkid713/TL-DPS-Meter/releases/latest';
         function _verTuple(v) { return String(v || '').replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0); }
@@ -26055,6 +26086,123 @@ const PartyRender = {
             } catch (e) {
                 status.innerHTML = `Couldn't check (${e.message}). `
                     + `<a href="${RELEASES_PAGE}" target="_blank" style="color:#22d3ee;">View releases</a>`;
+            }
+        }
+
+        // ============================================================
+        // UPDATE BANNER (prominent, auto-checked) + FEEDBACK / REPORT-A-BUG
+        // ============================================================
+        const FEEDBACK_URL = 'https://tldps-party.kyle-526.workers.dev/feedback';
+        const __recentErrors = [];
+        function __pushErr(kind, info) {
+            try {
+                __recentErrors.push({ t: new Date().toISOString().slice(11, 23), kind, info: String(info).slice(0, 400) });
+                if (__recentErrors.length > 25) __recentErrors.shift();
+            } catch (_) {}
+        }
+        window.addEventListener('error', (e) => __pushErr('error', (e && e.message) || e));
+        window.addEventListener('unhandledrejection', (e) => __pushErr('promise', (e && e.reason && e.reason.message) || (e && e.reason) || 'rejection'));
+
+        // Auto-checked on launch (core-init). Quiet when up to date; prominent banner when behind.
+        // Manual only (NOT auto-checked) — fired by the "Check for updates" button. `manual`
+        // shows progress + up-to-date/error feedback; an update shows the persistent banner.
+        async function checkUpdateBanner(manual) {
+            const banner = document.getElementById('updateBanner');
+            if (!banner) return;
+            const dismiss = '<button class="update-banner-x" title="Dismiss" onclick="document.getElementById(\'updateBanner\').style.display=\'none\'">✕</button>';
+            if (manual) { banner.innerHTML = 'Checking for updates…'; banner.style.display = 'flex'; }
+            try {
+                const r = await fetch(RELEASES_LATEST_API, { headers: { 'Accept': 'application/vnd.github+json' } });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const d = await r.json();
+                const latest = (d.tag_name || '').replace(/^v/, '');
+                if (latest && _verGt(latest, APP_VERSION)) {
+                    const url = d.html_url || RELEASES_PAGE;
+                    banner.innerHTML = '⬆ Update available: <strong>v' + latest + '</strong> — '
+                        + '<a href="' + url + '" target="_blank" rel="noopener">Download</a> '
+                        + '<span style="opacity:.65">(you have v' + APP_VERSION + ')</span>' + dismiss;
+                    banner.style.display = 'flex';
+                } else if (manual) {
+                    banner.innerHTML = '✓ You\'re up to date (v' + APP_VERSION + ')' + dismiss;
+                    banner.style.display = 'flex';
+                    setTimeout(function () { if (/up to date/.test(banner.innerHTML)) banner.style.display = 'none'; }, 4000);
+                } else {
+                    banner.style.display = 'none';
+                }
+            } catch (e) {
+                if (manual) {
+                    banner.innerHTML = 'Couldn\'t check — <a href="' + RELEASES_PAGE + '" target="_blank" rel="noopener">view releases</a>' + dismiss;
+                    banner.style.display = 'flex';
+                }
+                /* non-manual: stay quiet */
+            }
+        }
+
+        function openFeedbackModal(initialType) {
+            if (document.getElementById('fbOverlay')) return;
+            const ov = document.createElement('div');
+            ov.id = 'fbOverlay'; ov.className = 'fb-overlay';
+            const types = [['bug', '🐞 Bug'], ['idea', '💡 Idea'], ['feedback', '💬 Feedback']];
+            let curType = initialType || 'bug';
+            ov.innerHTML =
+                '<div class="fb-modal">'
+                + '<div class="fb-title">Send feedback</div>'
+                + '<div class="fb-types">' + types.map(function (t) {
+                    return '<button type="button" class="fb-type' + (t[0] === curType ? ' active' : '') + '" data-v="' + t[0] + '">' + t[1] + '</button>';
+                  }).join('') + '</div>'
+                + '<textarea id="fbMsg" class="fb-input" rows="5" placeholder="What happened? The more detail the better."></textarea>'
+                + '<input id="fbContact" class="fb-input" type="text" placeholder="Contact (optional — Discord/email, so we can follow up)">'
+                + '<label class="fb-consent"><input type="checkbox" id="fbConsent" checked> Include diagnostics '
+                + '<a href="#" id="fbWhat">(what\'s included?)</a></label>'
+                + '<div id="fbWhatBox" class="fb-what" style="display:none;">App version, your OS / browser build, recent in-app errors, and your party code (if any). No combat logs, no account info.</div>'
+                + '<div id="fbStatus" class="fb-status"></div>'
+                + '<div class="fb-actions"><button type="button" id="fbCancel" class="fb-btn">Cancel</button>'
+                + '<button type="button" id="fbSend" class="fb-btn fb-send">Send</button></div>'
+                + '</div>';
+            document.body.appendChild(ov);
+            ov.querySelectorAll('.fb-type').forEach(function (b) {
+                b.onclick = function () { curType = b.dataset.v; ov.querySelectorAll('.fb-type').forEach(function (x) { x.classList.toggle('active', x === b); }); };
+            });
+            ov.querySelector('#fbWhat').onclick = function (e) { e.preventDefault(); const w = ov.querySelector('#fbWhatBox'); w.style.display = (w.style.display === 'none' ? 'block' : 'none'); };
+            const close = function () { ov.remove(); };
+            ov.querySelector('#fbCancel').onclick = close;
+            ov.onclick = function (e) { if (e.target === ov) close(); };
+            ov.querySelector('#fbSend').onclick = function () { submitFeedback(ov, curType); };
+            ov.querySelector('#fbMsg').focus();
+        }
+
+        async function submitFeedback(ov, type) {
+            const msgEl = ov.querySelector('#fbMsg');
+            const statusEl = ov.querySelector('#fbStatus');
+            const message = (msgEl.value || '').trim();
+            if (!message) { statusEl.className = 'fb-status err'; statusEl.textContent = 'Please enter a message.'; msgEl.focus(); return; }
+            const contact = (ov.querySelector('#fbContact').value || '').trim();
+            const consent = ov.querySelector('#fbConsent').checked;
+            const sendBtn = ov.querySelector('#fbSend');
+            sendBtn.disabled = true; statusEl.className = 'fb-status'; statusEl.textContent = 'Sending…';
+            const context = { app_version: (typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown') };
+            if (consent) {
+                context.ua = navigator.userAgent;
+                context.screen = (window.screen ? window.screen.width + 'x' + window.screen.height : '');
+                try { if (window.partyState && partyState.party_code) context.party_code = partyState.party_code; } catch (_) {}
+                if (__recentErrors.length) context.recent_errors = __recentErrors.slice(-25);
+            }
+            const body = { type: type, message: message, context: context };
+            if (contact) body.contact = contact;
+            try {
+                const r = await fetch(FEEDBACK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                const d = await r.json().catch(function () { return {}; });
+                if (r.ok && d.ok) {
+                    statusEl.className = 'fb-status ok';
+                    statusEl.innerHTML = 'Thanks — sent ✓ <span style="opacity:.7">ref ' + String(d.ref || '').slice(0, 8) + '</span>';
+                    setTimeout(function () { ov.remove(); }, 1600);
+                } else {
+                    throw new Error((d && d.error) || ('HTTP ' + r.status));
+                }
+            } catch (e) {
+                statusEl.className = 'fb-status err';
+                statusEl.textContent = "Couldn't send (" + e.message + "). Try again, or message Kyle directly.";
+                sendBtn.disabled = false;
             }
         }
 
