@@ -58,16 +58,34 @@
         }
 
         // Ensure a member's detail is fetched (lazy) — used by Skills/Rotation/Compare tabs.
+        // True if the room's board flags this member as having a stored breakdown for this
+        // encounter (set the moment their fight FINALIZES). Gating fetches on this is what makes
+        // the drill-down rate-safe + self-healing instead of caching an empty answer forever.
+        function memberHasDetail(encounterId, userId) {
+            const board = partyState.boards[encounterId]
+                || (partyState.scoreboard && partyState.scoreboard.encounter_id === encounterId ? partyState.scoreboard : null);
+            const e = board && Array.isArray(board.entries) ? board.entries.find((x) => x.user_id === userId) : null;
+            return !!(e && e.has_detail);
+        }
+
+        // Event-driven, rate-safe drill-down fetch. Requests ONLY when the server says the
+        // member's breakdown exists (has_detail) and we haven't already received a response.
+        // The scoreboard is re-broadcast the instant has_detail flips true, which re-renders and
+        // calls this again → exactly ONE fetch per member, fired when the data lands. No polling,
+        // and we never cache an empty "still in combat" answer that could get stuck on "Loading…".
         function ensureMemberDetail(encounterId, userId) {
             if (!encounterId || !userId) return;
             const key = `${encounterId}:${userId}`;
-            if (partyState.memberDetails[key]) return;
+            if (partyState.memberDetails[key]) return;          // already received a response
+            if (!memberHasDetail(encounterId, userId)) return;  // no breakdown stored yet (still fighting) — wait
+            if (!partyState.detailPending) partyState.detailPending = new Set();
+            if (partyState.detailPending.has(key)) return;      // request already in flight
+            if (!(partyWS && partyWS.readyState === WebSocket.OPEN)) return;
+            partyState.detailPending.add(key);
             try {
-                if (partyWS && partyWS.readyState === WebSocket.OPEN) {
-                    partyWS.send(JSON.stringify({ type: 'get_member_detail', encounter_id: encounterId, user_id: userId }));
-                    partyDebug('party.member_detail.request', { encounter_id: encounterId, user_id: userId, via: partyState.activeTab });
-                }
-            } catch (e) { console.warn('[Party] get_member_detail failed:', e); }
+                partyWS.send(JSON.stringify({ type: 'get_member_detail', encounter_id: encounterId, user_id: userId }));
+                partyDebug('party.member_detail.request', { encounter_id: encounterId, user_id: userId, via: partyState.activeTab });
+            } catch (e) { console.warn('[Party] get_member_detail failed:', e); partyState.detailPending.delete(key); }
         }
 
         function rotationFor(encounterId, userId) {
@@ -167,16 +185,8 @@
                 user_id: userId,
                 username: (entry && entry.username) || 'Member',
             };
-            // Fetch if not cached; the `member_detail` handler re-renders when it lands.
-            const key = `${encounterId}:${userId}`;
-            if (!partyState.memberDetails[key]) {
-                try {
-                    if (partyWS && partyWS.readyState === WebSocket.OPEN) {
-                        partyWS.send(JSON.stringify({ type: 'get_member_detail', encounter_id: encounterId, user_id: userId }));
-                    }
-                    partyDebug('party.member_detail.request', { encounter_id: encounterId, user_id: userId });
-                } catch (e) { console.warn('[Party] get_member_detail failed:', e); }
-            }
+            // Fetch via the rate-safe, has_detail-gated path; the member_detail handler re-renders on arrival.
+            ensureMemberDetail(encounterId, userId);
             renderMemberDetail();
         }
 
@@ -197,7 +207,13 @@
                     <span class="party-detail-name">${escapeHtml(d.username)}</span>
                 </div>`;
             if (!detail) {
-                container.innerHTML = header + `<div class="party-empty-state"><div class="party-empty-icon">⏳</div><div class="party-empty-text">Loading breakdown…</div></div>`;
+                // No response yet: "Loading" only if the server has it (fetching); otherwise the
+                // member is still in combat — say so instead of a forever-"Loading…".
+                const fetching = memberHasDetail(d.encounter_id, d.user_id);
+                const inner = fetching
+                    ? `<div class="party-empty-icon">⏳</div><div class="party-empty-text">Loading breakdown…</div>`
+                    : `<div class="party-empty-icon">⚔️</div><div class="party-empty-text">No breakdown yet — this member's fight hasn't ended. Updates automatically when it does.</div>`;
+                container.innerHTML = header + `<div class="party-empty-state">${inner}</div>`;
                 return;
             }
             const rotation = detail.rotation || [];
@@ -246,12 +262,14 @@
             ensureMemberDetail(encId, chosen);
             const rotation = rotationFor(encId, chosen);
             let body;
-            if (!rotation) {
-                body = `<div class="party-empty-state"><div class="party-empty-icon">⏳</div><div class="party-empty-text">Loading breakdown…</div></div>`;
-            } else if (!rotation.length) {
-                body = `<div class="pr-empty">No detailed breakdown for this member.</div>`;
-            } else {
+            if (rotation && rotation.length) {
                 body = kind === 'skills' ? PartyRender.skillTableHtml(rotation) : PartyRender.rotationChartHtml(rotation);
+            } else if (rotation) {
+                body = `<div class="pr-empty">No detailed breakdown for this member.</div>`;
+            } else if (memberHasDetail(encId, chosen)) {
+                body = `<div class="party-empty-state"><div class="party-empty-icon">⏳</div><div class="party-empty-text">Loading breakdown…</div></div>`;
+            } else {
+                body = `<div class="party-empty-state"><div class="party-empty-icon">⚔️</div><div class="party-empty-text">No breakdown yet — this member's fight hasn't ended. Updates automatically.</div></div>`;
             }
             container.innerHTML = picker + `<div class="party-detail-body">${body}</div>`;
         }
@@ -294,10 +312,16 @@
                 <select onchange="onPartyCompareChange('b', this.value)">${partyMemberOptions(board, b)}</select>
             </div>`;
             let body;
-            if (!rotA || !rotB) {
-                body = `<div class="party-empty-state"><div class="party-empty-icon">⏳</div><div class="party-empty-text">Loading breakdowns…</div></div>`;
-            } else {
+            if (rotA && rotB) {
                 body = PartyRender.compareHtml(rotA, rotB, { name: nameOf(a) }, { name: nameOf(b) });
+            } else {
+                // A breakdown isn't in yet. "Loading" ONLY if the server already has it; otherwise
+                // that member's fight hasn't ended — say so instead of a forever-"Loading breakdowns…".
+                const stillFighting = (uid, rot) => !rot && !memberHasDetail(encId, uid);
+                const inCombat = stillFighting(a, rotA) || stillFighting(b, rotB);
+                body = inCombat
+                    ? `<div class="party-empty-state"><div class="party-empty-icon">⚔️</div><div class="party-empty-text">Waiting for breakdowns — a teammate's fight hasn't ended yet. Updates automatically.</div></div>`
+                    : `<div class="party-empty-state"><div class="party-empty-icon">⏳</div><div class="party-empty-text">Loading breakdowns…</div></div>`;
             }
             container.innerHTML = pickers + body;
         }
@@ -437,7 +461,7 @@
         // ============================================================
         // CHECK FOR UPDATES — compare APP_VERSION to latest GitHub release
         // ============================================================
-        const APP_VERSION = '1.0.1';
+        const APP_VERSION = '1.0.2';
         const RELEASES_LATEST_API = 'https://api.github.com/repos/stoopkid713/TL-DPS-Meter/releases/latest';
         const RELEASES_PAGE = 'https://github.com/stoopkid713/TL-DPS-Meter/releases/latest';
         function _verTuple(v) { return String(v || '').replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0); }

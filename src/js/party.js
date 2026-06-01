@@ -263,6 +263,7 @@
                     // Phase 3 (C3): lazy drill-down payload for one (encounter, member).
                     // Cache it; re-render the panel only if it's the member we're viewing.
                     const key = `${m.encounter_id}:${m.user_id}`;
+                    if (partyState.detailPending) partyState.detailPending.delete(key); // request resolved
                     partyState.memberDetails[key] = { skills: m.skills || null, rotation: m.rotation || null };
                     if (partyState.detail
                         && partyState.detail.encounter_id === m.encounter_id
