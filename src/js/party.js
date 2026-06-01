@@ -695,6 +695,10 @@
         }
         
         function refreshDiagnostics() {
+            // Always refresh the log-status banner on every diagnostics tick (every
+            // stats broadcast, ~0.5 s) so the own-client warning stays live.
+            renderLogStatusBanner();
+
             // 1. Server running (WebSocket connected)
             const serverOk = ws && ws.readyState === WebSocket.OPEN;
             updateDiagItem('diagServer', serverOk ? 'ok' : 'error', 'Server running');
@@ -760,6 +764,79 @@
             if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
             return `${Math.floor(seconds / 3600)}h ago`;
         }
+
+        // === HALF A — OWN-CLIENT LOGGING STATUS BANNER (#14) ===
+        // Renders an unmissable banner inside the party active view so the local user
+        // knows immediately if their combat log is missing or silent.
+        //
+        // Three states:
+        //   "off"     — no combat-log file detected at all (lastLogFile is null).
+        //               Big amber warning; includes a one-line how-to-enable hint.
+        //   "waiting" — log file present but no combat activity seen yet (lastLogActivity
+        //               is null OR more than COMBAT_STALE_MS ms ago).  Calm blue/grey pill.
+        //   "ok"      — log file present AND combat seen recently.  No banner (silent ok).
+        //
+        // The banner is refreshed:
+        //   • each time updatePartyUI() runs (covers join/leave/reconnect)
+        //   • each time refreshDiagnostics() runs (covers every stats broadcast tick)
+        //   • from party_live_hit handler (called in encounter-edit.js — no extra hook needed;
+        //     diagnosticsOpen check is skipped so the banner always stays current)
+        //
+        // The banner only appears while the party active view is visible (connected to a room).
+        const COMBAT_STALE_MS = 60_000; // 60 s of silence = "waiting for combat"
+
+        function _logBannerState() {
+            const logFound = !!lastLogFile;
+            if (!logFound) return 'off';
+            const recentCombat = lastLogActivity && (Date.now() - lastLogActivity) < COMBAT_STALE_MS;
+            return recentCombat ? 'ok' : 'waiting';
+        }
+
+        function renderLogStatusBanner() {
+            // Only show while in an active party session (connected view visible).
+            if (!partyState.connected || !partyState.party_code) return;
+
+            // Find or create the banner element inside the active view.
+            let banner = document.getElementById('partyLogStatusBanner');
+            if (!banner) {
+                const activeView = document.getElementById('partyActiveView');
+                if (!activeView) return;
+                banner = document.createElement('div');
+                banner.id = 'partyLogStatusBanner';
+                // Insert at the very top of the active view so it can't be missed.
+                activeView.insertBefore(banner, activeView.firstChild);
+            }
+
+            const state = _logBannerState();
+
+            if (state === 'off') {
+                // Big unmissable amber warning.
+                banner.style.cssText = [
+                    'display:flex', 'align-items:center', 'gap:10px',
+                    'margin:0 0 10px 0', 'padding:10px 14px',
+                    'background:rgba(251,191,36,0.18)', 'border:1.5px solid rgba(251,191,36,0.6)',
+                    'border-radius:8px', 'color:#fbbf24', 'font-size:0.88rem', 'line-height:1.4',
+                ].join(';');
+                banner.innerHTML = '<span style="font-size:1.3rem;flex-shrink:0;">⚠️</span>'
+                    + '<span><strong>Combat logging is OFF — you will not appear on the board.</strong>'
+                    + '<br><span style="color:#fde68a;font-size:0.82rem;">Enable it in T&L: Settings → Gameplay → Combat Log → turn ON, then re-launch the game.</span></span>';
+            } else if (state === 'waiting') {
+                // Calm informational pill — log is on, just no combat yet.
+                banner.style.cssText = [
+                    'display:flex', 'align-items:center', 'gap:8px',
+                    'margin:0 0 10px 0', 'padding:7px 12px',
+                    'background:rgba(100,116,139,0.15)', 'border:1px solid rgba(100,116,139,0.35)',
+                    'border-radius:8px', 'color:#94a3b8', 'font-size:0.83rem',
+                ].join(';');
+                banner.innerHTML = '<span style="font-size:1.1rem;">🟢</span>'
+                    + '<span>Logging on — waiting for combat…</span>';
+            } else {
+                // ok — hide the banner entirely.
+                banner.style.display = 'none';
+                return;
+            }
+        }
+        // === END HALF A BANNER ===
         
         // Start encounter (leader only) — the room relays encounter_start to everyone
         // (including us), which arms each member's local recording via handleEncounterStart.
@@ -1290,13 +1367,17 @@
                 if (leaveBtn) {
                     leaveBtn.innerHTML = '🚪 Leave Party';
                 }
-                
+
+                // Half A (#14): always refresh the own-client log-status banner when the
+                // active view is shown (join, reconnect, every updatePartyUI call).
+                renderLogStatusBanner();
+
             } else {
                 // Show setup view
                 setupView.style.display = 'grid';
                 activeView.style.display = 'none';
             }
-            
+
             // Refresh diagnostics if open
             if (diagnosticsOpen) refreshDiagnostics();
         }
@@ -1306,7 +1387,8 @@
             const container = document.getElementById('partyMembersList');
             const countEl = document.getElementById('partyMemberCount');
 
-            // Roster comes straight from the room: [{user_id, username, is_leader, online}].
+            // Roster from the room: [{user_id, username, is_leader, online, has_posted, joined_age_s}].
+            // has_posted / joined_age_s are added by Half B (#14); older workers omit them safely.
             const roster = partyState.roster || [];
             const onlineCount = roster.filter(m => m.online).length;
             countEl.textContent = `${onlineCount}/${roster.length}`;
@@ -1315,6 +1397,17 @@
                 container.innerHTML = '<div class="party-member-item loading">Waiting for members...</div>';
                 return;
             }
+
+            // HALF B (#14) — grace period for brand-new members before showing "⚠ not logging".
+            // T&L flushes the combat log in batches (not per-hit), so the FIRST post_fight arrives
+            // only after the first combat segment ends + idle timeout fires (~45–60 s). A member
+            // who just joined needs at least that long before we can fairly flag them as dark.
+            // We use a TWO-TIER threshold:
+            //   joined_age_s < GRACE_S  → show "joining…" (neutral, no alarm)
+            //   joined_age_s >= GRACE_S AND !has_posted → show "⚠ not logging" (alarm)
+            //   has_posted              → no transmit indicator (normal)
+            // The worker sends `joined_age_s`; if absent (old worker), treat as 0 (grace).
+            const TRANSMIT_GRACE_S = 90; // 90 s before flagging as "not logging"
 
             container.innerHTML = roster.map(m => {
                 const isLeader = !!m.is_leader;
@@ -1325,6 +1418,28 @@
                 let badges = '';
                 if (isLeader) badges += '<span class="party-member-badge leader">👑</span>';
                 if (isSelf) badges += '<span class="party-member-badge you">YOU</span>';
+
+                // Half B (#14): per-member transmit indicator on the ROSTER row.
+                // Only shown for online members (offline members can't be transmitting).
+                // Self is excluded — your own log status is the Half A banner above.
+                let transmitBadge = '';
+                if (isOnline && !isSelf && m.has_posted === false) {
+                    // has_posted is explicitly false (not just absent — old worker = undefined).
+                    const ageS = typeof m.joined_age_s === 'number' ? m.joined_age_s : 0;
+                    if (ageS >= TRANSMIT_GRACE_S) {
+                        // Been in the room long enough — definitely not posting.
+                        transmitBadge = '<span title="This player has not sent any combat data — their logging may be OFF" '
+                            + 'style="margin-left:4px;padding:1px 6px;font-size:0.68rem;'
+                            + 'background:rgba(251,191,36,0.2);border:1px solid rgba(251,191,36,0.55);'
+                            + 'color:#fbbf24;border-radius:4px;white-space:nowrap;">⚠ not logging</span>';
+                    } else {
+                        // Still within grace — just joined, waiting for first combat flush.
+                        transmitBadge = '<span title="Waiting for first combat data from this player" '
+                            + 'style="margin-left:4px;padding:1px 6px;font-size:0.68rem;'
+                            + 'background:rgba(100,116,139,0.15);border:1px solid rgba(100,116,139,0.4);'
+                            + 'color:#94a3b8;border-radius:4px;white-space:nowrap;">joining…</span>';
+                    }
+                }
 
                 // Fix #7: Kick button — leader-only, not shown for self or other leaders.
                 const canKick = partyState.is_leader && !isSelf && !isLeader;
@@ -1338,7 +1453,7 @@
                     <div class="party-member-item ${isLeader ? 'leader' : ''} ${isSelf ? 'self' : ''} ${!isOnline ? 'offline' : ''}">
                         <span class="party-member-status ${isOnline ? 'online' : 'offline'}"></span>
                         <span class="party-member-name">${safeName}</span>
-                        ${badges}${kickBtn}
+                        ${badges}${transmitBadge}${kickBtn}
                     </div>
                 `;
             }).join('');

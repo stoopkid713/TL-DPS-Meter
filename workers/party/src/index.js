@@ -981,6 +981,36 @@ export class PartyRoom {
     const online = new Set(
       this.ctx.getWebSockets().map((ws) => (ws.deserializeAttachment() || {}).user_id)
     );
+
+    // Per-member transmit indicator (#14): surface whether each member has posted
+    // at least one fight to the ACTIVE encounter so the leader can spot members
+    // whose combat logging is off (connected but silent).
+    //
+    // A brand-new member legitimately has 0 submissions for the first ~30 s (T&L
+    // flushes the log in bursts, not per-hit, so the first post arrives at the end
+    // of the first combat segment).  We surface THREE states so the UI can be
+    // appropriately calm for brand-new members:
+    //   has_posted: true   — member posted ≥1 fight this session → "transmitting"
+    //   has_posted: false  — member registered but zero posts yet
+    //   joined_age_s       — seconds since joined_at so the UI can distinguish
+    //                        "just arrived (≤ ~60 s)" from "been here 10 min with 0 posts"
+    //
+    // We query the ACTIVE encounter only (most recent context), not all time, so a
+    // member who posted in a previous encounter but is silent in the current one is
+    // correctly flagged as not-yet-transmitting for the current fight.
+    let postedSet = new Set();
+    try {
+      this._ensureTables();
+      const activeId = await this.ctx.storage.get("active_encounter_id");
+      if (activeId) {
+        const rows = [...this.ctx.storage.sql.exec(
+          "SELECT user_id FROM submissions WHERE encounter_id = ?", activeId
+        )];
+        for (const r of rows) postedSet.add(r.user_id);
+      }
+    } catch (_) {}
+
+    const now = Date.now();
     return {
       type: "roster",
       members: Object.entries(members).map(([uid, m]) => ({
@@ -988,6 +1018,8 @@ export class PartyRoom {
         username: m.username,
         is_leader: !!m.is_leader,
         online: online.has(uid),
+        has_posted: postedSet.has(uid),
+        joined_age_s: Math.floor((now - (m.joined_at || now)) / 1000),
       })),
     };
   }
