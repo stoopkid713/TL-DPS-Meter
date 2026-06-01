@@ -13,8 +13,14 @@ module.exports = defineConfig({
   use: {
     headless: true,
     // index.html is loaded via file:// per-test (see fixtures.js) — no webServer needed.
-    screenshot: 'only-on-failure',
-    trace: 'retain-on-failure',
+    // ALWAYS-ON recording so we can replay + review behavior together after any run
+    // (Kyle: "wire to our debug run so we can go back over behavior", 2026-05-31).
+    // Artifacts -> test-results/ (videos, traces) + playwright-report/ (browsable HTML),
+    // both gitignored. Review with: `npx playwright show-report` (embeds video+trace+screens
+    // per test) or `npx playwright show-trace <test-results/.../trace.zip>` (step time-travel).
+    screenshot: 'on',
+    trace: 'on',
+    video: 'on',
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
