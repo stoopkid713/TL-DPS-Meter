@@ -811,6 +811,7 @@ export class PartyRoom {
         hits: e.hits,
         crit_rate: e.crit_rate,
         heavy_rate: e.heavy_rate,
+        has_detail: !!e.has_detail,
         contribution: total > 0 ? Math.round((e.total_damage / total) * 1000) / 10 : 0,
       })),
     };
