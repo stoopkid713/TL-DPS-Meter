@@ -126,11 +126,12 @@ const PartyRender = {
     let total = 0;
     (rotation || []).forEach((h) => {
       const name = (h && h.skill) || 'Unknown';
-      const r = rows[name] || (rows[name] = { name: name, damage: 0, hits: 0, crits: 0, heavies: 0 });
+      const r = rows[name] || (rows[name] = { name: name, damage: 0, hits: 0, crits: 0, heavies: 0, crit_heavies: 0 });
       const dmg = Number(h && h.damage) || 0;
       r.damage += dmg; r.hits += 1;
       if (h && h.is_crit) r.crits += 1;
       if (h && h.is_heavy) r.heavies += 1;
+      if (h && h.is_crit && h.is_heavy) r.crit_heavies += 1;
       total += dmg;
     });
     const list = Object.keys(rows).map((k) => rows[k]).sort((a, b) => b.damage - a.damage);
@@ -138,6 +139,7 @@ const PartyRender = {
       r.percent = total > 0 ? +(r.damage / total * 100).toFixed(1) : 0;
       r.crit_rate = r.hits > 0 ? +(r.crits / r.hits * 100).toFixed(1) : 0;
       r.heavy_rate = r.hits > 0 ? +(r.heavies / r.hits * 100).toFixed(1) : 0;
+      r.crit_heavy_count = r.crit_heavy_count != null ? r.crit_heavy_count : r.crit_heavies;
     });
     return list;
   },
@@ -185,9 +187,10 @@ const PartyRender = {
       }).join('');
       return '<div class="pr-skill-list">' + rows + '</div>';
     }
-    // base: full 9-col table mirroring the solo skill table (reuses the solo num/bar classes).
+    // base: full 10-col table mirroring the solo skill table (reuses the solo num/bar classes).
     const body = skills.map((s) => {
       const w = (s.damage / max * 100).toFixed(1);
+      const chCount = s.crit_heavy_count != null ? s.crit_heavy_count : (s.crit_heavies || 0);
       return '<tr><td>' + esc(s.name) + '</td>'
         + '<td class="num cyan">' + PartyRender.fmtNum(s.damage) + '</td>'
         + '<td><div class="damage-bar-container"><div class="damage-bar" style="width:' + w + '%"></div></div></td>'
@@ -196,11 +199,12 @@ const PartyRender = {
         + '<td class="num yellow">' + s.crit_rate + '%</td>'
         + '<td class="num orange">' + s.heavies + '</td>'
         + '<td class="num orange">' + s.heavy_rate + '%</td>'
+        + '<td class="num teal">' + chCount + '</td>'
         + '<td class="num purple">' + s.percent + '%</td></tr>';
     }).join('');
     return '<table class="pr-skill-table"><thead><tr>'
       + '<th>Skill</th><th>Damage</th><th></th><th>Hits</th><th>Crits</th><th>Crit%</th>'
-      + '<th>Heavy</th><th>Heavy%</th><th>%</th></tr></thead><tbody>' + body + '</tbody></table>';
+      + '<th>Heavy</th><th>Heavy%</th><th>C+H</th><th>%</th></tr></thead><tbody>' + body + '</tbody></table>';
   },
 
   // ===== Phase 3 / C4 — shared A/B member compare (head-to-head) =====
