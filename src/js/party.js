@@ -191,6 +191,7 @@
         let partyPingInterval = null;  // keepalive
         let expirationInterval = null; // expiration display timer
         let partyLiveHitDebounce = null; // trailing-debounce timer for live hydration posts
+        let bannerRefreshInterval = null; // #14 banner periodic refresh (3 s, active-party only)
 
         function startPartyPing() {
             stopPartyPing();
@@ -202,6 +203,19 @@
         }
         function stopPartyPing() {
             if (partyPingInterval) { clearInterval(partyPingInterval); partyPingInterval = null; }
+        }
+
+        // #14 banner auto-refresh — keeps the own-client log-status banner live while in a party
+        // even when the diagnostics panel is closed (the only other refresh path).
+        // Cadence: every 3 s. Only runs while the party socket is open; cleared on disconnect.
+        function startBannerRefresh() {
+            if (bannerRefreshInterval) { clearInterval(bannerRefreshInterval); bannerRefreshInterval = null; }
+            bannerRefreshInterval = setInterval(function() {
+                renderLogStatusBanner();
+            }, 3000);
+        }
+        function stopBannerRefresh() {
+            if (bannerRefreshInterval) { clearInterval(bannerRefreshInterval); bannerRefreshInterval = null; }
         }
 
         // Open (or re-open) the room socket. isLeader is passed to the room as a query param.
@@ -229,6 +243,7 @@
                 partyDebug('party.open', { code: code });
                 partyWSConnected = true;
                 startPartyPing();
+                startBannerRefresh();
                 startExpirationTimer();
                 if (diagnosticsOpen) refreshDiagnostics();
             };
@@ -268,6 +283,7 @@
             partyWSWantOpen = false;
             if (partyWSReconnect) { clearTimeout(partyWSReconnect); partyWSReconnect = null; }
             stopPartyPing();
+            stopBannerRefresh();
             stopExpirationTimer();
             if (partyWS) { try { partyWS.onclose = null; partyWS.close(); } catch (e) {} partyWS = null; }
             partyWSConnected = false;
