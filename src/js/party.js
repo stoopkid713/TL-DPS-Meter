@@ -1,3 +1,113 @@
+        // === IN-APP CONFIRM MODAL ===
+        // Native confirm()/alert() return falsy in pywebview/WebView2 — never use them.
+        // partyConfirm(message) returns a Promise<boolean> resolved by user action.
+        function partyConfirm(message) {
+            return new Promise(function(resolve) {
+                // Build overlay
+                const overlay = document.createElement('div');
+                overlay.style.cssText = [
+                    'position:fixed', 'inset:0', 'z-index:99999',
+                    'display:flex', 'align-items:center', 'justify-content:center',
+                    'background:rgba(0,0,0,0.65)', 'backdrop-filter:blur(2px)'
+                ].join(';');
+
+                const box = document.createElement('div');
+                box.style.cssText = [
+                    'background:#1e293b', 'border:1px solid rgba(100,116,139,0.5)',
+                    'border-radius:10px', 'padding:24px 28px', 'max-width:360px',
+                    'width:90%', 'box-shadow:0 8px 32px rgba(0,0,0,0.6)',
+                    'color:#e2e8f0', 'font-family:inherit', 'font-size:0.95rem',
+                    'line-height:1.5', 'text-align:center'
+                ].join(';');
+
+                const msg = document.createElement('div');
+                msg.style.cssText = 'margin-bottom:20px;white-space:pre-wrap;';
+                msg.textContent = message;
+
+                const btnRow = document.createElement('div');
+                btnRow.style.cssText = 'display:flex;gap:10px;justify-content:center;';
+
+                const cancelBtn = document.createElement('button');
+                cancelBtn.textContent = 'Cancel';
+                cancelBtn.style.cssText = [
+                    'padding:7px 20px', 'border-radius:6px', 'border:1px solid rgba(100,116,139,0.5)',
+                    'background:rgba(100,116,139,0.15)', 'color:#94a3b8',
+                    'cursor:pointer', 'font-size:0.9rem', 'font-family:inherit'
+                ].join(';');
+
+                const confirmBtn = document.createElement('button');
+                confirmBtn.textContent = 'Confirm';
+                confirmBtn.style.cssText = [
+                    'padding:7px 20px', 'border-radius:6px', 'border:1px solid rgba(239,68,68,0.5)',
+                    'background:rgba(239,68,68,0.2)', 'color:#fca5a5',
+                    'cursor:pointer', 'font-size:0.9rem', 'font-family:inherit', 'font-weight:600'
+                ].join(';');
+
+                function close(result) {
+                    document.body.removeChild(overlay);
+                    resolve(result);
+                }
+                cancelBtn.addEventListener('click', function() { close(false); });
+                confirmBtn.addEventListener('click', function() { close(true); });
+                overlay.addEventListener('click', function(e) { if (e.target === overlay) close(false); });
+
+                btnRow.appendChild(cancelBtn);
+                btnRow.appendChild(confirmBtn);
+                box.appendChild(msg);
+                box.appendChild(btnRow);
+                overlay.appendChild(box);
+                document.body.appendChild(overlay);
+                confirmBtn.focus();
+            });
+        }
+
+        // partyAlert(message) — in-app replacement for alert() in WebView2.
+        function partyAlert(message) {
+            return new Promise(function(resolve) {
+                const overlay = document.createElement('div');
+                overlay.style.cssText = [
+                    'position:fixed', 'inset:0', 'z-index:99999',
+                    'display:flex', 'align-items:center', 'justify-content:center',
+                    'background:rgba(0,0,0,0.65)', 'backdrop-filter:blur(2px)'
+                ].join(';');
+
+                const box = document.createElement('div');
+                box.style.cssText = [
+                    'background:#1e293b', 'border:1px solid rgba(100,116,139,0.5)',
+                    'border-radius:10px', 'padding:24px 28px', 'max-width:360px',
+                    'width:90%', 'box-shadow:0 8px 32px rgba(0,0,0,0.6)',
+                    'color:#e2e8f0', 'font-family:inherit', 'font-size:0.95rem',
+                    'line-height:1.5', 'text-align:center'
+                ].join(';');
+
+                const msg = document.createElement('div');
+                msg.style.cssText = 'margin-bottom:20px;white-space:pre-wrap;';
+                msg.textContent = message;
+
+                const okBtn = document.createElement('button');
+                okBtn.textContent = 'OK';
+                okBtn.style.cssText = [
+                    'padding:7px 24px', 'border-radius:6px', 'border:1px solid rgba(34,211,238,0.4)',
+                    'background:rgba(34,211,238,0.15)', 'color:#22d3ee',
+                    'cursor:pointer', 'font-size:0.9rem', 'font-family:inherit', 'font-weight:600'
+                ].join(';');
+
+                function close() {
+                    document.body.removeChild(overlay);
+                    resolve();
+                }
+                okBtn.addEventListener('click', close);
+                overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+
+                box.appendChild(msg);
+                box.appendChild(okBtn);
+                overlay.appendChild(box);
+                document.body.appendChild(overlay);
+                okBtn.focus();
+            });
+        }
+        // === END IN-APP CONFIRM MODAL ===
+
         function openPartyOverlay(code, name, isLeader) {
             if (window.ckOverlay?.openPartyOverlay) {
                 // Running in Electron - use IPC
@@ -529,7 +639,7 @@
         // Leave party — tell the room, close the socket, reset local state.
         // (Phase 1: leader leaving doesn't kick others — room TTL is an open design point.)
         async function leaveParty() {
-            if (!confirm('Leave this party?')) return;
+            if (!await partyConfirm('Leave this party?')) return;
 
             try {
                 if (partyWS && partyWS.readyState === WebSocket.OPEN) {
@@ -805,18 +915,18 @@
         }
         
         // Clear all results (leader only)
-        function clearPartyResults() {
+        async function clearPartyResults() {
             if (!partyState.is_leader) {
-                alert('Only the party leader can clear results.');
+                await partyAlert('Only the party leader can clear results.');
                 return;
             }
-            
+
             if (clearResultsCooldown) {
                 console.log('[Party] Clear on cooldown');
                 return;
             }
-            
-            if (!confirm('Clear all encounter results? This cannot be undone.')) {
+
+            if (!await partyConfirm('Clear all encounter results? This cannot be undone.')) {
                 return;
             }
             
@@ -1166,6 +1276,14 @@
                 if (syncBtn) syncBtn.style.display = partyState.is_leader ? 'inline-block' : 'none';
                 // Recording indicator always visible while armed.
                 if (encounterLive) encounterLive.style.display = partyState.encounter_active ? 'flex' : 'none';
+                // Fix #9 — Hide the entire ⚔️ Encounter section wrapper when no controls are visible.
+                // All manual Start/End controls are hidden; the only remaining child is the RECORDING
+                // indicator. Hide the whole section (title + wrapper) so no empty labeled box appears.
+                const encounterSection = encounterControls ? encounterControls.closest('.party-encounter-section') : null;
+                if (encounterSection) {
+                    // Show the section only when the live indicator is active (gives it content).
+                    encounterSection.style.display = partyState.encounter_active ? '' : 'none';
+                }
                 
                 // Leave button (Phase 1: leader leaving doesn't disband the room for others).
                 const leaveBtn = document.getElementById('partyLeaveBtn');
@@ -1235,9 +1353,9 @@
         }
 
         // Fix #7: Kick a member (leader only) — sends the worker kick command.
-        function kickPartyMember(userId, username) {
+        async function kickPartyMember(userId, username) {
             if (!partyState.is_leader) return;
-            if (!confirm(`Kick ${username} from the party?`)) return;
+            if (!await partyConfirm(`Kick ${username} from the party?`)) return;
             if (!partyWS || partyWS.readyState !== WebSocket.OPEN) {
                 console.warn('[Party] kick: WS not open');
                 return;
@@ -1251,9 +1369,9 @@
         }
 
         // Fix #8: Reset roster (leader only) — clears stale/offline members server-side.
-        function resetPartyRoster() {
+        async function resetPartyRoster() {
             if (!partyState.is_leader) return;
-            if (!confirm('Reset the party roster? This removes stale and offline members.')) return;
+            if (!await partyConfirm('Reset the party roster? This removes stale and offline members.')) return;
             if (!partyWS || partyWS.readyState !== WebSocket.OPEN) {
                 console.warn('[Party] reset_roster: WS not open');
                 return;
