@@ -10,9 +10,22 @@ A combat-log analyzer for **Throne and Liberty** with two halves:
 
 It reads the log files the game writes; it never touches the game process.
 
-> Backend rebuilt from scratch as owned, open code. Original concept by
-> **SirPHz** ([mjb6967/CKdpsApp](https://github.com/mjb6967/CKdpsApp)) — see
-> [LICENSE](LICENSE) / [NOTICE](NOTICE) and [LINEAGE.md](LINEAGE.md).
+## 🙏 Credits &amp; lineage
+
+**This project exists because of [SirPHz](https://github.com/mjb6967) (mjb6967) and the
+original ツCKヤ DPS Meter / [CKdpsApp](https://ckdps.netlify.app/).** SirPHz built the first
+real combat-analytics tool for Throne and Liberty — real-time parsing, build testing, and the
+party-DPS concept this whole project is built around. None of this would exist without it.
+
+TL-DPS-Meter is an **independent successor**, not a fork: the party stack was rebuilt from
+scratch on owned infrastructure. The original is free for personal use and **not** open
+source, so none of its code is used here — but the vision is entirely SirPHz's. If you
+haven't seen the original, go give it a look:
+
+- 🌐 **[ckdps.netlify.app](https://ckdps.netlify.app/)** — SirPHz's original site
+- 💻 **[mjb6967/CKdpsApp](https://github.com/mjb6967/CKdpsApp)** — the original app
+
+See [LICENSE](LICENSE) · [NOTICE](NOTICE) · [LINEAGE.md](LINEAGE.md) for the full lineage.
 
 ---
 
