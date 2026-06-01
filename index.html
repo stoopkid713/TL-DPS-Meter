@@ -564,6 +564,67 @@
             color: #22d3ee;
         }
 
+        /* === Solo Lab overflow menu === */
+        .solo-lab-wrapper {
+            position: relative;
+            display: inline-flex;
+            align-items: stretch;
+        }
+
+        .solo-lab-toggle {
+            /* inherits .tab base styles; extra indicator */
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Active state when any child tab is the current tab */
+        .solo-lab-toggle.has-active {
+            color: #22d3ee;
+            border-bottom-color: #22d3ee;
+        }
+
+        .solo-lab-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            z-index: 200;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            min-width: 170px;
+            flex-direction: column;
+            padding: 4px 0;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+
+        .solo-lab-dropdown.open {
+            display: flex;
+        }
+
+        /* Items in the dropdown get a block layout */
+        .solo-lab-dropdown .tab {
+            text-align: left;
+            border-bottom: none;
+            border-left: 2px solid transparent;
+            padding: 10px 18px;
+            border-radius: 0;
+            width: 100%;
+        }
+
+        .solo-lab-dropdown .tab:hover {
+            background: rgba(255,255,255,0.05);
+            color: #e2e8f0;
+        }
+
+        .solo-lab-dropdown .tab.active {
+            color: #22d3ee;
+            border-left-color: #22d3ee;
+            background: rgba(34, 211, 238, 0.07);
+        }
+
         .tab-content {
             flex: 1;
             overflow-y: auto;
@@ -9032,21 +9093,25 @@
             <div class="tabs">
                 <button class="tab active" data-tab="dashboard">🏠 Dashboard</button>
                 <span style="color: #334155; margin: 0 8px;">|</span>
+                <button class="tab" data-tab="partyDps">👥 Party DPS</button>
+                <span style="color: #334155; margin: 0 8px;">|</span>
                 <button class="tab" data-tab="encounters">📜 Encounters</button>
                 <span style="color: #334155; margin: 0 8px;">|</span>
-                <button class="tab" data-tab="buildTesting">🎯 Build Testing</button>
-                <button class="tab" data-tab="saved">Saved</button>
-                <button class="tab" data-tab="compare">Compare</button>
-                <span style="color: #334155; margin: 0 8px;">|</span>
-                <button class="tab" data-tab="fullEncounter">🏰 Run Builder</button>
-                <button class="tab" data-tab="runSummary">📋 Run Summary</button>
-                <span style="color: #334155; margin: 0 8px;">|</span>
-                <button class="tab" data-tab="skillSettings">⚙️ Skill Settings</button>
-                <button class="tab" data-tab="skillAssign">🎯 Skill Assign</button>
-                <button class="tab" data-tab="targetAssign">🎯 Target Assign</button>
-                <button class="tab" data-tab="log">📋 Log File</button>
-                <span style="color: #334155; margin: 0 8px;">|</span>
-                <button class="tab" data-tab="partyDps">👥 Party DPS</button>
+                <!-- Solo Lab overflow menu -->
+                <div class="solo-lab-wrapper" id="soloLabWrapper">
+                    <button class="tab solo-lab-toggle" id="soloLabToggle" title="Solo Lab tools">Solo Lab ▾</button>
+                    <div class="solo-lab-dropdown" id="soloLabDropdown">
+                        <button class="tab" data-tab="buildTesting">🎯 Build Testing</button>
+                        <button class="tab" data-tab="saved">Saved</button>
+                        <button class="tab" data-tab="compare">Compare</button>
+                        <button class="tab" data-tab="fullEncounter">🏰 Run Builder</button>
+                        <button class="tab" data-tab="runSummary">📋 Run Summary</button>
+                        <button class="tab" data-tab="skillSettings">⚙️ Skill Settings</button>
+                        <button class="tab" data-tab="skillAssign">🎯 Skill Assign</button>
+                        <button class="tab" data-tab="targetAssign">🎯 Target Assign</button>
+                        <button class="tab" data-tab="log">📋 Log File</button>
+                    </div>
+                </div>
             </div>
 
             <div class="tab-content">

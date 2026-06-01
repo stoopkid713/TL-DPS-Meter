@@ -198,19 +198,86 @@
             showWelcomeModal();
         }
 
+        // ── Solo Lab dropdown state ──────────────────────────────────────────
+        // soloLabTabNames: the 9 tabs hidden inside the overflow menu
+        const soloLabTabNames = new Set([
+            'buildTesting', 'saved', 'compare',
+            'fullEncounter', 'runSummary',
+            'skillSettings', 'skillAssign', 'targetAssign', 'log'
+        ]);
+
+        // ── Sidebar auto-collapse state ──────────────────────────────────────
+        // Track whether the user had the sidebar collapsed BEFORE we auto-collapsed
+        // it for Party DPS, so we can restore their preference when they leave.
+        let _sidebarWasCollapsedBeforeParty = false;
+        let _partyAutoCollapsed = false;   // true while auto-collapse is in effect
+
+        // Helper: sync the Solo Lab toggle's has-active class
+        function syncSoloLabActiveState() {
+            const toggle = document.getElementById('soloLabToggle');
+            if (!toggle) return;
+            // Check whether any tab inside the dropdown is currently active
+            const anyChildActive = document.querySelector('#soloLabDropdown .tab.active') !== null;
+            toggle.classList.toggle('has-active', anyChildActive);
+        }
+
+        // Helper: collapse/restore sidebar when switching tabs
+        function handleSidebarForTab(tabName) {
+            const sidebar = document.getElementById('mainSidebar');
+            const btn = document.getElementById('sidebarCollapseBtn');
+            if (!sidebar || !btn) return;
+
+            if (tabName === 'partyDps') {
+                if (!_partyAutoCollapsed) {
+                    // Remember current state before we touch it
+                    _sidebarWasCollapsedBeforeParty = sidebar.classList.contains('collapsed');
+                    _partyAutoCollapsed = true;
+                }
+                // Force-collapse for Party DPS
+                sidebar.classList.add('collapsed');
+                btn.textContent = '›';
+                btn.title = 'Expand sidebar';
+            } else {
+                if (_partyAutoCollapsed) {
+                    _partyAutoCollapsed = false;
+                    // Restore to whatever the user had before
+                    if (_sidebarWasCollapsedBeforeParty) {
+                        sidebar.classList.add('collapsed');
+                        btn.textContent = '›';
+                        btn.title = 'Expand sidebar';
+                    } else {
+                        sidebar.classList.remove('collapsed');
+                        btn.textContent = '‹';
+                        btn.title = 'Collapse sidebar';
+                    }
+                }
+                // If _partyAutoCollapsed is false, user is manually managing the sidebar — don't touch it
+            }
+        }
+
         // Tab switching
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => {
+                // If this tab is inside the Solo Lab dropdown, close the dropdown
+                const dropdown = document.getElementById('soloLabDropdown');
+                if (dropdown) dropdown.classList.remove('open');
+
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
                 tab.classList.add('active');
                 document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
-                
+
+                // Sync Solo Lab toggle active indicator
+                syncSoloLabActiveState();
+
+                // Auto-collapse/restore sidebar for Party DPS
+                handleSidebarForTab(tab.dataset.tab);
+
                 // Load Run Summary when tab is opened
                 if (tab.dataset.tab === 'runSummary') {
                     loadRunSummary();
                 }
-                
+
                 // Load target assignments when tab is opened
                 if (tab.dataset.tab === 'targetAssign') {
                     if (!targetAssignmentsLoaded) {
@@ -226,24 +293,47 @@
                         updateTargetAssignmentDisplay();
                     }
                 }
-                
+
                 // Refresh encounter history when switching to Encounters tab
                 if (tab.dataset.tab === 'encounters') {
                     if (ws && ws.readyState === WebSocket.OPEN) {
                         sendCommand('get_encounter_history');
                     }
                 }
-                
+
                 // Initialize Run Builder class dropdown when tab is opened
                 if (tab.dataset.tab === 'fullEncounter') {
                     const runClassSelect = document.getElementById('runClassSelect');
                     if (runClassSelect && runClassSelect.options.length <= 1) {
-                        runClassSelect.innerHTML = '<option value="">-- Class --</option>' + 
+                        runClassSelect.innerHTML = '<option value="">-- Class --</option>' +
                             TL_CLASSES.map(c => `<option value="${c.name}">${c.name}: ${c.weapons}</option>`).join('');
                     }
                 }
             });
         });
+
+        // ── Solo Lab dropdown toggle ─────────────────────────────────────────
+        (function initSoloLabDropdown() {
+            const toggle = document.getElementById('soloLabToggle');
+            const dropdown = document.getElementById('soloLabDropdown');
+            if (!toggle || !dropdown) return;
+
+            // Open/close on toggle button click
+            toggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dropdown.classList.toggle('open');
+            });
+
+            // Close on outside click
+            document.addEventListener('click', (e) => {
+                if (!document.getElementById('soloLabWrapper').contains(e.target)) {
+                    dropdown.classList.remove('open');
+                }
+            });
+
+            // Sync initial state (Dashboard is active, no Solo Lab child is active)
+            syncSoloLabActiveState();
+        })();
 
         function updateLicenseInfo(license) {
             const container = document.getElementById('versionInfo');
