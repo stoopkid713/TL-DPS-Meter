@@ -770,6 +770,8 @@ export class PartyRoom {
       hits: Number(t.hits) || 0,
       crit_rate: Number(t.crit_rate) || 0,
       heavy_rate: Number(t.heavy_rate) || 0,
+      crit_heavy_rate: Number(t.crit_heavy_rate) || 0,
+      crit_heavy_count: Number(t.crit_heavy_count) || 0,
     }));
     const has_detail = !!(payload.skills || payload.rotation);
     const summaryJson = payload.summary != null ? JSON.stringify(payload.summary) : null;
