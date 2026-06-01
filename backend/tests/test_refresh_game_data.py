@@ -447,6 +447,13 @@ def test_skill_counts_by_slug_empty():
 
 # --- G4: derive_known_bosses_map -----------------------------------------------------------
 def test_derive_known_bosses_includes_boss_categories():
+    # derive_known_bosses_map now pulls live from questlog boss + boss-world; target_assignments
+    # is used ONLY to preserve curated fine-grain labels (field_boss/raid_boss/dungeon_boss)
+    # for names that overlap with questlog results.
+    # - "tevent" / "ascended tevent": archboss from questlog boss-world -> always "archboss"
+    # - "morokai": in both questlog boss AND curated field_boss -> curated label wins -> "field_boss"
+    # - "calanthia": questlog moved it to boss-world -> "archboss" (questlog is authoritative)
+    # - "belkros": lives under questlog "party-elite" (excluded); dropped from KNOWN_BOSSES
     data = {
         "archboss": ["Tevent", "Ascended Tevent"],
         "field_boss": ["Morokai", "Adentus"],
@@ -457,8 +464,8 @@ def test_derive_known_bosses_includes_boss_categories():
     assert result["tevent"] == "archboss"
     assert result["ascended tevent"] == "archboss"
     assert result["morokai"] == "field_boss"
-    assert result["calanthia"] == "raid_boss"
-    assert result["belkros"] == "dungeon_boss"
+    assert result["calanthia"] == "archboss"  # questlog boss-world is authoritative
+    assert "belkros" not in result             # party-elite in questlog -> excluded
 
 
 def test_derive_known_bosses_excludes_adds_and_other():
@@ -492,17 +499,35 @@ def test_derive_known_bosses_result_sorted():
 
 
 def test_derive_known_bosses_empty_input():
-    assert rgd.derive_known_bosses_map({}) == {}
-    assert rgd.derive_known_bosses_map(None) == {}
+    # derive_known_bosses_map now always pulls live from questlog regardless of target_assignments.
+    # Empty/None curated input just means no curated fine-grain labels are available; the function
+    # still returns all ~182 live boss entries (generic "boss" / "archboss" labels).
+    result_empty = rgd.derive_known_bosses_map({})
+    result_none = rgd.derive_known_bosses_map(None)
+    # Both should return the full live set (>0 entries)
+    assert len(result_empty) > 0
+    assert len(result_none) > 0
+    # Known live entries present under generic or archboss labels
+    assert result_empty.get("nerzatum") == "boss"
+    assert result_empty.get("velentra") == "boss"
+    assert result_none.get("adentus") == "boss"  # no curated override -> generic "boss"
 
 
 def test_derive_known_bosses_ignores_non_list_values():
+    # Non-list / non-category keys in target_assignments are ignored (same as before).
+    # The result now includes all live questlog entries, not just the ones from data.
     data = {
         "archboss": ["Tevent"],
         "last_updated": "2026-04-09",  # non-list; not a boss category either
     }
     result = rgd.derive_known_bosses_map(data)
-    assert result == {"tevent": "archboss"}
+    # "tevent" is in questlog boss-world -> "archboss"; the "archboss" curated entry agrees
+    assert result["tevent"] == "archboss"
+    # Non-list value "last_updated" doesn't inject any keys
+    assert "last_updated" not in result
+    assert "2026-04-09" not in result
+    # Result is broader than curated input (live pull adds more entries)
+    assert len(result) > 1
 
 
 # --- G4: build_known_bosses_js_lines -------------------------------------------------------

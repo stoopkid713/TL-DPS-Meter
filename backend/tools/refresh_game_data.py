@@ -549,36 +549,84 @@ def write_weapon_config(weapon_cfg: dict, path: Path) -> None:
 # If either sentinel is absent the function is a no-op (the lane that owns index.js may not
 # have wired the sentinels yet; we never touch the file in that case).
 #
-# Which categories from default_target_assignments.json feed KNOWN_BOSSES?
-# Only the "boss" categories — not "adds" or "other" (those are trash).
+# Hydration source: LIVE questlog pull for mainCategory "boss" (UI "Boss") and "boss-world"
+# (UI "Archboss"). NOTE: "archboss" is NOT a valid API slug — the correct slug is "boss-world".
+# "party", "party-elite", "solo", "solo-elite", "other" are EXCLUDED.
+#
+# Fine-grain category labels:
+#   - "boss-world" NPC -> "archboss"
+#   - "boss" NPC whose normalized name OVERLAPS with default_target_assignments.json ->
+#     keep the curated fine-grain label (field_boss / raid_boss / dungeon_boss)
+#   - all OTHER new "boss" NPC names (not in the curated file) -> "boss" (generic)
+#
+# Known tradeoff (owner-approved): 4 dungeon bosses that live under "party-elite" in questlog
+# (belkros, belog, blath, blatras) will DROP OUT of the list because we only pull "boss" +
+# "boss-world". "red chimaerus" may also drop if questlog renamed/removed it. This is correct
+# and intentional — do not attempt to add them back here.
 KNOWN_BOSSES_CATEGORIES = {"archboss", "field_boss", "raid_boss", "dungeon_boss"}
 
 _SENTINEL_START = "// @gen:known_bosses:start"
 _SENTINEL_END = "// @gen:known_bosses:end"
 
+# questlog mainCategory slugs that feed KNOWN_BOSSES
+_QUESTLOG_BOSS_CATS = ("boss", "boss-world")
+
+
+def _norm_boss_name(name) -> str:
+    """Normalize a boss name to match the worker's `norm()` fn: trim + lowercase."""
+    return str(name or "").strip().lower()
+
 
 def derive_known_bosses_map(target_assignments: dict) -> dict:
     """Derive the {normalized_name: category} map for KNOWN_BOSSES in index.js.
 
-    Only entries whose top-level key is in KNOWN_BOSSES_CATEGORIES are included
-    (i.e. archboss/field_boss/raid_boss/dungeon_boss — NOT adds/other).
+    Hydration source: LIVE questlog pull for mainCategory "boss" + "boss-world".
+    The `target_assignments` (default_target_assignments.json content) is used ONLY to
+    preserve fine-grain labels (field_boss/raid_boss/dungeon_boss) for names that already
+    appear in the curated file. All NEW names from questlog get the generic "boss" label
+    (for "boss" category) or "archboss" (for "boss-world" category).
+
     Normalization matches the worker's `norm()` fn: trim + lowercase.
 
     Returns a plain dict {normalized_name: category_string} sorted by key.
     """
-    out: dict = {}
+    # Build a lookup from normalized name -> fine-grain curated category for overlap detection.
+    curated: dict = {}
     for category, names in (target_assignments or {}).items():
         if category not in KNOWN_BOSSES_CATEGORIES:
             continue
         if not isinstance(names, list):
             continue
         for name in names:
+            key = _norm_boss_name(name)
+            if key:
+                curated[key] = category  # e.g. "field_boss", "raid_boss", "dungeon_boss"
+
+    out: dict = {}
+
+    for ql_cat in _QUESTLOG_BOSS_CATS:
+        print(f"  Pulling questlog NPC feed for mainCategory='{ql_cat}'...")
+        try:
+            rows = pull_npcs(ql_cat)
+        except RuntimeError as err:
+            print(f"  [warn] pull_npcs('{ql_cat}') failed: {err} — skipping this category")
+            rows = []
+        print(f"  Got {len(rows)} rows for '{ql_cat}'")
+        for row in rows:
+            name = str(row.get("name") or "").strip()
             if not name:
                 continue
-            key = str(name).strip().lower()
-            if key:
-                # Last-write wins on collision (shouldn't happen, but be deterministic)
-                out[key] = category
+            key = _norm_boss_name(name)
+            if not key:
+                continue
+            if ql_cat == "boss-world":
+                label = "archboss"
+            else:
+                # "boss" category: prefer curated fine-grain if this name is already known
+                label = curated.get(key, "boss")
+            # Last-write wins on collision across categories (boss-world wins over boss)
+            out[key] = label
+
     return dict(sorted(out.items()))
 
 
@@ -974,8 +1022,8 @@ def _regenerate(cache_dir: Path | None, with_passives: bool, dry_run: bool) -> i
         except (FileNotFoundError, json.JSONDecodeError):
             target_assignments_dry = {}
         boss_map_dry = derive_known_bosses_map(target_assignments_dry)
-        print(f"  KNOWN_BOSSES: {len(boss_map_dry)} entries from "
-              f"{TARGET_ASSIGNMENTS_PATH.name}")
+        print(f"  KNOWN_BOSSES: {len(boss_map_dry)} entries from questlog boss+boss-world "
+              f"(curated overlap from {TARGET_ASSIGNMENTS_PATH.name})")
         rewrite_index_js_known_bosses(INDEX_JS_PATH, boss_map_dry, dry_run=True)
         regenerate_dungeons_json(DUNGEONS_JSON_PATH, dry_run=True)
         return 0
@@ -999,7 +1047,8 @@ def _regenerate(cache_dir: Path | None, with_passives: bool, dry_run: bool) -> i
         target_assignments = {}
 
     boss_map = derive_known_bosses_map(target_assignments)
-    print(f"  Derived {len(boss_map)} KNOWN_BOSSES entries from {TARGET_ASSIGNMENTS_PATH.name}")
+    print(f"  Derived {len(boss_map)} KNOWN_BOSSES entries from questlog boss+boss-world "
+          f"(curated overlap from {TARGET_ASSIGNMENTS_PATH.name})")
     rewrite_index_js_known_bosses(INDEX_JS_PATH, boss_map, dry_run=dry_run)
 
     # --- G4: regenerate dungeons.json ---
