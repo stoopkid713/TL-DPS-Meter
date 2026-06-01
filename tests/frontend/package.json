@@ -1,0 +1,13 @@
+{
+  "name": "tldps-frontend-tests",
+  "private": true,
+  "description": "Playwright harness: drive the REAL screens (index.html) with mocked WebSockets + scripted party scenarios — fake full party runs front-to-back, no game, no backend, no worker.",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}
