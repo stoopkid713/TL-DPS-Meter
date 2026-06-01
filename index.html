@@ -1,14 +1,326 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8">
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ツCKヤ DPS Meter — Downloads</title>
-<style>body{font-family:Segoe UI,system-ui,sans-serif;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#e2e8f0;text-align:center;padding:64px 20px;min-height:100vh;margin:0}
-h1{font-size:2.2rem}a{color:#22d3ee;text-decoration:none}a:hover{text-decoration:underline}
-.btn{display:inline-block;margin:10px;padding:14px 22px;background:rgba(34,211,238,.12);border:1px solid #22d3ee;border-radius:10px;font-weight:600}
-.dim{color:#64748b;font-size:.85rem}</style></head>
-<body><h1>ツCKヤ DPS Meter</h1>
-<p>A fast DPS meter &amp; build-testing lab for <strong>Throne and Liberty</strong>.</p>
-<p>Latest release: <strong>v1.0.1</strong></p>
-<p><a class="btn" href="downloads/1.0.1/TL-DPS-Meter-Setup.exe">Download Installer</a>
-<a class="btn" href="downloads/1.0.1/TL-DPS-Meter-portable.zip">Portable (zip)</a></p>
-<p class="dim"><a href="https://github.com/stoopkid713/TL-DPS-Meter">Source on GitHub</a> · MIT · Not affiliated with NCSOFT or Amazon Games · <a href="privacy.html">Privacy</a></p>
-</body></html>
+<title>TL-DPS-Meter — Party DPS for Throne and Liberty (free &amp; open-source)</title>
+<meta name="description" content="A free, open-source DPS meter for Throne and Liberty. See your whole party's damage on one shared boss scoreboard — with per-skill drill-down, rotation timelines, head-to-head compare, and an in-game overlay. Reads the game's combat logs; never touches the game.">
+<link rel="canonical" href="https://stoopkid713.github.io/TL-DPS-Meter/">
+
+<!-- Open Graph / Twitter -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="TL-DPS-Meter — Party DPS for Throne and Liberty">
+<meta property="og:description" content="A live, shared boss scoreboard for your whole party — free, open-source, no setup. Per-skill drill-down, rotation timelines, compare, and an in-game overlay.">
+<meta property="og:url" content="https://stoopkid713.github.io/TL-DPS-Meter/">
+<meta property="og:image" content="https://stoopkid713.github.io/TL-DPS-Meter/img/og-card.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="TL-DPS-Meter — Party DPS for Throne and Liberty">
+<meta name="twitter:description" content="A live, shared boss scoreboard for your whole party — free, open-source, no setup.">
+<meta name="twitter:image" content="https://stoopkid713.github.io/TL-DPS-Meter/img/og-card.jpg">
+
+<style>
+:root{
+  --bg1:#1a1a2e; --bg2:#16213e; --panel:rgba(0,0,0,.22); --panel2:rgba(255,255,255,.03);
+  --ink:#e2e8f0; --dim:#94a3b8; --faint:#64748b; --cyan:#22d3ee; --cyan-d:#0e7490;
+  --line:rgba(148,163,184,.16); --glow:rgba(34,211,238,.5);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:"Segoe UI",system-ui,-apple-system,sans-serif;color:var(--ink);margin:0;
+  background:var(--bg2);line-height:1.6;
+  background-image:radial-gradient(1200px 600px at 70% -10%,rgba(34,211,238,.10),transparent 60%),linear-gradient(135deg,var(--bg1),var(--bg2));
+  background-attachment:fixed;
+}
+a{color:var(--cyan);text-decoration:none}
+a:hover{text-decoration:underline}
+img{max-width:100%;height:auto;display:block}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+
+/* header */
+header{position:sticky;top:0;z-index:20;backdrop-filter:blur(10px);
+  background:rgba(15,17,32,.62);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;gap:16px;height:60px}
+.brand{font-weight:800;letter-spacing:.02em;font-size:1.05rem;color:var(--ink)}
+.brand .ck{color:var(--cyan)}
+.nav .spacer{flex:1}
+.nav a{color:var(--dim);font-size:.92rem}
+.nav a:hover{color:var(--ink);text-decoration:none}
+.nav .ghbtn{color:var(--ink)}
+.btn{display:inline-block;border-radius:10px;font-weight:700;cursor:pointer;border:1px solid transparent;
+  padding:11px 18px;font-size:.95rem;transition:transform .08s ease,box-shadow .2s ease}
+.btn:hover{text-decoration:none;transform:translateY(-1px)}
+.btn-primary{background:linear-gradient(135deg,#22d3ee,#0891b2);color:#06141b;
+  box-shadow:0 6px 22px -8px var(--glow)}
+.btn-primary:hover{box-shadow:0 10px 30px -8px var(--glow)}
+.btn-ghost{background:rgba(34,211,238,.10);border-color:rgba(34,211,238,.45);color:var(--ink)}
+.btn-sm{padding:8px 14px;font-size:.88rem}
+
+/* hero */
+.hero{padding:64px 0 36px;text-align:center}
+.kicker{display:inline-block;font-size:.78rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--cyan);background:rgba(34,211,238,.10);border:1px solid rgba(34,211,238,.3);
+  padding:5px 12px;border-radius:999px;margin-bottom:20px}
+.hero h1{font-size:clamp(2rem,5vw,3.3rem);line-height:1.08;margin:0 auto 16px;max-width:16ch;font-weight:800;letter-spacing:-.01em}
+.hero h1 .hl{background:linear-gradient(120deg,#22d3ee,#7dd3fc);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p.sub{font-size:clamp(1.02rem,2.2vw,1.22rem);color:var(--dim);max-width:60ch;margin:0 auto 28px}
+.cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+.platform{color:var(--faint);font-size:.85rem;margin-top:6px}
+.platform code{background:rgba(34,211,238,.10);border-radius:4px;padding:1px 6px;font-family:Consolas,monospace}
+
+/* hero shot */
+.shot{border:1px solid var(--line);border-radius:14px;overflow:hidden;
+  box-shadow:0 30px 80px -30px rgba(0,0,0,.8),0 0 0 1px rgba(34,211,238,.05);background:#0b1020}
+.hero-shot{max-width:980px;margin:40px auto 0;position:relative}
+.hero-shot::after{content:"";position:absolute;inset:-2px;border-radius:16px;pointer-events:none;
+  box-shadow:0 0 60px -10px var(--glow);opacity:.35}
+
+/* sections */
+section{padding:56px 0}
+.eyebrow{color:var(--cyan);font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:.78rem;text-align:center}
+h2.sec{font-size:clamp(1.6rem,3.4vw,2.2rem);text-align:center;margin:8px 0 8px;font-weight:800}
+.lead{text-align:center;color:var(--dim);max-width:60ch;margin:0 auto 40px}
+
+/* feature grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 20px}
+.card .ico{font-size:1.6rem;line-height:1;margin-bottom:10px}
+.card h3{margin:0 0 6px;font-size:1.08rem}
+.card p{margin:0;color:var(--dim);font-size:.94rem}
+
+/* showcase rows */
+.show{display:grid;grid-template-columns:1fr 1fr;gap:36px;align-items:center;margin:0 0 56px}
+.show:nth-child(even) .txt{order:2}
+.show .txt h3{font-size:1.45rem;margin:0 0 10px}
+.show .txt p{color:var(--dim);margin:0 0 10px}
+.show .txt .tag{display:inline-block;color:var(--cyan);font-size:.76rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px}
+.show ul{margin:0;padding-left:1.1em;color:var(--dim)}
+.show ul li{margin:4px 0}
+
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;counter-reset:s}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 20px;position:relative}
+.step::before{counter-increment:s;content:counter(s);position:absolute;top:-14px;left:20px;width:30px;height:30px;
+  display:grid;place-items:center;border-radius:8px;background:linear-gradient(135deg,#22d3ee,#0891b2);color:#06141b;font-weight:800}
+.step h3{margin:8px 0 6px;font-size:1.05rem}
+.step p{margin:0;color:var(--dim);font-size:.93rem}
+.step code{background:rgba(34,211,238,.10);border-radius:4px;padding:1px 6px;font-family:Consolas,monospace;font-size:.88em}
+
+/* faq */
+.faq{max-width:760px;margin:0 auto}
+.faq details{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:2px 18px;margin:10px 0}
+.faq summary{cursor:pointer;font-weight:600;padding:14px 0;list-style:none}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";float:right;color:var(--cyan);font-weight:800}
+.faq details[open] summary::after{content:"–"}
+.faq details p{color:var(--dim);margin:0 0 14px;font-size:.95rem}
+
+/* final cta */
+.final{text-align:center;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:48px 24px;
+  background-image:radial-gradient(600px 300px at 50% -20%,rgba(34,211,238,.12),transparent 70%)}
+.final h2{font-size:clamp(1.6rem,3.4vw,2.3rem);margin:0 0 10px}
+.final p{color:var(--dim);margin:0 auto 24px;max-width:48ch}
+
+/* footer */
+footer{border-top:1px solid var(--line);margin-top:40px;padding:28px 0;color:var(--faint);font-size:.85rem}
+footer .frow{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;align-items:center;text-align:center}
+footer a{color:var(--dim)}
+.disc{display:block;text-align:center;margin-top:12px;color:var(--faint);max-width:70ch;margin-left:auto;margin-right:auto}
+
+@media(max-width:720px){
+  .show{grid-template-columns:1fr;gap:18px}
+  .show:nth-child(even) .txt{order:0}
+  .nav a.hide-sm{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <span class="brand"><span class="ck">ツCKヤ</span> DPS Meter</span>
+    <span class="spacer"></span>
+    <a class="hide-sm" href="#features">Features</a>
+    <a class="hide-sm" href="#shots">Screenshots</a>
+    <a class="hide-sm" href="#faq">FAQ</a>
+    <a class="ghbtn hide-sm" href="https://github.com/stoopkid713/TL-DPS-Meter" target="_blank" rel="noopener">GitHub ★</a>
+    <a class="btn btn-primary btn-sm" href="#download">Download</a>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="wrap hero">
+  <span class="kicker">Free &amp; open-source · Throne and Liberty</span>
+  <h1>See your whole party's damage. <span class="hl">Every boss. Instantly.</span></h1>
+  <p class="sub">A live, shared <strong>boss scoreboard</strong> for your entire group — everyone runs the app, joins one code, and every kill produces one ranked board. Plus a deep solo build-testing lab. It reads the combat logs the game writes; it never touches the game.</p>
+  <div class="cta">
+    <a class="btn btn-primary" id="dl-installer-hero" href="https://github.com/stoopkid713/TL-DPS-Meter/releases/latest/download/TL-DPS-Meter-Setup.exe">⬇ Download for Windows</a>
+    <a class="btn btn-ghost" href="https://github.com/stoopkid713/TL-DPS-Meter/releases/latest/download/TL-DPS-Meter-portable.zip">Portable (.zip)</a>
+  </div>
+  <p class="platform">Windows 10/11 · no account · <code>~ instant</code> setup · 100% free</p>
+
+  <div class="shot hero-shot">
+    <img src="img/hero-board.webp" width="1600" height="1000"
+         alt="The party DPS boss scoreboard: six members ranked on a Tevent archboss kill with contribution %, DPS, crit and heavy rates, and total damage.">
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="wrap">
+    <p class="eyebrow">Why it's different</p>
+    <h2 class="sec">Built party-first — not another solo meter</h2>
+    <p class="lead">Most Throne and Liberty meters only show <em>your</em> numbers. This one puts the whole group on one board, with the depth of a solo analyzer for every member.</p>
+    <div class="grid">
+      <div class="card"><div class="ico">👥</div><h3>One shared board</h3><p>Every boss kill = a single ranked scoreboard with each member's damage, contribution %, DPS, hits, and crit / heavy rates.</p></div>
+      <div class="card"><div class="ico">🔗</div><h3>Dead-simple join</h3><p>Share one invite link or a 4-letter code. No accounts, no logins, no config — your teammate is on the board in seconds.</p></div>
+      <div class="card"><div class="ico">🔬</div><h3>Drill into anyone</h3><p>Click any teammate for their full per-skill breakdown and rotation timeline — the same depth as your own view.</p></div>
+      <div class="card"><div class="ico">⚖️</div><h3>Head-to-head compare</h3><p>Pick any two members and compare their skills side-by-side: damage, hits, crit, heavy — with the deltas called out.</p></div>
+      <div class="card"><div class="ico">🖥️</div><h3>In-game overlay</h3><p>A transparent, click-through overlay floats the live board over the game. Always-on-top, draggable, resizable.</p></div>
+      <div class="card"><div class="ico">🏆</div><h3>Party trophies</h3><p>Auto-awarded superlatives — most damage, hardest hit, biggest crit+heavy, top sustained DPS — for the whole run.</p></div>
+      <div class="card"><div class="ico">🧪</div><h3>Solo build lab</h3><p>Tune your own rotation: per-skill tables, rotation charts, and side-by-side build comparison for testing changes.</p></div>
+      <div class="card"><div class="ico">🔒</div><h3>Private &amp; open</h3><p>No ads, no tracking, no telemetry. MIT-licensed source on GitHub. It reads logs the game writes — never the game process.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- SHOWCASE -->
+<section id="shots" style="padding-top:8px">
+  <div class="wrap">
+    <p class="eyebrow">A look inside</p>
+    <h2 class="sec">Everything the group did, in one place</h2>
+    <p class="lead">Real screens from the app.</p>
+
+    <div class="show">
+      <div class="txt">
+        <span class="tag">Boss scoreboard</span>
+        <h3>The whole party, ranked per kill</h3>
+        <p>No more swapping screenshots after a run. Each boss produces one merged board with everyone on it.</p>
+        <ul>
+          <li>Contribution %, DPS, total damage</li>
+          <li>Crit / heavy / crit+heavy rates per member</li>
+          <li>Flip between every boss of the run</li>
+        </ul>
+      </div>
+      <div class="shot"><img loading="lazy" src="img/panel-board.webp" width="1200" height="1006" alt="Party boss scoreboard panel"></div>
+    </div>
+
+    <div class="show">
+      <div class="txt">
+        <span class="tag">Per-member drill-down</span>
+        <h3>Click a teammate, see everything</h3>
+        <p>Full per-skill breakdown for any member — the damage, hits, and crit/heavy split for every skill they cast.</p>
+        <ul>
+          <li>Per-skill damage, hits, crit% and heavy%</li>
+          <li>Crit+heavy column</li>
+          <li>Same depth for you and your party</li>
+        </ul>
+      </div>
+      <div class="shot"><img loading="lazy" src="img/hero-skills.webp" width="1600" height="1000" alt="Per-member skill breakdown table"></div>
+    </div>
+
+    <div class="show">
+      <div class="txt">
+        <span class="tag">Rotation timeline</span>
+        <h3>See the shape of the fight</h3>
+        <p>A per-second damage timeline shows the ramp, the burst windows, and where the downtime was.</p>
+        <ul>
+          <li>Activity % and peak window</li>
+          <li>Spot dead time and burst alignment</li>
+        </ul>
+      </div>
+      <div class="shot"><img loading="lazy" src="img/hero-rotation.webp" width="1600" height="1000" alt="Rotation damage timeline chart"></div>
+    </div>
+
+    <div class="show">
+      <div class="txt">
+        <span class="tag">Head-to-head compare</span>
+        <h3>Settle it with numbers</h3>
+        <p>Put any two members side-by-side and see exactly where the gap is, skill by skill.</p>
+        <ul>
+          <li>Total damage delta and % difference</li>
+          <li>Per-skill A/B with hits, crit% and heavy%</li>
+        </ul>
+      </div>
+      <div class="shot"><img loading="lazy" src="img/hero-compare.webp" width="1600" height="1000" alt="Two members compared side by side"></div>
+    </div>
+
+    <div class="show">
+      <div class="txt">
+        <span class="tag">Party trophies</span>
+        <h3>Bragging rights, automated</h3>
+        <p>The run's superlatives, awarded automatically — and they spread across the group, rewarding different play styles.</p>
+        <ul>
+          <li>Most damage · hardest single hit</li>
+          <li>Biggest crit+heavy · top sustained DPS</li>
+        </ul>
+      </div>
+      <div class="shot"><img loading="lazy" src="img/hero-trophies.webp" width="1600" height="1000" alt="Party trophy cards"></div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="start">
+  <div class="wrap">
+    <p class="eyebrow">Get going</p>
+    <h2 class="sec">Up and running in a minute</h2>
+    <p class="lead">Each party member runs the app and joins the same code.</p>
+    <div class="steps">
+      <div class="step"><h3>Download &amp; open</h3><p>Grab the installer or portable build below and launch it. The app is its own window — no browser tab.</p></div>
+      <div class="step"><h3>Turn on combat logging</h3><p>In Throne &amp; Liberty: add <strong>Combat Meter</strong> to the Ring Menu (<code>Settings → Shortcuts</code>) and activate it.</p></div>
+      <div class="step"><h3>Join a party</h3><p>Open the <strong>Party DPS</strong> tab, pick your name, and enter the shared code (or open an invite link).</p></div>
+      <div class="step"><h3>Kill a boss</h3><p>T&amp;L writes the log when a fight ends — so the ranked board lands the moment the boss drops.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- DOWNLOAD -->
+<section id="download">
+  <div class="wrap">
+    <div class="final">
+      <h2>Download TL-DPS-Meter</h2>
+      <p>Free, open-source, Windows 10/11. Pick the installer for set-and-forget, or the portable zip to run from anywhere.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/stoopkid713/TL-DPS-Meter/releases/latest/download/TL-DPS-Meter-Setup.exe">⬇ Installer (.exe)</a>
+        <a class="btn btn-ghost" href="https://github.com/stoopkid713/TL-DPS-Meter/releases/latest/download/TL-DPS-Meter-portable.zip">⬇ Portable (.zip)</a>
+      </div>
+      <p class="platform" style="margin-top:16px">First launch shows a SmartScreen “unknown publisher” notice (the build isn't code-signed yet) — click <strong>More info → Run anyway</strong>. Or <a href="https://github.com/stoopkid713/TL-DPS-Meter/releases/latest">browse all releases</a>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="wrap">
+    <p class="eyebrow">Questions</p>
+    <h2 class="sec">FAQ</h2>
+    <div class="faq">
+      <details><summary>Does it modify or read the game?</summary><p>No. The app only reads the combat-log text files that Throne &amp; Liberty itself writes to your disk when you enable Combat Logging. It never reads or writes the game's memory or process. Use of any third-party tool is at your own discretion under the game's terms.</p></details>
+      <details><summary>Is it really free?</summary><p>Yes — completely free and <a href="https://github.com/stoopkid713/TL-DPS-Meter">open-source under the MIT license</a>. No ads, no paid tiers, no account.</p></details>
+      <details><summary>Do all party members need the app?</summary><p>Yes. Damage is read from each player's own combat log, so everyone in the party runs the app and joins the same code. Only members running the app appear on the board.</p></details>
+      <details><summary>Why the SmartScreen / “unknown publisher” warning?</summary><p>The build isn't code-signed yet, so Windows shows a caution on first launch. Click <strong>More info → Run anyway</strong>. The source is public if you'd like to inspect or build it yourself. Code signing is on the roadmap.</p></details>
+      <details><summary>What about my privacy?</summary><p>Everything is computed on your machine. The shared party scoreboard is the only data that leaves your device, and it's capped and auto-evicted, never sold. Full details in the <a href="privacy.html">privacy policy</a>.</p></details>
+      <details><summary>Is it available on Mac / Linux?</summary><p>Windows 10/11 only for now — that's where Throne &amp; Liberty runs.</p></details>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="frow">
+      <a href="https://github.com/stoopkid713/TL-DPS-Meter">Source on GitHub</a>
+      <a href="https://github.com/stoopkid713/TL-DPS-Meter/releases/latest">Releases</a>
+      <a href="join.html">Join a party</a>
+      <a href="privacy.html">Privacy</a>
+      <span>· MIT licensed</span>
+    </div>
+    <span class="disc">Original concept by SirPHz (CKdpsApp); backend rebuilt as owned, open code.
+    Not affiliated with, endorsed by, or sponsored by NCSOFT or Amazon Games. Throne and Liberty is a trademark of its respective owners.</span>
+  </div>
+</footer>
+
+</body>
+</html>
