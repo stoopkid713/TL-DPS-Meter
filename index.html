@@ -23661,6 +23661,26 @@ ${attemptLine}
         let partyLiveHitDebounce = null; // trailing-debounce timer for live hydration posts
         let bannerRefreshInterval = null; // #14 banner periodic refresh (3 s, active-party only)
 
+        // === AUTHORITATIVE-CODE GUARD ===
+        // After createParty() or joinParty() sets a local party_code, the periodic
+        // status-sync (updatePartyStatus) must NOT clobber it with a stale code the
+        // Python backend still remembers from a previous session.
+        //
+        // _authCode      — the code we set locally via create/join (null when not in a party)
+        // _authCodeTs    — timestamp (ms) when we set it; guard expires after AUTH_CODE_TTL_MS
+        //                  in case the backend legitimately picks up the new code faster than
+        //                  the guard window — after expiry the backend is considered in sync.
+        //
+        // A status_sync update is IGNORED (for party_code only) when ALL of:
+        //   1. _authCode is non-null
+        //   2. the incoming status.party_code differs from _authCode
+        //   3. the guard is still within its TTL
+        //
+        // On leave: _authCode is cleared so a fresh session never inherits a stale guard.
+        let _authCode = null;
+        let _authCodeTs = 0;
+        const AUTH_CODE_TTL_MS = 8000; // 8 s — enough for 4–8 status-poll cycles
+
         function startPartyPing() {
             stopPartyPing();
             partyPingInterval = setInterval(() => {
@@ -24025,6 +24045,10 @@ ${attemptLine}
             const code = generatePartyCode();
             console.log('[Party] Creating party:', code);
 
+            // Mark this code as locally authoritative so status-sync cannot clobber it.
+            _authCode = code;
+            _authCodeTs = Date.now();
+
             partyState.connected = true;
             { const _prev = partyState.party_code; partyState.party_code = code; if (_prev !== code) partyDebug('party_code_change', { event: 'party_code_change', from: _prev, to: code, reason: 'createParty' }); }
             partyState.is_leader = true;
@@ -24093,6 +24117,10 @@ ${attemptLine}
             }
 
             console.log('[Party] Joining party:', code, 'as', partyState.username);
+
+            // Mark this code as locally authoritative so status-sync cannot clobber it.
+            _authCode = code;
+            _authCodeTs = Date.now();
 
             partyState.connected = true;
             { const _prev = partyState.party_code; partyState.party_code = code; if (_prev !== code) partyDebug('party_code_change', { event: 'party_code_change', from: _prev, to: code, reason: 'joinParty' }); }
@@ -24195,6 +24223,15 @@ ${attemptLine}
                     partyWS.send(JSON.stringify({ type: 'leave' }));
                 }
             } catch (err) { console.warn('[Party] Error sending leave:', err); }
+
+            // Tell the Python backend to clear its stored party_code so future status-sync
+            // broadcasts don't re-emit a stale code. The backend 'clear_party' handler sets
+            // party_code = null (and resets party session state) — name matches dps_meter_server HANDLERS.
+            try { sendCommand('clear_party'); } catch (err) { console.warn('[Party] Error sending clear_party to backend:', err); }
+
+            // Clear the authoritative-code guard so the next create/join starts clean.
+            _authCode = null;
+            _authCodeTs = 0;
 
             disconnectPartyWS();
 
@@ -24728,7 +24765,22 @@ ${attemptLine}
             }
             if (status.connecting !== undefined) partyState.connecting = status.connecting;
             if (status.party_code) {
-                const _prev = partyState.party_code; partyState.party_code = status.party_code; if (_prev !== status.party_code) partyDebug('party_code_change', { event: 'party_code_change', from: _prev, to: status.party_code, reason: 'status_sync', wsUrl: partyWS ? partyWS.url : undefined });
+                // Authoritative-code guard: if the local create/join established a code
+                // recently, and the backend is sending back a DIFFERENT (stale) code,
+                // ignore the backend value until the guard TTL expires.  After TTL the
+                // backend is considered in sync and normal assignment resumes.
+                const guardActive = _authCode !== null
+                    && status.party_code !== _authCode
+                    && (Date.now() - _authCodeTs) < AUTH_CODE_TTL_MS;
+                if (guardActive) {
+                    partyDebug('party_code_guard_blocked', {
+                        local: _authCode,
+                        backend: status.party_code,
+                        age_ms: Date.now() - _authCodeTs
+                    });
+                } else {
+                    const _prev = partyState.party_code; partyState.party_code = status.party_code; if (_prev !== status.party_code) partyDebug('party_code_change', { event: 'party_code_change', from: _prev, to: status.party_code, reason: 'status_sync', wsUrl: partyWS ? partyWS.url : undefined });
+                }
             }
             if (status.is_leader !== undefined && status.is_leader !== null) {
                 partyState.is_leader = status.is_leader;
