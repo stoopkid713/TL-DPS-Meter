@@ -1,0 +1,23 @@
+{
+  "name": "tldps-battery",
+  "private": true,
+  "description": "Internal sim test battery — orchestrates wrangler dev + sim_party.py bots + real-WS receiving client (Playwright). Phase 1: S1.1 runner scaffold + S1.2 receiving-client harness + S1.3 smoke scenarios.",
+  "scripts": {
+    "smoke": "node runner.js --smoke",
+    "full": "node runner.js --full",
+    "list": "node runner.js --list",
+    "check": "node --check runner.js receiving-client.js scenarios/index.js scenarios/smoke-boot.js scenarios/lifecycle-basic.js scenarios/single-boss-board.js scenarios/drill-down-both-sides.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
+  },
+  "notes": {
+    "wrangler": "Run from workers/party/ with wrangler dev — started automatically by runner.js",
+    "python": "Requires C:/Users/Admin/Projects/TL-DPS-Meter/backend/.venv/Scripts/python.exe",
+    "phase-0": "window.__tldps (Observability #3) is soft-checked; harness degrades gracefully if not present",
+    "gate": "npm run smoke is the hard gate before any release (all runtime:browser scenarios must PASS)"
+  }
+}
