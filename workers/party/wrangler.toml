@@ -27,3 +27,10 @@ new_sqlite_classes = ["PartyRoom"]
 [[kv_namespaces]]
 binding = "FEEDBACK_KV"
 id = "a61e7c1245a14bcc9c96b3cec7da6318"
+
+# Observability #4 debug endpoint auth key.
+# Production: set via `wrangler secret put DEBUG_KEY` (encrypted, never in source).
+# Local dev:  set DEBUG_KEY=<value> in workers/party/.dev.vars (gitignored).
+# If unset (empty string / absent), the /party/<code>/debug endpoint returns 404.
+[vars]
+DEBUG_KEY = ""

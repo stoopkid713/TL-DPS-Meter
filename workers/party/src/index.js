@@ -253,6 +253,20 @@ export default {
     }
 
     // WS join:  /party/<CODE>?user_id=..&username=..&leader=0|1
+    // Debug:    GET /party/<CODE>/debug?key=<DEBUG_KEY>  (Obs #4)
+    const mDebug = url.pathname.match(/^\/party\/([A-Za-z0-9]+)\/debug$/);
+    if (mDebug) {
+      // Auth gate: disabled entirely if DEBUG_KEY env var is unset.
+      if (!env.DEBUG_KEY) return new Response("not found", { status: 404 });
+      if (url.searchParams.get("key") !== env.DEBUG_KEY) {
+        return new Response("forbidden", { status: 403 });
+      }
+      const code = mDebug[1].toUpperCase();
+      if (!CODE_RE.test(code)) return new Response("bad party code", { status: 400 });
+      const id = env.PARTY_ROOM.idFromName(code);
+      return env.PARTY_ROOM.get(id).fetch(request);
+    }
+
     const m = url.pathname.match(/^\/party\/([A-Za-z0-9]+)$/);
     if (m) {
       const code = m[1].toUpperCase();
@@ -280,9 +294,18 @@ export class PartyRoom {
     this.env = env;
   }
 
-  // --- connection (WS upgrade) ---
+  // --- connection (WS upgrade) + Obs #4 debug x-ray ---
   async fetch(request) {
     const url = new URL(request.url);
+
+    // Obs #4: room introspection endpoint.
+    // Route: GET /party/<CODE>/debug  (auth already verified in the global fetch handler)
+    // Returns a JSON x-ray of all live room state — for active-room probing, battery assertions,
+    // deploy-timing checks, and ghost/eviction debugging. No behavior change to the party flow.
+    if (url.pathname.endsWith("/debug") && request.method === "GET") {
+      return this._handleDebug();
+    }
+
     const code = (url.pathname.split("/").pop() || "").toUpperCase();
     const user_id = url.searchParams.get("user_id") || "";
     const username = (url.searchParams.get("username") || "Anon").slice(0, 32);
@@ -1049,6 +1072,112 @@ export class PartyRoom {
       active_encounter_id: encounters.active_id,
       encounter_active,
     };
+  }
+
+  // --- Obs #4: room x-ray (debug endpoint) ---
+  // Called only from _handleDebug() which is reached only after the global fetch handler
+  // verifies env.DEBUG_KEY. Pure read — no mutations, no behavior change to party flow.
+  async _handleDebug() {
+    try {
+      const members = (await this.ctx.storage.get("members")) || {};
+      const active_encounter_id = (await this.ctx.storage.get("active_encounter_id")) || null;
+      const encounter_active_flag = !!(await this.ctx.storage.get("encounter_active"));
+
+      // Live socket state from hibernation registry.
+      const liveSockets = this.ctx.getWebSockets();
+      const onlineIds = new Set(
+        liveSockets.map((ws) => (ws.deserializeAttachment() || {}).user_id).filter(Boolean)
+      );
+
+      // Member rows with online status and last_seen age.
+      const now = Date.now();
+      const memberList = Object.entries(members).map(([uid, m]) => ({
+        user_id: uid,
+        username: m.username,
+        is_leader: !!m.is_leader,
+        online: onlineIds.has(uid),
+        last_seen: m.last_seen || m.joined_at || 0,
+        last_seen_age_s: Math.floor((now - (m.last_seen || m.joined_at || now)) / 1000),
+        joined_at: m.joined_at || 0,
+        joined_age_s: Math.floor((now - (m.joined_at || now)) / 1000),
+      }));
+
+      // Spectators (overlay) — connected but not in members map.
+      const spectatorCount = liveSockets.filter((ws) => {
+        const att = ws.deserializeAttachment() || {};
+        return !!att.is_spectator;
+      }).length;
+
+      // Encounters + submission counts from SQLite.
+      let encounterList = [];
+      let encounterIdMapRows = [];
+      try {
+        this._ensureTables();
+        const encRows = [...this.ctx.storage.sql.exec(
+          "SELECT id, started_at, ended FROM encounters ORDER BY started_at ASC"
+        )];
+        for (const enc of encRows) {
+          const subRows = [...this.ctx.storage.sql.exec(
+            "SELECT user_id, has_detail FROM submissions WHERE encounter_id = ?", enc.id
+          )];
+          const detailRows = [...this.ctx.storage.sql.exec(
+            "SELECT user_id FROM member_detail WHERE encounter_id = ?", enc.id
+          )];
+          encounterList.push({
+            encounter_id: enc.id,
+            started_at: enc.started_at,
+            started_age_s: Math.floor((now - (enc.started_at || now)) / 1000),
+            ended: !!enc.ended,
+            is_active: enc.id === active_encounter_id,
+            submission_count: subRows.length,
+            detail_count: detailRows.length,
+            submitters: subRows.map((r) => ({ user_id: r.user_id, has_detail: !!r.has_detail })),
+          });
+        }
+        encounterIdMapRows = [...this.ctx.storage.sql.exec(
+          "SELECT posted_id, canonical_id FROM encounter_id_map ORDER BY posted_id ASC"
+        )].map((r) => ({ posted_id: r.posted_id, canonical_id: r.canonical_id }));
+      } catch (sqlErr) {
+        encounterList = [{ error: String(sqlErr) }];
+      }
+
+      // Ghost candidates: offline members within / beyond eviction window.
+      const ghosts = memberList
+        .filter((m) => !m.online)
+        .map((m) => ({
+          user_id: m.user_id,
+          username: m.username,
+          last_seen_age_s: m.last_seen_age_s,
+          evict_in_s: Math.max(0, Math.floor(GHOST_EVICT_MS / 1000) - m.last_seen_age_s),
+          eligible_for_eviction: m.last_seen_age_s >= Math.floor(GHOST_EVICT_MS / 1000),
+        }));
+
+      const xray = {
+        ts: now,
+        member_count: memberList.length,
+        online_count: onlineIds.size,
+        spectator_count: spectatorCount,
+        members: memberList,
+        active_encounter_id,
+        encounter_active_flag,
+        encounter_count: encounterList.length,
+        encounters: encounterList,
+        encounter_id_map: encounterIdMapRows,
+        ghost_candidates: ghosts,
+        tables_ready: !!this._tablesReady,
+      };
+
+      logEvent("debug_xray", { member_count: xray.member_count, encounter_count: xray.encounter_count });
+      return new Response(JSON.stringify(xray, null, 2), {
+        status: 200,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: String(err) }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
   }
 
   // --- broadcast helpers ---
