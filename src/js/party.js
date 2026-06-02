@@ -183,6 +183,28 @@
             try { console.log('[PartyDbg] ' + event, fields || ''); } catch (e) {}
             try { sendCommand('client_debug', { event: event, fields: fields || {} }); } catch (e) {}
         }
+
+        // === Obs #3 — live debug handle ===
+        // TLDPS_DEBUG=1 is a Python server-side env var; there is no client-side flag exposed to
+        // the WebView. We expose window.__tldps unconditionally so the debugger can always reach
+        // live state without DOM-scraping. In production this is a harmless read-only handle on
+        // the same closure that drives the UI; it does not expose anything not already in the DOM.
+        // NOTE: V-RUNTIME confirmation (CDP read of window.__tldps.state) is deferred to integration.
+        try {
+            Object.defineProperty(window, '__tldps', {
+                configurable: true,
+                enumerable: false,
+                get: function() {
+                    return {
+                        get state() { return partyState; },
+                        get ws()    { return partyWS; },
+                        get code()  { return partyState.party_code; }
+                    };
+                }
+            });
+        } catch (e) { /* already defined — ignore on re-injection */ }
+        // === End Obs #3 ===
+
         let partyWS = null;
         let partyWSConnected = false;
         let partyWSWantOpen = false;   // we intend to stay connected (drives reconnect)
@@ -264,7 +286,8 @@
                     console.warn('[Party] Could not join room (full, bad code, or offline)');
                     partyWSWantOpen = false;
                     alert('Could not join party. It may be full, the code may be invalid, or the server is unreachable.');
-                    partyState.connected = false; partyState.party_code = null;
+                    partyState.connected = false;
+                    { const _prev = partyState.party_code; partyState.party_code = null; if (_prev !== null) partyDebug('party_code_change', { event: 'party_code_change', from: _prev, to: null, reason: 'disconnect' }); }
                     partyState.is_leader = false; partyState.encounter_active = false;
                     updatePartyUI();
                     return;
@@ -374,7 +397,7 @@
                         partyWSWantOpen = false;
                         disconnectPartyWS();
                         partyState.connected = false;
-                        partyState.party_code = null;
+                        { const _prev = partyState.party_code; partyState.party_code = null; if (_prev !== null) partyDebug('party_code_change', { event: 'party_code_change', from: _prev, to: null, reason: 'kicked' }); }
                         partyState.is_leader = false;
                         partyState.roster = [];
                         updatePartyUI();
@@ -557,7 +580,7 @@
             console.log('[Party] Creating party:', code);
 
             partyState.connected = true;
-            partyState.party_code = code;
+            { const _prev = partyState.party_code; partyState.party_code = code; if (_prev !== code) partyDebug('party_code_change', { event: 'party_code_change', from: _prev, to: code, reason: 'createParty' }); }
             partyState.is_leader = true;
             partyState.created_at = new Date().toISOString();
             partyState.encounter_active = false;
@@ -626,7 +649,7 @@
             console.log('[Party] Joining party:', code, 'as', partyState.username);
 
             partyState.connected = true;
-            partyState.party_code = code;
+            { const _prev = partyState.party_code; partyState.party_code = code; if (_prev !== code) partyDebug('party_code_change', { event: 'party_code_change', from: _prev, to: code, reason: 'joinParty' }); }
             partyState.is_leader = false;  // the room's welcome confirms our role
             partyState.created_at = new Date().toISOString();
             partyState.encounter_active = false;
@@ -666,7 +689,7 @@
             disconnectPartyWS();
 
             partyState.connected = false;
-            partyState.party_code = null;
+            { const _prev = partyState.party_code; partyState.party_code = null; if (_prev !== null) partyDebug('party_code_change', { event: 'party_code_change', from: _prev, to: null, reason: 'leave' }); }
             partyState.is_leader = false;
             partyState.encounter_active = false;
             partyState.results = {};
@@ -1195,7 +1218,7 @@
             }
             if (status.connecting !== undefined) partyState.connecting = status.connecting;
             if (status.party_code) {
-                partyState.party_code = status.party_code;
+                const _prev = partyState.party_code; partyState.party_code = status.party_code; if (_prev !== status.party_code) partyDebug('party_code_change', { event: 'party_code_change', from: _prev, to: status.party_code, reason: 'status_sync', wsUrl: partyWS ? partyWS.url : undefined });
             }
             if (status.is_leader !== undefined && status.is_leader !== null) {
                 partyState.is_leader = status.is_leader;
