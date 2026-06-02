@@ -305,7 +305,54 @@ export default {
         { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
     }
 
+    // Usage timeline (Obs #4): GET /rooms/history?key=<DEBUG_KEY> -> the hourly snapshots the
+    // scheduled() handler records. Returns the lightweight {ts, active_rooms} series (from KV
+    // metadata) so you can see usage over time. Same DEBUG_KEY gate.
+    if (url.pathname === "/rooms/history") {
+      if (!env.DEBUG_KEY) return new Response("not found", { status: 404 });
+      if (url.searchParams.get("key") !== env.DEBUG_KEY) {
+        return new Response("forbidden", { status: 403 });
+      }
+      if (!env.ROOMS_KV) {
+        return new Response(JSON.stringify({ samples: [], note: "ROOMS_KV not bound" }, null, 2),
+          { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      }
+      const { keys } = await env.ROOMS_KV.list({ prefix: "hist:" });
+      const samples = keys
+        .map((k) => k.metadata || { ts: Number(k.name.slice(5)) || 0, active_rooms: null })
+        .sort((a, b) => (a.ts || 0) - (b.ts || 0));
+      return new Response(JSON.stringify({ count: samples.length, samples }, null, 2),
+        { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+    }
+
     return new Response("not found", { status: 404 });
+  },
+
+  // Hourly usage snapshot (Obs #4, cron-triggered — see [triggers] in wrangler.toml). Samples
+  // the live active-room registry and records a timestamped history entry so /rooms/history can
+  // show a usage timeline. Pure read of ROOMS_KV + one write; no party state touched. Guards a
+  // missing binding so a misconfig never throws in the scheduled context.
+  async scheduled(event, env, _ctx) {
+    if (!env.ROOMS_KV) return;
+    try {
+      const { keys } = await env.ROOMS_KV.list({ prefix: "room:" });
+      const rooms = keys.map((k) => ({ code: k.name.slice(5), ...(k.metadata || {}) }));
+      const ts = Date.now();
+      const snapshot = {
+        ts,
+        active_rooms: rooms.length,
+        rooms: rooms.map((r) => ({
+          code: r.code, member_count: r.member_count ?? null,
+          online_count: r.online_count ?? null, leader: r.leader ?? null,
+        })),
+      };
+      logEvent("usage_snapshot", { active_rooms: snapshot.active_rooms, ts });
+      // 30-day retention; light {ts, active_rooms} summary in metadata for one-call timeline reads.
+      await env.ROOMS_KV.put(`hist:${ts}`, JSON.stringify(snapshot), {
+        metadata: { ts, active_rooms: snapshot.active_rooms },
+        expirationTtl: 2592000,
+      });
+    } catch (_) {}
   },
 };
 

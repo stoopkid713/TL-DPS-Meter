@@ -11,6 +11,12 @@ compatibility_date = "2026-05-01"
 [observability]
 enabled = true
 
+# Hourly usage snapshot (Obs #4). The scheduled() handler samples the live active-room
+# registry and writes a timestamped history entry to ROOMS_KV, so GET /rooms/history can
+# show a usage timeline ("how many parties over time") without anyone watching manually.
+[triggers]
+crons = ["0 * * * *"]
+
 # Durable Object binding. The PartyRoom class is the per-party room.
 [[durable_objects.bindings]]
 name = "PARTY_ROOM"

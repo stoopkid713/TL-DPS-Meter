@@ -55,6 +55,18 @@ const [cmd = "rooms", arg] = process.argv.slice(2);
 if (cmd === "debug") {
   if (!arg) { console.error("usage: node obs_rooms.mjs debug <CODE>"); process.exit(2); }
   console.log(JSON.stringify(await getJson(`/party/${encodeURIComponent(arg.toUpperCase())}/debug`), null, 2));
+} else if (cmd === "history") {
+  // Hourly usage timeline recorded by the worker's scheduled snapshot.
+  const j = await getJson("/rooms/history");
+  console.log(`USAGE TIMELINE: ${j.count} hourly snapshots`);
+  let peak = 0;
+  for (const s of j.samples) {
+    if ((s.active_rooms || 0) > peak) peak = s.active_rooms || 0;
+    const bar = "#".repeat(s.active_rooms || 0);
+    console.log(`  ${new Date(s.ts).toISOString().slice(0, 16).replace("T", " ")}  ${String(s.active_rooms ?? "?").padStart(2)} ${bar}`);
+  }
+  if (!j.samples.length) console.log("  (no snapshots yet — the first lands at the top of the next hour)");
+  else console.log(`  peak: ${peak} concurrent parties`);
 } else if (cmd === "raw") {
   console.log(JSON.stringify(await getJson("/rooms"), null, 2));
 } else {

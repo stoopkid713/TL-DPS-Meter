@@ -125,3 +125,36 @@ wrangler deploy --dry-run
 
 ## Deploy
 `wrangler deploy` (manual) or push to `main` (CI auto-deploys — see `.github/workflows/`).
+
+## Observability — usage & room introspection (Obs #4)
+
+Three read-only endpoints, all gated by a shared `DEBUG_KEY` secret (unset → `404`; wrong key → `403`):
+
+| Endpoint | What it shows |
+|---|---|
+| `GET /rooms?key=<KEY>` | active parties right now — `{active_rooms, rooms:[{code, member_count, online_count, leader, created_at, last_activity}]}` |
+| `GET /party/<CODE>/debug?key=<KEY>` | full x-ray of one room (members, online/ghost state, encounters, id-map) |
+| `GET /rooms/history?key=<KEY>` | hourly usage timeline (`{ts, active_rooms}` series), recorded by the `scheduled()` cron |
+
+How it works: each room writes a `room:<CODE>` summary to **`ROOMS_KV`** on roster changes (DOs can't
+be enumerated, so this registry is how `/rooms` lists them); a 2 h TTL drops stale rooms. The hourly
+cron (`[triggers]` in `wrangler.toml`) samples that registry into `hist:<ts>` entries (30-day TTL).
+
+**CLI:** `node backend/tools/obs_rooms.mjs [rooms | debug <CODE> | history | raw]`.
+
+### DEBUG_KEY — set / rotate (the one piece of housekeeping)
+The key lives in exactly two places: the Cloudflare **secret** (used by the worker) and a gitignored
+local file (used by the CLI). Cloudflare can't show a secret back, so the local file is the only
+readable copy — they must hold the **same value**. To set or rotate:
+
+```bash
+cd workers/party
+node -e "require('fs').writeFileSync('.obs-key', require('crypto').randomBytes(24).toString('base64url'))"
+wrangler secret put DEBUG_KEY < .obs-key   # pushes the same value to Cloudflare
+```
+
+- **Never** put the key in `wrangler.toml` as a `[vars]` entry — a plaintext var of the same name
+  shadows the secret and resets it to `""` on every deploy. Secrets-only.
+- Lost `.obs-key` (new machine, deleted file)? You can't read the old secret back — just run the two
+  commands above to mint a fresh key; old copies stop working, which is the point.
+- The CLI also accepts `TLDPS_DEBUG_KEY` as an env var instead of the file.
