@@ -216,6 +216,19 @@ class PartyState:
         self.encounter_active = False
         return self.get_results(include_hits=include_hits)
 
+    def clear_party(self) -> None:
+        """Leave the party session: null ``party_code`` and wipe all accumulators.
+
+        Called when the user leaves or closes a party room.  After this call,
+        ``get_status()`` emits ``party_code=None`` so any subsequent status-sync on
+        the frontend sees a clean slate — no stale code that could clobber a freshly
+        generated create/join code.  Also disarms the encounter so auto-arm cannot
+        fire for a room that no longer exists.
+        """
+        self.encounter_active = False
+        self.party_code = None
+        self.reset_stats()
+
     def _open_encounter(self, encounter_id: Optional[str] = None) -> PartyEncounter:
         enc = PartyEncounter(encounter_id)
         self.encounters.append(enc)
