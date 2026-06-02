@@ -475,6 +475,11 @@ export class PartyRoom {
           this.broadcast({ type: "member_kicked", user_id: target_uid, by: att.user_id });
           this.broadcast(await this.buildRoster());
           this.broadcast(await this.buildEncounters());
+        } else {
+          logEvent("kick_rejected", {
+            user_id: att.user_id, is_leader: !!att.is_leader,
+            target_uid: target_uid || null, self_kick: target_uid === att.user_id,
+          });
         }
         return;
       }
@@ -513,6 +518,15 @@ export class PartyRoom {
         this.broadcast(await this.buildRoster());
         this.broadcast(await this.buildEncounters());
         this.broadcastExcept(att.user_id, { type: "member_left", user_id: att.user_id });
+        return;
+
+      default:
+        // Unknown / future message type — log so wrangler tail catches frames from newer
+        // clients hitting an older worker, or typos in custom tooling. [observability]
+        logEvent("unknown_msg_type", {
+          type: msg.type != null ? String(msg.type).slice(0, 64) : null,
+          user_id: att.user_id, code: att.code,
+        });
         return;
     }
   }
