@@ -1009,20 +1009,25 @@ export class PartyRoom {
   // Full room teardown: clear all storage and deregister from ROOMS_KV.
   // Called on leader-leave disband and from alarm() when idle TTL expires.
   async _disbandRoom() {
+    // Read the room code BEFORE wiping storage, so the registry deregistration below
+    // still has it (deleteAll() removes "code" too).
+    let code = null;
+    try { code = await this.ctx.storage.get("code"); } catch (_) {}
     try {
       // Wipe all persistent state.
       await this.ctx.storage.deleteAll();
       // Cancel any pending alarm — the room is gone.
       await this.ctx.storage.deleteAlarm();
     } catch (_) {}
+    // deleteAll() drops the SQLite tables. Clear the in-memory guard so the next
+    // _ensureTables() recreates them — otherwise queries hit "no such table: encounters"
+    // (SQLITE_ERROR -> 500) if this DO instance handles another request after disband.
+    this._tablesReady = false;
     // Deregister from the active-room registry.
     try {
-      if (this.env.ROOMS_KV) {
-        const code = await this.ctx.storage.get("code").catch(() => null);
-        if (code) await this.env.ROOMS_KV.delete("room:" + code);
-      }
+      if (this.env.ROOMS_KV && code) await this.env.ROOMS_KV.delete("room:" + code);
     } catch (_) {}
-    logEvent("room_disbanded", {});
+    logEvent("room_disbanded", { code: code || null });
   }
 
   // Arm (or re-arm) the DO alarm for idle-TTL self-clean. Called after roster events that
