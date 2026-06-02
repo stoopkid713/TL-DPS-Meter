@@ -35,3 +35,5 @@ overlay/src-tauri/target/
 overlay/src-tauri/gen/
 
 _test-obs.mjs
+.obs-key
+obs.mjs
