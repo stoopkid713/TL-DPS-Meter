@@ -110,7 +110,7 @@ function startWrangler() {
 }
 
 /** Poll until wrangler is ready (HTTP upgrade on any WS path responds). */
-async function waitForWrangler(timeoutMs = 30_000) {
+async function waitForWrangler(timeoutMs = 45_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
@@ -121,11 +121,13 @@ async function waitForWrangler(timeoutMs = 30_000) {
           res(r.statusCode);
         });
         req.on('error', rej);
-        req.setTimeout(1000, () => { req.destroy(); rej(new Error('timeout')); });
+        // 3 s per-attempt: wrangler's first request initialises the DO + SQLite
+        // and can take 1-2 s even after "Ready on ..." is printed.
+        req.setTimeout(3_000, () => { req.destroy(); rej(new Error('timeout')); });
       });
       return; // any response = worker is up
     } catch (_) {
-      await new Promise(r => setTimeout(r, 600));
+      await new Promise(r => setTimeout(r, 800));
     }
   }
   throw new Error(`wrangler dev did not start within ${timeoutMs}ms`);

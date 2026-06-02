@@ -30,6 +30,13 @@ const MAX_MEMBERS = 12;
 // so it never runs on an idle room.
 const GHOST_EVICT_MS = 5 * 60 * 1000; // 5 minutes
 
+// Idle room TTL for the alarm-based self-clean (Change 1). A room is considered idle when it
+// has zero online members. The alarm is re-armed on every roster mutation; if it fires and the
+// room is still empty, we evict ghosts and — if the room is truly member-less — tear it down
+// (delete all storage + deregister from ROOMS_KV). 10 minutes is generous enough to survive a
+// short crash-reload cycle without being so long that orphaned DOs accumulate indefinitely.
+const IDLE_ALARM_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
 // Merge window for concurrent same-boss submissions. Party members start combat a few seconds
 // apart (different fight_ts) → their posts would otherwise create separate 1-person boards.
 // When there is an OPEN active encounter and an incoming post's fight_ts is within this window
@@ -641,6 +648,8 @@ export class PartyRoom {
     await this._touchRegistryThrottled(); // online_count changed; throttled (offline storms)
     this.broadcast(await this.buildRoster());
     this.broadcastExcept(att.user_id, { type: "member_offline", user_id: att.user_id });
+    // Arm the idle alarm: if nobody reconnects within IDLE_ALARM_TTL_MS the room self-cleans.
+    await this._armIdleAlarm();
   }
 
   async webSocketError(ws) {
@@ -963,6 +972,8 @@ export class PartyRoom {
 
   async removeMember(user_id) {
     const members = (await this.ctx.storage.get("members")) || {};
+    const leavingMember = members[user_id];
+    const wasLeader = !!(leavingMember && leavingMember.is_leader);
     delete members[user_id];
     await this.ctx.storage.put("members", members);
     // Drop this member's submission from every encounter they appear in.
@@ -971,7 +982,97 @@ export class PartyRoom {
       this.ctx.storage.sql.exec("DELETE FROM submissions WHERE user_id = ?", user_id);
       this.ctx.storage.sql.exec("DELETE FROM member_detail WHERE user_id = ?", user_id);
     } catch (_) {}
+
+    // Change 1 — disband on leader-leave: when the leader disconnects, the party has no
+    // authoritative host. Broadcast a disband notice, close all remaining sockets, and tear
+    // down the room so it doesn't silently accept reconnects under a dead session code.
+    if (wasLeader) {
+      const remaining = Object.keys(members);
+      logEvent("leader_left_disband", { user_id, remaining_count: remaining.length });
+      // Notify everyone before closing their sockets.
+      this.broadcast({ type: "party_disbanded", reason: "leader_left" });
+      for (const ws of this.ctx.getWebSockets()) {
+        try { ws.close(1000, "party_disbanded"); } catch (_) {}
+      }
+      await this._disbandRoom();
+      return; // skip _touchRegistry — _disbandRoom handles deregistration
+    }
+
     await this._touchRegistry(); // roster changed (leave/kick); deregisters if now empty
+    // Arm the idle alarm whenever a member leaves: if nobody reconnects within IDLE_ALARM_TTL_MS
+    // the alarm handler will tear down the room.
+    await this._armIdleAlarm();
+  }
+
+  // --- Change 1: room teardown helpers ---
+
+  // Full room teardown: clear all storage and deregister from ROOMS_KV.
+  // Called on leader-leave disband and from alarm() when idle TTL expires.
+  async _disbandRoom() {
+    try {
+      // Wipe all persistent state.
+      await this.ctx.storage.deleteAll();
+      // Cancel any pending alarm — the room is gone.
+      await this.ctx.storage.deleteAlarm();
+    } catch (_) {}
+    // Deregister from the active-room registry.
+    try {
+      if (this.env.ROOMS_KV) {
+        const code = await this.ctx.storage.get("code").catch(() => null);
+        if (code) await this.env.ROOMS_KV.delete("room:" + code);
+      }
+    } catch (_) {}
+    logEvent("room_disbanded", {});
+  }
+
+  // Arm (or re-arm) the DO alarm for idle-TTL self-clean. Called after roster events that
+  // could leave the room empty (member leave, webSocketClose). If an alarm is already pending
+  // within IDLE_ALARM_TTL_MS we leave it alone — don't push it further out on every event.
+  async _armIdleAlarm() {
+    try {
+      const existing = await this.ctx.storage.getAlarm();
+      const target = Date.now() + IDLE_ALARM_TTL_MS;
+      // Only set if no alarm is pending, or it is set too far in the future.
+      if (!existing || existing > target + 60_000) {
+        await this.ctx.storage.setAlarm(target);
+        logEvent("idle_alarm_armed", { fires_at: target, in_ms: IDLE_ALARM_TTL_MS });
+      }
+    } catch (_) {}
+  }
+
+  // DO alarm() handler — called by the CF runtime when the scheduled alarm fires.
+  // If the room is still empty/idle, run ghost eviction and tear it down.
+  // If there are online members, the room is active — re-arm the alarm so we check again later.
+  async alarm() {
+    logEvent("alarm_fired", {});
+    try {
+      await this._evictGhosts();
+      const members = (await this.ctx.storage.get("members")) || {};
+      const online = new Set(
+        this.ctx.getWebSockets().map((ws) => (ws.deserializeAttachment() || {}).user_id)
+      );
+      const hasOnline = Object.keys(members).some((uid) => online.has(uid));
+      if (hasOnline) {
+        // Room is active — re-arm so we check again after another TTL period.
+        const target = Date.now() + IDLE_ALARM_TTL_MS;
+        await this.ctx.storage.setAlarm(target);
+        logEvent("alarm_room_active_rearm", { fires_at: target, member_count: Object.keys(members).length });
+        return;
+      }
+      // Room is empty or all members are ghosts (already evicted above).
+      const remaining = Object.keys((await this.ctx.storage.get("members")) || {});
+      if (remaining.length === 0) {
+        logEvent("alarm_idle_teardown", { reason: "no_members_after_eviction" });
+        await this._disbandRoom();
+      } else {
+        // Ghost-only members survived eviction window — re-arm and check again.
+        const target = Date.now() + IDLE_ALARM_TTL_MS;
+        await this.ctx.storage.setAlarm(target);
+        logEvent("alarm_ghosts_remain_rearm", { remaining: remaining.length, fires_at: target });
+      }
+    } catch (err) {
+      logEvent("alarm_error", { error: String(err) });
+    }
   }
 
   // --- boss detection (server-side, cross-party convergence) ---
@@ -1008,6 +1109,88 @@ export class PartyRoom {
     };
   }
 
+  // --- Change 2: multi-phase boss aggregation helper ---
+  // For a single submission, collect ALL targets that are known boss-category entries
+  // (any entry in KNOWN_BOSSES), sum their damage, and recompute combined rates weighted
+  // by hit count. This correctly handles multi-phase bosses (e.g. Calanthia phase-1 +
+  // Calanthia of Destruction phase-2) which appear as two separate named targets in one
+  // submission but belong to the same kill.
+  //
+  // For single-phase bosses (one matching target) the result is identical to the old
+  // `find` path — no regression. Trash (non-KNOWN_BOSSES targets) is excluded by the
+  // KNOWN_BOSSES gate, same as before.
+  //
+  // Stat merge strategy:
+  //   total_damage  — summed directly.
+  //   hits          — summed directly (raw count).
+  //   crit_heavy_count — summed directly (raw count).
+  //   crit_rate / heavy_rate / crit_heavy_rate — weighted average by hits so the combined
+  //     rate reflects the actual hit distribution across phases.
+  //   dps / duration — taken from the highest-damage phase (the "primary" phase); a true
+  //     combined DPS would require the union of per-hit timestamps which we don't have.
+  //   Other fields (target, has_detail) — taken from the highest-damage phase entry.
+  _aggregateBossTargets(sub) {
+    // Collect all targets that are known bosses (any category).
+    const bossTargets = sub.targets.filter((t) => KNOWN_BOSSES[norm(t.target)]);
+    if (!bossTargets.length) return null;
+
+    // Sort descending by damage so [0] is the primary/highest-damage phase.
+    bossTargets.sort((a, b) => (b.total_damage || 0) - (a.total_damage || 0));
+    const primary = bossTargets[0];
+
+    if (bossTargets.length === 1) {
+      // Fast path: single phase — return as-is (no change in behavior).
+      return primary;
+    }
+
+    // Multi-phase: aggregate.
+    let totalDamage = 0;
+    let totalHits = 0;
+    let totalCritHeavyCount = 0;
+    let weightedCrit = 0;
+    let weightedHeavy = 0;
+    let weightedCritHeavy = 0;
+
+    for (const t of bossTargets) {
+      const dmg = Number(t.total_damage) || 0;
+      const hits = Number(t.hits) || 0;
+      totalDamage += dmg;
+      totalHits += hits;
+      totalCritHeavyCount += Number(t.crit_heavy_count) || 0;
+      // Weight rates by hits for a correct blended rate.
+      weightedCrit += (Number(t.crit_rate) || 0) * hits;
+      weightedHeavy += (Number(t.heavy_rate) || 0) * hits;
+      weightedCritHeavy += (Number(t.crit_heavy_rate) || 0) * hits;
+    }
+
+    const combinedCritRate = totalHits > 0 ? weightedCrit / totalHits : 0;
+    const combinedHeavyRate = totalHits > 0 ? weightedHeavy / totalHits : 0;
+    const combinedCritHeavyRate = totalHits > 0 ? weightedCritHeavy / totalHits : 0;
+
+    logEvent("multiphase_aggregate", {
+      user_id: sub.user_id,
+      phases: bossTargets.length,
+      phase_names: bossTargets.map((t) => t.target),
+      total_damage: totalDamage,
+      primary_damage: primary.total_damage,
+    });
+
+    return {
+      // Identity fields from primary phase (the detected boss name / highest-damage phase).
+      target: primary.target,
+      // Combined stats.
+      total_damage: totalDamage,
+      hits: totalHits,
+      crit_rate: combinedCritRate,
+      heavy_rate: combinedHeavyRate,
+      crit_heavy_rate: combinedCritHeavyRate,
+      crit_heavy_count: totalCritHeavyCount,
+      // DPS/duration from primary — we lack timestamps to merge across phases.
+      dps: Number(primary.dps) || 0,
+      duration: Number(primary.duration) || 0,
+    };
+  }
+
   // --- views ---
   // Build the ranked boss scoreboard for ONE encounter (default: the active one). The current
   // single-board behaviour = the special case of one (active) encounter.
@@ -1025,11 +1208,13 @@ export class PartyRoom {
       encounter_id: id, boss: boss.name, category: boss.category,
       pool_size: boss.pool_size, submissions: submissions.length,
     });
-    const bossKey = norm(boss.name);
-    // Each member's damage to THE BOSS (trash filtered by definition).
+    // Change 2: aggregate ALL known-boss targets per submission (multi-phase fix).
+    // Old code: sub.targets.find(t => norm(t.target) === bossKey) — kept only the single
+    // detectBoss winner, dropping other phase targets (e.g. Calanthia phase-2 dropped ~28M).
+    // New code: _aggregateBossTargets sums all KNOWN_BOSSES targets in the submission.
     const board = [];
     for (const sub of submissions) {
-      const hit = sub.targets.find((t) => norm(t.target) === bossKey);
+      const hit = this._aggregateBossTargets(sub);
       if (hit) board.push({ ...hit, user_id: sub.user_id, username: sub.username, has_detail: !!sub.has_detail });
     }
     const total = board.reduce((s, e) => s + e.total_damage, 0);
@@ -1071,9 +1256,9 @@ export class PartyRoom {
       const boss = this.detectBoss(subs);
       let total_damage = 0;
       if (boss) {
-        const bk = norm(boss.name);
+        // Change 2: use _aggregateBossTargets so multi-phase encounters report correct totals.
         for (const s of subs) {
-          const hit = s.targets.find((t) => norm(t.target) === bk);
+          const hit = this._aggregateBossTargets(s);
           if (hit) total_damage += hit.total_damage;
         }
       }

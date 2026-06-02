@@ -1037,6 +1037,23 @@ def _h_party_reset_stats(s: DPSMeterServer, msg: dict) -> dict:
     return {"type": "party_stats_reset", "status": s.party.get_status()}
 
 
+def _h_clear_party(s: DPSMeterServer, msg: dict) -> dict:
+    """Leave the party session: null ``party_code``, wipe accumulators, disarm.
+
+    This is the LEAVE path — called by the frontend when the user leaves or
+    closes a party room.  After this call the status payload emits
+    ``party_code=None``, so the frontend status-sync loop sees a clean slate
+    and cannot clobber any freshly generated create/join code.
+
+    Distinct from ``party_stop_recording`` (which disarms but keeps the code)
+    and ``party_reset_stats`` (which wipes hits but keeps code + armed state).
+    """
+    s.party.clear_party()
+    s._party_session_active = False
+    s._party_last_hit_time = None
+    return {"type": "party_cleared", "status": s.party.get_status()}
+
+
 def _h_client_debug(s: DPSMeterServer, msg: dict) -> None:
     """Bridge a frontend debug event into the backend tracer.
 
@@ -1320,6 +1337,7 @@ HANDLERS: dict[str, Callable[[DPSMeterServer, dict], Optional[dict]]] = {
     "party_start_recording": _h_party_start_recording,
     "party_stop_recording": _h_party_stop_recording,
     "party_reset_stats": _h_party_reset_stats,
+    "clear_party": _h_clear_party,
     "client_debug": _h_client_debug,
     "open_overlay": _h_open_overlay,
     "close_overlay": _h_close_overlay,
