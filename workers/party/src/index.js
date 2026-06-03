@@ -250,6 +250,7 @@ const norm = (s) => String(s || "").trim().toLowerCase();
 
 import { handleSkills } from "./gamedata.js";
 import { handleFeedback } from "./feedback.js";
+import { handleDashboard, handleDashboardJson } from "./dashboard.js";
 
 export default {
   async fetch(request, env) {
@@ -331,6 +332,12 @@ export default {
       return new Response(JSON.stringify({ count: samples.length, samples }, null, 2),
         { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
     }
+
+    // Usage dashboard (Obs #4 part C): gated by DEBUG_KEY exactly like /rooms and /debug.
+    // GET /dashboard?key=<DEBUG_KEY>      → self-contained HTML page (client fetches /dashboard.json)
+    // GET /dashboard.json?key=<DEBUG_KEY> → aggregated JSON {generated_at, live_rooms, history, feedback}
+    if (url.pathname === "/dashboard") return handleDashboard(request, env);
+    if (url.pathname === "/dashboard.json") return handleDashboardJson(request, env);
 
     return new Response("not found", { status: 404 });
   },
