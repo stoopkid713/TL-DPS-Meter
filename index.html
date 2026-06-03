@@ -8809,6 +8809,7 @@
             <div class="welcome-content" id="welcomeDetectedContent">
                 <div class="welcome-cards-label">Quick Actions</div>
                 <div class="welcome-cards">
+                    <!-- Tour — full-width opener for new users -->
                     <div class="welcome-card purple full-width" onclick="closeWelcomeModal(); startTour();">
                         <div class="welcome-card-header">
                             <span class="welcome-card-icon">🗺️</span>
@@ -8818,40 +8819,33 @@
                         <div class="welcome-card-desc">New here? Get a guided walkthrough of every feature in the app</div>
                     </div>
 
+                    <!-- Party DPS — headline feature, full-width, high visual prominence -->
+                    <div class="welcome-card pink full-width" onclick="welcomeGoTo('partyDps')">
+                        <div class="welcome-card-header">
+                            <span class="welcome-card-icon">👥</span>
+                            <span class="welcome-card-title">Party DPS</span>
+                            <span class="welcome-card-arrow">→</span>
+                        </div>
+                        <div class="welcome-card-desc">Share a party code with your group and see everyone's damage in real-time. Perfect for raids and dungeons!</div>
+                    </div>
+
+                    <!-- Core solo analysis tools (2-column pair) -->
                     <div class="welcome-card cyan" onclick="welcomeGoTo('dashboard')">
                         <div class="welcome-card-header">
                             <span class="welcome-card-icon">📊</span>
-                            <span class="welcome-card-title">Go to Dashboard</span>
+                            <span class="welcome-card-title">Dashboard</span>
                             <span class="welcome-card-arrow">→</span>
                         </div>
-                        <div class="welcome-card-desc">View real-time DPS, crit rates, and skill breakdowns as you play</div>
+                        <div class="welcome-card-desc">Real-time DPS, crit rates, and skill breakdowns as you play</div>
                     </div>
 
                     <div class="welcome-card purple" onclick="welcomeGoTo('buildTesting')">
                         <div class="welcome-card-header">
                             <span class="welcome-card-icon">🧪</span>
-                            <span class="welcome-card-title">Test a Build</span>
+                            <span class="welcome-card-title">Build Testing</span>
                             <span class="welcome-card-arrow">→</span>
                         </div>
-                        <div class="welcome-card-desc">Record an encounter and save it with a build tag for later analysis</div>
-                    </div>
-
-                    <div class="welcome-card green" onclick="welcomeGoTo('fullEncounter')">
-                        <div class="welcome-card-header">
-                            <span class="welcome-card-icon">🏰</span>
-                            <span class="welcome-card-title">Build a Dungeon Run</span>
-                            <span class="welcome-card-arrow">→</span>
-                        </div>
-                        <div class="welcome-card-desc">Combine multiple encounters into a full dungeon run with total stats</div>
-                    </div>
-
-                    <div class="welcome-card yellow" onclick="welcomeGoTo('compare')">
-                        <div class="welcome-card-header">
-                            <span class="welcome-card-icon">⚖️</span>
-                            <span class="welcome-card-title">Compare Saved Builds</span>
-                            <span class="welcome-card-arrow">→</span>
-                        </div>
-                        <div class="welcome-card-desc">Side-by-side comparison of your saved encounters and builds</div>
+                        <div class="welcome-card-desc">Record 60s dummy pulls and queue them with build tags</div>
                     </div>
 
                     <div class="welcome-card orange" onclick="welcomeGoTo('encounters')">
@@ -8860,25 +8854,36 @@
                             <span class="welcome-card-title">Encounters</span>
                             <span class="welcome-card-arrow">→</span>
                         </div>
-                        <div class="welcome-card-desc">Browse your combat history and review past encounters</div>
+                        <div class="welcome-card-desc">Browse combat history and review past encounters</div>
                     </div>
 
-                    <div class="welcome-card blue" onclick="closeWelcomeModal(); openGuide();">
+                    <!-- Deeper analysis tools -->
+                    <div class="welcome-card green" onclick="welcomeGoTo('fullEncounter')">
+                        <div class="welcome-card-header">
+                            <span class="welcome-card-icon">🏰</span>
+                            <span class="welcome-card-title">Run Builder</span>
+                            <span class="welcome-card-arrow">→</span>
+                        </div>
+                        <div class="welcome-card-desc">Combine encounters into a full dungeon run with total stats</div>
+                    </div>
+
+                    <div class="welcome-card yellow" onclick="welcomeGoTo('compare')">
+                        <div class="welcome-card-header">
+                            <span class="welcome-card-icon">⚖️</span>
+                            <span class="welcome-card-title">Compare Builds</span>
+                            <span class="welcome-card-arrow">→</span>
+                        </div>
+                        <div class="welcome-card-desc">Side-by-side comparison of saved encounters and builds</div>
+                    </div>
+
+                    <!-- Reference — full-width footer card -->
+                    <div class="welcome-card blue full-width" onclick="closeWelcomeModal(); openGuide();">
                         <div class="welcome-card-header">
                             <span class="welcome-card-icon">📖</span>
                             <span class="welcome-card-title">Guide</span>
                             <span class="welcome-card-arrow">→</span>
                         </div>
                         <div class="welcome-card-desc">Learn how to use the app and enable combat logging in-game</div>
-                    </div>
-
-                    <div class="welcome-card pink full-width" onclick="welcomeGoTo('partyDps')">
-                        <div class="welcome-card-header">
-                            <span class="welcome-card-icon">👥</span>
-                            <span class="welcome-card-title">Party DPS</span>
-                            <span class="welcome-card-arrow">→</span>
-                        </div>
-                        <div class="welcome-card-desc">Share a party code with your group and see everyone's damage in real-time. Perfect for raids and dungeons!</div>
                     </div>
                 </div>
             </div>
@@ -9054,8 +9059,6 @@
                     <button class="btn-settings" onclick="openSettings()">⚙️ Settings</button>
                     <button class="btn-settings" onclick="openGuide()">📖 Guide</button>
                     <button class="btn-settings" onclick="startTour()" style="color:#a78bfa;">🗺️ Tour</button>
-                    <button class="btn-settings" onclick="openFeedbackModal()" title="Send feedback or report a bug" style="color:#22d3ee;">💬 Feedback</button>
-                    <button class="btn-settings" onclick="checkUpdateBanner(true)" title="Check for a newer version">⬆ Updates</button>
                 </div>
             </div>
 
@@ -9066,8 +9069,6 @@
                 <button class="sidebar-icon-btn" onclick="openGuide()" title="Guide">📖</button>
                 <button class="sidebar-icon-btn" onclick="startTour()" title="Tour" style="color:#a78bfa;">🗺️</button>
                 <button class="sidebar-icon-btn" onclick="openLogsFolder()" title="Open Logs Folder">📂</button>
-                <button class="sidebar-icon-btn" onclick="openFeedbackModal()" title="Feedback / report a bug" style="color:#22d3ee;">💬</button>
-                <button class="sidebar-icon-btn" onclick="checkUpdateBanner(true)" title="Check for updates">⬆</button>
                 <div class="sidebar-icon-strip-spacer"></div>
                 <button class="sidebar-icon-btn danger" onclick="purgeLogFile()" title="Purge LogFile">🗑️</button>
             </div>
@@ -9114,6 +9115,11 @@
                 </div>
                 <!-- Front Text -->
                 <div class="main-header-title">BUILD • TEST • SAVE • COMPARE</div>
+                <!-- Top-right header actions -->
+                <div style="position:absolute; top:10px; right:14px; z-index:3; display:flex; gap:6px; align-items:center;">
+                    <button onclick="checkUpdateBanner(true)" title="Check for a newer version" style="padding:5px 10px; background:rgba(15,23,42,0.7); border:1px solid #334155; border-radius:6px; color:#94a3b8; font-size:0.75rem; cursor:pointer; transition:all 0.2s; font-weight:500; line-height:1;" onmouseover="this.style.borderColor='#22d3ee';this.style.color='#22d3ee';this.style.background='rgba(34,211,238,0.1)';" onmouseout="this.style.borderColor='#334155';this.style.color='#94a3b8';this.style.background='rgba(15,23,42,0.7)';">⬆ Updates</button>
+                    <button onclick="openFeedbackModal()" title="Send feedback or report a bug" style="padding:5px 10px; background:rgba(15,23,42,0.7); border:1px solid #334155; border-radius:6px; color:#94a3b8; font-size:0.75rem; cursor:pointer; transition:all 0.2s; font-weight:500; line-height:1;" onmouseover="this.style.borderColor='#22d3ee';this.style.color='#22d3ee';this.style.background='rgba(34,211,238,0.1)';" onmouseout="this.style.borderColor='#334155';this.style.color='#94a3b8';this.style.background='rgba(15,23,42,0.7)';">💬 Feedback</button>
+                </div>
             </div>
             
             <!-- Loaded Encounter Indicator -->
@@ -9139,10 +9145,6 @@
                         <button class="tab" data-tab="compare">Compare</button>
                         <button class="tab" data-tab="fullEncounter">🏰 Run Builder</button>
                         <button class="tab" data-tab="runSummary">📋 Run Summary</button>
-                        <button class="tab" data-tab="skillSettings">⚙️ Skill Settings</button>
-                        <button class="tab" data-tab="skillAssign">🎯 Skill Assign</button>
-                        <button class="tab" data-tab="targetAssign">🎯 Target Assign</button>
-                        <button class="tab" data-tab="log">📋 Log File</button>
                     </div>
                 </div>
             </div>
@@ -11178,6 +11180,41 @@
             <!-- Welcome Guide re-open -->
             <div style="border-top: 1px solid #334155; margin: 20px 0; padding-top: 16px;">
                 <button class="btn btn-small" onclick="showWelcomeModalForce(); closeSettings();" style="width:100%; text-align:left; padding:10px 14px;">🏠 Show Welcome Guide</button>
+            </div>
+
+            <!-- Configuration Tabs -->
+            <div style="border-top: 1px solid #334155; margin: 20px 0; padding-top: 20px;">
+                <h3 style="font-size: 0.9rem; color: #94a3b8; margin-bottom: 12px;">🔧 Configuration</h3>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <button onclick="closeSettings(); switchToTab('skillSettings');" style="display:flex; align-items:center; gap:10px; padding:11px 14px; background:rgba(30,41,59,0.8); border:1px solid #334155; border-radius:8px; color:#e2e8f0; cursor:pointer; text-align:left; transition:all 0.2s; font-size:0.875rem;" onmouseover="this.style.borderColor='#a78bfa'; this.style.background='rgba(167,139,250,0.1)';" onmouseout="this.style.borderColor='#334155'; this.style.background='rgba(30,41,59,0.8)';">
+                        <span style="font-size:1.1rem;">⚙️</span>
+                        <div>
+                            <div style="font-weight:600;">Skill Settings</div>
+                            <div style="font-size:0.72rem; color:#64748b; margin-top:2px;">Mark skills that cannot crit or trigger heavy attacks</div>
+                        </div>
+                    </button>
+                    <button onclick="closeSettings(); switchToTab('skillAssign');" style="display:flex; align-items:center; gap:10px; padding:11px 14px; background:rgba(30,41,59,0.8); border:1px solid #334155; border-radius:8px; color:#e2e8f0; cursor:pointer; text-align:left; transition:all 0.2s; font-size:0.875rem;" onmouseover="this.style.borderColor='#a78bfa'; this.style.background='rgba(167,139,250,0.1)';" onmouseout="this.style.borderColor='#334155'; this.style.background='rgba(30,41,59,0.8)';">
+                        <span style="font-size:1.1rem;">🗡️</span>
+                        <div>
+                            <div style="font-weight:600;">Skill Assign</div>
+                            <div style="font-size:0.72rem; color:#64748b; margin-top:2px;">Assign skills to weapon categories for breakdown stats</div>
+                        </div>
+                    </button>
+                    <button onclick="closeSettings(); switchToTab('targetAssign');" style="display:flex; align-items:center; gap:10px; padding:11px 14px; background:rgba(30,41,59,0.8); border:1px solid #334155; border-radius:8px; color:#e2e8f0; cursor:pointer; text-align:left; transition:all 0.2s; font-size:0.875rem;" onmouseover="this.style.borderColor='#fbbf24'; this.style.background='rgba(251,191,36,0.1)';" onmouseout="this.style.borderColor='#334155'; this.style.background='rgba(30,41,59,0.8)';">
+                        <span style="font-size:1.1rem;">🎯</span>
+                        <div>
+                            <div style="font-weight:600;">Target Assign</div>
+                            <div style="font-size:0.72rem; color:#64748b; margin-top:2px;">Categorize targets as boss, trash, etc. for accurate stats</div>
+                        </div>
+                    </button>
+                    <button onclick="closeSettings(); switchToTab('log');" style="display:flex; align-items:center; gap:10px; padding:11px 14px; background:rgba(30,41,59,0.8); border:1px solid #334155; border-radius:8px; color:#e2e8f0; cursor:pointer; text-align:left; transition:all 0.2s; font-size:0.875rem;" onmouseover="this.style.borderColor='#22d3ee'; this.style.background='rgba(34,211,238,0.1)';" onmouseout="this.style.borderColor='#334155'; this.style.background='rgba(30,41,59,0.8)';">
+                        <span style="font-size:1.1rem;">📋</span>
+                        <div>
+                            <div style="font-weight:600;">Log File</div>
+                            <div style="font-size:0.72rem; color:#64748b; margin-top:2px;">View the raw combat log stream</div>
+                        </div>
+                    </button>
+                </div>
             </div>
 
             <div class="modal-buttons">
@@ -26546,6 +26583,12 @@ const PartyRender = {
                 title: 'Compare Tab',
                 text: 'Compare up to 3 saved builds side by side — skill breakdown, rotation timing, DPS by segment. Great for cross-session build comparisons.',
                 target: '[data-tab="compare"]', tab: 'compare', position: 'bottom'
+            },
+            {
+                icon: '👥',
+                title: 'Party DPS',
+                text: 'The centerpiece feature. Share a party code with your group and everyone\'s DPS streams in live — ranked by damage, color-coded by class. Perfect for dungeons and raids where you want full party visibility without any external tools.',
+                target: '[data-tab="partyDps"]', tab: 'partyDps', position: 'bottom'
             },
             {
                 icon: '🎉',

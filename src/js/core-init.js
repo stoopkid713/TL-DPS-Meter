@@ -206,11 +206,12 @@
         }
 
         // ── Solo Lab dropdown state ──────────────────────────────────────────
-        // soloLabTabNames: the 9 tabs hidden inside the overflow menu
+        // soloLabTabNames: the 5 analysis/lab tabs hidden inside the overflow menu.
+        // Config tabs (skillSettings, skillAssign, targetAssign, log) are now
+        // accessible via Settings → Configuration, not the Solo Lab dropdown.
         const soloLabTabNames = new Set([
             'buildTesting', 'saved', 'compare',
-            'fullEncounter', 'runSummary',
-            'skillSettings', 'skillAssign', 'targetAssign', 'log'
+            'fullEncounter', 'runSummary'
         ]);
 
         // ── Sidebar auto-collapse state ──────────────────────────────────────
