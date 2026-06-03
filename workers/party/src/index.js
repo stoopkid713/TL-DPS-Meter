@@ -422,6 +422,10 @@ export class PartyRoom {
       if (!(await this.ctx.storage.get("code"))) await this.ctx.storage.put("code", code);
       if (!(await this.ctx.storage.get("created_at"))) await this.ctx.storage.put("created_at", Date.now());
       await this._touchRegistry();
+      // Heal no-leader rooms: if this join finds a room with members but no leader
+      // (orphan state seen live), _ensureLeader promotes the oldest-joined present member.
+      // No-op when a leader already exists. Runs on every join so a reconnect also heals.
+      await this._ensureLeader();
     }
 
     logEvent("join", {
@@ -587,26 +591,87 @@ export class PartyRoom {
         return;
       }
 
-      // Contract item 5: reset_roster — leader clears all members + submissions, room stays alive.
+      // make_leader (new, additive): current leader transfers crown to a present member.
+      // Old clients (v1.0.3) never send this — they simply never have the button. Backwards
+      // compatible: no old-client code path changes; the result is a roster broadcast with
+      // updated is_leader flags, which old clients already render as the crown.
+      case "make_leader": {
+        const targetUid = msg.user_id ? String(msg.user_id) : null;
+        if (!att.is_leader) {
+          logEvent("make_leader_rejected_not_leader", { sender: att.user_id, target: targetUid });
+          return;
+        }
+        if (!targetUid || targetUid === att.user_id) {
+          logEvent("make_leader_rejected_invalid_target", { sender: att.user_id, target: targetUid });
+          return;
+        }
+        const mlMembers = (await this.ctx.storage.get("members")) || {};
+        if (!mlMembers[targetUid]) {
+          logEvent("make_leader_rejected_target_absent", { sender: att.user_id, target: targetUid });
+          return;
+        }
+        // Transfer: demote sender, promote target.
+        mlMembers[att.user_id].is_leader = false;
+        mlMembers[targetUid].is_leader = true;
+        await this.ctx.storage.put("members", mlMembers);
+        // Update the departing leader's own WS attachment.
+        for (const dws of this.ctx.getWebSockets(att.user_id)) {
+          try {
+            const datt = dws.deserializeAttachment() || {};
+            dws.serializeAttachment({ ...datt, is_leader: false });
+          } catch (_) {}
+        }
+        // Update the new leader's WS attachment.
+        for (const nws of this.ctx.getWebSockets(targetUid)) {
+          try {
+            const natt = nws.deserializeAttachment() || {};
+            nws.serializeAttachment({ ...natt, is_leader: true });
+          } catch (_) {}
+        }
+        logEvent("make_leader", { from: att.user_id, to: targetUid });
+        this.broadcast(await this.buildRoster());
+        // Additive event: new clients act on it; old clients already see the crown update
+        // in the roster broadcast above and can safely ignore leader_changed.
+        this.broadcast({ type: "leader_changed", user_id: targetUid });
+        return;
+      }
+
+      // Contract item 5: reset_roster — leader evicts OFFLINE (not-present) members and clears
+      // their submissions. ONLINE members are kept — they are actively participating and must
+      // not be disconnected by a reset. This fixes the prior behavior where reset_roster closed
+      // ALL non-leader sockets including present members. Old v1.0.3 clients: the message shape
+      // and roster broadcast are unchanged — they already handle roster updates gracefully.
       case "reset_roster": {
         if (att.is_leader) {
-          // Close all non-leader sockets.
-          for (const rws of this.ctx.getWebSockets()) {
-            const ratt = rws.deserializeAttachment() || {};
-            if (ratt.user_id !== att.user_id) {
-              try { rws.close(1000, "roster_reset"); } catch (_) {}
+          const rrOnline = new Set(
+            this.ctx.getWebSockets().map((ws) => (ws.deserializeAttachment() || {}).user_id)
+          );
+          const rrMembers = (await this.ctx.storage.get("members")) || {};
+
+          // Evict ONLY offline members (not in rrOnline set).
+          const evictedUids = [];
+          for (const [uid, m] of Object.entries(rrMembers)) {
+            if (!rrOnline.has(uid)) {
+              evictedUids.push(uid);
+              delete rrMembers[uid];
             }
           }
-          this._ensureTables();
-          this.ctx.storage.sql.exec("DELETE FROM submissions");
-          this.ctx.storage.sql.exec("DELETE FROM member_detail");
-          // Keep only the leader in the members map.
-          const allMembers = (await this.ctx.storage.get("members")) || {};
-          const leaderEntry = allMembers[att.user_id];
-          const freshMembers = leaderEntry ? { [att.user_id]: leaderEntry } : {};
-          await this.ctx.storage.put("members", freshMembers);
-          await this._touchRegistry(); // roster reset to leader-only (or empty)
-          logEvent("reset_roster", { by: att.username, user_id: att.user_id });
+
+          // Clear submissions for evicted members (keep online members' combat data).
+          if (evictedUids.length) {
+            this._ensureTables();
+            for (const uid of evictedUids) {
+              this.ctx.storage.sql.exec("DELETE FROM submissions WHERE user_id = ?", uid);
+              this.ctx.storage.sql.exec("DELETE FROM member_detail WHERE user_id = ?", uid);
+            }
+          }
+
+          await this.ctx.storage.put("members", rrMembers);
+          await this._touchRegistry();
+          logEvent("reset_roster", {
+            by: att.username, user_id: att.user_id,
+            evicted: evictedUids.length, kept_online: rrOnline.size,
+          });
           this.broadcast({ type: "roster_reset", by: att.user_id });
           this.broadcast(await this.buildRoster());
           this.broadcast(await this.buildScoreboard());
@@ -919,6 +984,13 @@ export class PartyRoom {
       );
     }
 
+    // Hydrate one-liner: stamp encounter_active so late-joining clients receive
+    // welcome.encounter_active = true (was always false because the flag was never written
+    // during active combat — only cleared on disband). Safe to call on every post_fight;
+    // the flag is cleared by _disbandRoom -> deleteAll(). No behavior change for existing
+    // clients: they already check encounter_active in the welcome snapshot.
+    await this.ctx.storage.put("encounter_active", true);
+
     // Client closing a segment at a boundary -> file the encounter so the next fight rolls
     // forward to a new one instead of merging into this (now-finished) board.
     if (payload.final) {
@@ -983,25 +1055,76 @@ export class PartyRoom {
       this.ctx.storage.sql.exec("DELETE FROM member_detail WHERE user_id = ?", user_id);
     } catch (_) {}
 
-    // Change 1 — disband on leader-leave: when the leader disconnects, the party has no
-    // authoritative host. Broadcast a disband notice, close all remaining sockets, and tear
-    // down the room so it doesn't silently accept reconnects under a dead session code.
-    if (wasLeader) {
-      const remaining = Object.keys(members);
-      logEvent("leader_left_disband", { user_id, remaining_count: remaining.length });
-      // Notify everyone before closing their sockets.
-      this.broadcast({ type: "party_disbanded", reason: "leader_left" });
-      for (const ws of this.ctx.getWebSockets()) {
-        try { ws.close(1000, "party_disbanded"); } catch (_) {}
-      }
+    // Close on empty: if no members remain, tear the room down immediately.
+    const remaining = Object.keys(members);
+    if (remaining.length === 0) {
+      logEvent("room_empty_disband", { last_user: user_id, was_leader: wasLeader });
       await this._disbandRoom();
-      return; // skip _touchRegistry — _disbandRoom handles deregistration
+      return; // _disbandRoom handles deregistration; nothing more to do
+    }
+
+    // Leader-leave → succession (not disband). Transfer leadership to the next present
+    // (online) member so the room stays alive. Old clients never send make_leader and
+    // never need to act on the succession — they just see an updated roster where a
+    // different member has is_leader:true (the crown they already render). Fully backwards
+    // compatible: v1.0.3 clients render the crown from the roster field.
+    if (wasLeader) {
+      await this._ensureLeader(members);
+      // Re-read after _ensureLeader may have mutated and saved.
+      const updatedMembers = (await this.ctx.storage.get("members")) || {};
+      const newLeader = Object.entries(updatedMembers).find(([, m]) => m.is_leader);
+      logEvent("leader_left_succession", {
+        departed: user_id,
+        new_leader: newLeader ? newLeader[0] : null,
+        remaining: Object.keys(updatedMembers).length,
+      });
     }
 
     await this._touchRegistry(); // roster changed (leave/kick); deregisters if now empty
     // Arm the idle alarm whenever a member leaves: if nobody reconnects within IDLE_ALARM_TTL_MS
     // the alarm handler will tear down the room.
     await this._armIdleAlarm();
+  }
+
+  // Ensure the room always has exactly one leader among present members.
+  // If no leader exists (leader left, desync, or import of old state), promote the
+  // oldest-joined present member. "Present" = in the members map regardless of online status,
+  // which mirrors the pre-existing ghost-eviction model (a ghost still has a slot). If we
+  // want to prefer an ONLINE member, we bias toward online first; fall back to any member.
+  // This is also the fix for the live orphan-room state (both members is_leader:false).
+  // Call this after any roster mutation that might leave the room leaderless.
+  async _ensureLeader(membersArg) {
+    const members = membersArg || (await this.ctx.storage.get("members")) || {};
+    const ids = Object.keys(members);
+    if (!ids.length) return; // empty room — no leader needed
+    const alreadyLeader = ids.find((uid) => members[uid].is_leader);
+    if (alreadyLeader) return; // already fine
+
+    // No leader: pick one. Prefer online, then oldest joined.
+    const online = new Set(
+      this.ctx.getWebSockets().map((ws) => (ws.deserializeAttachment() || {}).user_id)
+    );
+    const onlineIds = ids.filter((uid) => online.has(uid));
+    const pool = onlineIds.length ? onlineIds : ids;
+    // Among the pool, pick the oldest-joined member (smallest joined_at).
+    pool.sort((a, b) => (members[a].joined_at || 0) - (members[b].joined_at || 0));
+    const picked = pool[0];
+    members[picked].is_leader = true;
+    await this.ctx.storage.put("members", members);
+
+    // Also update the WS attachment so the promoted member's own is_leader flag is live.
+    for (const ws of this.ctx.getWebSockets(picked)) {
+      try {
+        const att = ws.deserializeAttachment() || {};
+        ws.serializeAttachment({ ...att, is_leader: true });
+      } catch (_) {}
+    }
+
+    logEvent("leader_healed", { promoted: picked, username: members[picked].username });
+    // Broadcast the updated roster so every client's crown re-renders immediately.
+    this.broadcast(await this.buildRoster());
+    // Additive leader_changed event — new clients can act on it; old clients ignore it.
+    this.broadcast({ type: "leader_changed", user_id: picked });
   }
 
   // --- Change 1: room teardown helpers ---

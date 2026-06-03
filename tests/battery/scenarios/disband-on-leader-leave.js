@@ -1,35 +1,30 @@
 'use strict';
 /**
- * Phase-2 Regression — disband-on-leader-leave
- * runtime: browser | tags: regression, lifecycle, cluster-a
+ * Leader-leave lifecycle — succession + close-on-empty
+ * runtime: node | tags: regression, lifecycle, cluster-a
  *
- * EXPECTED-FAIL-UNTIL-FIX (Cluster A disband-on-leader-leave bug)
+ * UPDATED: The old scenario asserted disband-on-leader-leave (room dies when leader
+ * leaves). Testing showed that is the WRONG behavior. The correct behavior is:
  *
- * The bug: when the leader sends a "leave" frame (or closes the socket), the
- * room should disband — members receive a notification (e.g. "party_disbanded"
- * or "member_left" for the leader) AND the room code becomes un-joinable (or
- * empty).
+ *   1. Leader leaves → server transfers leadership to the next present member
+ *      (succession). Room stays alive. Remaining members receive an updated roster
+ *      with a new member carrying is_leader:true (the crown moves). An optional
+ *      additive `leader_changed` event may also be broadcast.
  *
- * Current behavior: the leader leaving is treated like any other member leave.
- * Members are still in the roster (the DO is not torn down), the room stays
- * joinable, and any stale member can become de-facto owner without an explicit
- * handoff.
- *
- * Expected behavior after fix:
- *   - Worker broadcasts a "party_disbanded" frame (or equivalent) to all members
- *   - Members' sockets are closed by the server
- *   - A subsequent join on the same code either gets an empty fresh room or is
- *     rejected until the DO's alarm fires
+ *   2. Room closes only when the LAST member leaves (empty room → disband).
+ *      At that point the room tears down: ROOMS_KV entry removed, DO storage wiped.
  *
  * Assertions:
- *   1. After leader leave, at least one non-leader member receives a signal that
- *      the room is disbanded (party_disbanded, or member_left for the leader, or
- *      the socket is forcibly closed by the server)
- *   2. The code is no longer usable (new join gets an empty room or is rejected)
+ *   A1. After leader leaves, the remaining member does NOT receive party_disbanded.
+ *   A2. The remaining member's socket stays open (server does not force-close it).
+ *   A3. The room is still joinable after the leader left.
+ *   A4. The new joiner's welcome shows exactly one member with is_leader:true.
+ *   A5. After the last member leaves, a new join gets an empty fresh room (succession
+ *       ran on empty → room torn down → DO starts fresh with 0 members).
  *
- * NOTE: Assertion 1 checks for EITHER a party_disbanded frame OR a server-side
- * socket close (both are valid disband signals depending on the fix strategy).
- * Currently NEITHER happens → FAIL.
+ * Backwards compat note: old v1.0.3 clients already render the crown from the roster
+ * `is_leader` field. They never send make_leader and never need to handle leader_changed.
+ * Succession is purely server-side; no client cooperation required.
  */
 
 const WebSocket = require('ws');
@@ -46,106 +41,138 @@ function wsJoin(wranglerHost, code, userId, isLeader, timeoutMs = 8_000) {
       if (m.type === 'welcome') { clearTimeout(timer); resolve({ ws, welcome: m }); }
     });
     ws.on('error', (err) => { clearTimeout(timer); reject(err); });
-    ws.on('close', (c) => { clearTimeout(timer); reject(new Error(`closed ${c} before welcome: ${userId}`)); });
+    ws.on('close', (c, reason) => { clearTimeout(timer); reject(new Error(`closed ${c} before welcome: ${userId} (${reason})`)); });
   });
 }
 
-module.exports = async function disbandOnLeaderLeave(ctx) {
+/**
+ * Collect messages from a WebSocket for up to `ms` milliseconds.
+ */
+function collectMsgs(ws, ms) {
+  return new Promise((resolve) => {
+    const msgs = [];
+    let closed = false;
+    ws.on('message', (data) => {
+      try { msgs.push(JSON.parse(data)); } catch (_) {}
+    });
+    ws.on('close', () => { closed = true; });
+    setTimeout(() => resolve({ msgs, closed }), ms);
+  });
+}
+
+module.exports = async function leaderLeaveSuccession(ctx) {
   const { genCode, wranglerHost } = ctx;
-  const code = genCode('DL');
+  const code = genCode('LL');
+
+  // ── Phase 1: leader-leave → succession ──────────────────────────────────────
 
   // Open as leader.
-  const { ws: wsLeader } = await wsJoin(wranglerHost, code, 'dl_leader', true);
+  const { ws: wsLeader } = await wsJoin(wranglerHost, code, 'll_leader', true);
 
-  // Open as member (will watch for disband signals).
-  const { ws: wsMember } = await wsJoin(wranglerHost, code, 'dl_member', false);
+  // Open as member — will watch for disband vs succession signals.
+  const { ws: wsMember } = await wsJoin(wranglerHost, code, 'll_member', false);
 
-  // Collect member messages.
-  const memberMsgs = [];
-  let memberClosed = false;
-  wsMember.on('message', (data) => {
-    try { memberMsgs.push(JSON.parse(data)); } catch (_) {}
-  });
-  wsMember.on('close', () => { memberClosed = true; });
+  // Start collecting member messages before the leader leaves.
+  const memberCollectPromise = collectMsgs(wsMember, 2_000);
 
   await delay(300); // let room settle
 
-  // Leader leaves.
+  // Leader sends leave.
   if (wsLeader.readyState === WebSocket.OPEN) {
     wsLeader.send(JSON.stringify({ type: 'leave' }));
-    await delay(150);
+    await delay(200);
   }
   try { wsLeader.close(); } catch (_) {}
 
-  // Wait for the member to receive disband signals.
-  await delay(1_500);
+  // Wait for member to receive succession signals.
+  const { msgs: memberMsgs, closed: memberClosed } = await memberCollectPromise;
 
-  // --- Assertion 1: member received a REAL disband signal (not just member_left) ---
-  //
-  // The worker currently sends member_left when the leader leaves (same as any member).
-  // That's not a "disband" signal — the room continues with dl_member still in the roster.
-  // The EXPECTED disband behavior is a party_disbanded frame OR the server closing
-  // the member's socket forcibly. member_left alone is NOT sufficient.
-  const realDisbandFrame = memberMsgs.find(m =>
-    m.type === 'party_disbanded' ||
-    m.type === 'room_disbanded'
-  );
-  const serverClosedMember = memberClosed;
-
-  // Current behavior: realDisbandFrame = null, serverClosedMember = false
-  // Expected after fix: at least one is truthy.
-  if (!realDisbandFrame && !serverClosedMember) {
-    // Don't fail here — fall through to Assertion 2 which proves the room is NOT disbanded.
-    // Both assertions together form the full regression check.
-  }
-
-  // --- Assertion 2: the code is still joinable with stale members = the bug ---
-  // If the room is NOT disbanded (Assertion 1 failed), the new joiner should see
-  // dl_member still in the roster — proving disband-on-leader-leave is broken.
-  try {
-    const { ws: wsNew, welcome: wNew } = await wsJoin(wranglerHost, code, 'dl_joiner_after', false, 5_000);
-    const staleMembers = (wNew.members || []).filter(
-      m => m.user_id === 'dl_member'
+  // A1: member must NOT receive party_disbanded (room should not die).
+  const disbandFrame = memberMsgs.find(m => m.type === 'party_disbanded' || m.type === 'room_disbanded');
+  if (disbandFrame) {
+    throw new Error(
+      `A1 FAIL: member received ${disbandFrame.type} after leader left — room should survive via succession, not disband. ` +
+      `All messages: ${JSON.stringify(memberMsgs.map(m => m.type))}`
     );
-    wsNew.close();
-
-    if (!realDisbandFrame && !serverClosedMember) {
-      // No disband signal was sent. The room must still have dl_member (leaderless orphan).
-      // This is the bug: the room is alive but leaderless with no way for members to know.
-      if (staleMembers.length > 0) {
-        throw new Error(
-          `Assertion 2 FAIL (expected-fail-until-fix): after leader left, the room was NOT disbanded ` +
-          `(no party_disbanded frame, member socket NOT closed). ` +
-          `The room is still joinable and dl_member is a leaderless orphan in the roster. ` +
-          `disband-on-leader-leave is not implemented — members need a party_disbanded notification ` +
-          `or their sockets must be forcibly closed when the leader departs.`
-        );
-      } else {
-        // dl_member is gone from the roster (e.g. was evicted or removed). The room is effectively
-        // empty — this is acceptable even without a formal disband.
-      }
-    } else if (staleMembers.length > 0) {
-      throw new Error(
-        `Assertion 2 FAIL: disband signal was sent but dl_member still appears in new joiner's ` +
-        `roster: ${JSON.stringify(staleMembers)}. Disband must also clear the roster.`
-      );
-    }
-  } catch (err) {
-    // Rejection (e.g. HTTP 403, connection refused) = code is unreachable = disband worked.
-    if (/timeout|closed|refused|ECONNREFUSED/.test(err.message) && (realDisbandFrame || serverClosedMember)) {
-      // new join failed AND a disband signal was sent = acceptable disband behavior
-      try { wsMember.close(); } catch (_) {}
-      return;
-    }
-    if (/timeout|closed|refused|ECONNREFUSED/.test(err.message) && !realDisbandFrame && !serverClosedMember) {
-      // Code unreachable but no disband signal sent — ambiguous; let it pass with a warning.
-      console.log('       [warn] disband: code unreachable but no explicit disband signal. Acceptable if DO was evicted.');
-      try { wsMember.close(); } catch (_) {}
-      return;
-    }
-    throw err; // re-throw real assertion failures
   }
 
-  try { wsMember.close(); } catch (_) {}
+  // A2: member socket must stay open (server must not force-close it).
+  if (memberClosed) {
+    throw new Error(
+      `A2 FAIL: member socket was closed by server after leader left — should stay open after succession.`
+    );
+  }
+
+  // A3: room still joinable after leader left.
+  let wsAfter, welcomeAfter;
+  try {
+    ({ ws: wsAfter, welcome: welcomeAfter } = await wsJoin(wranglerHost, code, 'll_joiner_after', false, 5_000));
+  } catch (err) {
+    throw new Error(
+      `A3 FAIL: room not joinable after leader left (succession should keep room alive): ${err.message}`
+    );
+  }
+
+  // A4: exactly one member with is_leader:true in the welcome snapshot.
+  const welcomeMembers = welcomeAfter.roster || welcomeAfter.members || [];
+  const leaders = welcomeMembers.filter(m => m.is_leader);
+  if (leaders.length !== 1) {
+    wsAfter.close();
+    wsMember.close();
+    throw new Error(
+      `A4 FAIL: expected exactly 1 leader in post-succession roster, got ${leaders.length}. ` +
+      `Roster: ${JSON.stringify(welcomeMembers.map(m => ({ user_id: m.user_id, is_leader: m.is_leader })))}`
+    );
+  }
+  // The new leader must NOT be the one who left.
+  if (leaders[0].user_id === 'll_leader') {
+    wsAfter.close();
+    wsMember.close();
+    throw new Error(
+      `A4 FAIL: departed leader is still marked as leader in post-succession roster.`
+    );
+  }
+
+  wsAfter.close();
   await delay(200);
+
+  // ── Phase 2: last-member-leave → room closes (empty → disband) ──────────────
+
+  // The only member left is ll_member. Have them leave.
+  if (wsMember.readyState === WebSocket.OPEN) {
+    wsMember.send(JSON.stringify({ type: 'leave' }));
+    await delay(300);
+  }
+  try { wsMember.close(); } catch (_) {}
+
+  await delay(500); // allow DO to process teardown
+
+  // A5: room should now be empty (DO was torn down). A new joiner should get an
+  // empty-roster welcome (fresh DO) rather than seeing ll_member as a stale ghost.
+  let wsFresh, welcomeFresh;
+  try {
+    ({ ws: wsFresh, welcome: welcomeFresh } = await wsJoin(wranglerHost, code, 'll_fresh_joiner', true, 5_000));
+  } catch (err) {
+    // If the room is completely unreachable (503 / refused) that also satisfies A5.
+    if (/timeout|closed|refused|ECONNREFUSED/.test(err.message)) {
+      // Acceptable: DO fully evicted.
+      return;
+    }
+    throw new Error(`A5 FAIL: unexpected error joining after all members left: ${err.message}`);
+  }
+
+  const freshMembers = welcomeFresh.roster || welcomeFresh.members || [];
+  // The fresh joiner themselves will be in the roster (just joined), so filter them out.
+  const staleMembers = freshMembers.filter(m => m.user_id !== 'll_fresh_joiner');
+  wsFresh.close();
+
+  if (staleMembers.length > 0) {
+    throw new Error(
+      `A5 FAIL: after all members left, new joiner sees stale members in roster: ` +
+      `${JSON.stringify(staleMembers.map(m => m.user_id))}. ` +
+      `Room should have been torn down (close-on-empty) so it starts fresh.`
+    );
+  }
+
+  // All assertions passed.
 };
