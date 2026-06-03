@@ -1066,7 +1066,10 @@ def _h_client_debug(s: DPSMeterServer, msg: dict) -> None:
         event = str(msg.get("event", "client.event"))
         fields = msg.get("fields") or {}
         if isinstance(fields, dict):
-            debug.trace("client." + event, **fields)
+            # Strip any key that collides with trace()'s named param.
+            # trace(event: str, **fields) — "event" is the only positional name.
+            safe_fields = {k: v for k, v in fields.items() if k != "event"}
+            debug.trace("client." + event, **safe_fields)
         else:
             debug.trace("client." + event, value=fields)
     return None
