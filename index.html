@@ -23751,11 +23751,11 @@ ${attemptLine}
                     // (party full / bad code) or unreachable. Don't spin on it.
                     console.warn('[Party] Could not join room (full, bad code, or offline)');
                     partyWSWantOpen = false;
-                    alert('Could not join party. It may be full, the code may be invalid, or the server is unreachable.');
                     partyState.connected = false;
                     { const _prev = partyState.party_code; partyState.party_code = null; if (_prev !== null) partyDebug('party_code_change', { from: _prev, to: null, reason: 'disconnect' }); }
                     partyState.is_leader = false; partyState.encounter_active = false;
                     updatePartyUI();
+                    partyAlert('Could not join party. It may be full, the code may be invalid, or the server is unreachable.');
                     return;
                 }
                 // Otherwise: transient drop — reconnect and keep our spot.
@@ -23780,7 +23780,7 @@ ${attemptLine}
         }
 
         // Dispatch a frame from the room (see workers/party/README.md wire protocol).
-        function handlePartyRoomMessage(m) {
+        async function handlePartyRoomMessage(m) {
             partyDebug('party.msg', {
                 type: m && m.type,
                 boss: m && m.scoreboard ? m.scoreboard.boss : (m && m.boss),
@@ -23859,7 +23859,6 @@ ${attemptLine}
                     // Fix #7: Room broadcasts this when a member is kicked; update local roster.
                     if (m.user_id === partyState.user_id) {
                         // We were kicked — leave gracefully.
-                        alert('You have been kicked from the party.');
                         partyWSWantOpen = false;
                         disconnectPartyWS();
                         partyState.connected = false;
@@ -23867,13 +23866,47 @@ ${attemptLine}
                         partyState.is_leader = false;
                         partyState.roster = [];
                         updatePartyUI();
+                        await partyAlert('You have been kicked from the party.');
                     } else {
-                        // Remove the kicked member from the local roster and re-render.
+                        // The roster broadcast that follows will refresh, but remove immediately
+                        // so the row disappears before the next roster broadcast arrives.
                         partyState.roster = partyState.roster.filter((r) => r.user_id !== m.user_id);
                         renderPartyMembers();
                     }
                     partyDebug('party.member_kicked', { user_id: m && m.user_id });
                     break;
+                case 'leader_changed':
+                    // Worker broadcasts this on make_leader, leader-leave succession, and heal.
+                    // Update local is_leader and re-render so leader-only controls follow the crown.
+                    partyState.is_leader = (m.user_id === partyState.user_id);
+                    // Roster broadcast always accompanies this; re-render now so the crown moves
+                    // immediately even before the roster frame arrives.
+                    renderPartyMembers();
+                    updatePartyUI();
+                    partyDebug('party.leader_changed', { new_leader: m && m.user_id, is_me: partyState.is_leader });
+                    break;
+                case 'roster_reset':
+                    // Worker evicted offline members; roster broadcast follows. Nothing extra needed
+                    // on the frontend — the roster frame re-renders the list.
+                    partyDebug('party.roster_reset', { by: m && m.by });
+                    break;
+                case 'party_disbanded': {
+                    // The room is gone (all members left / empty). Show a message and return to join.
+                    partyWSWantOpen = false;
+                    disconnectPartyWS();
+                    partyState.connected = false;
+                    { const _prev = partyState.party_code; partyState.party_code = null; if (_prev !== null) partyDebug('party_code_change', { from: _prev, to: null, reason: 'disbanded' }); }
+                    partyState.is_leader = false;
+                    partyState.roster = [];
+                    partyState.scoreboard = null;
+                    partyState.encounters = [];
+                    partyState.active_encounter_id = null;
+                    partyState.viewing_encounter_id = null;
+                    updatePartyUI();
+                    await partyAlert('The party has been closed: ' + (m.reason || 'all members left'));
+                    partyDebug('party.disbanded', { reason: m && m.reason });
+                    break;
+                }
                 case 'member_detail': {
                     // Phase 3 (C3): lazy drill-down payload for one (encounter, member).
                     // Cache it; re-render the panel only if it's the member we're viewing.
@@ -23953,12 +23986,12 @@ ${attemptLine}
             setPartyUsername();   // one tap = pick + save
         }
 
-        function setPartyUsername() {
+        async function setPartyUsername() {
             const input = document.getElementById('partyUsernameInput');
             const username = input.value.trim();
 
             if (!username) {
-                alert('Please enter a username');
+                await partyAlert('Please enter a username');
                 return;
             }
             
@@ -24038,7 +24071,7 @@ ${attemptLine}
         // Create party — generate a code and open the room as leader.
         async function createParty() {
             if (!partyState.username || !partyState.user_id) {
-                alert('Please enter your username first');
+                await partyAlert('Please enter your username first');
                 return;
             }
 
@@ -24104,7 +24137,7 @@ ${attemptLine}
         // Join party — open the room with the entered code as a non-leader.
         async function joinParty() {
             if (!partyState.username || !partyState.user_id) {
-                alert('Please enter your username first');
+                await partyAlert('Please enter your username first');
                 return;
             }
 
@@ -24112,7 +24145,7 @@ ${attemptLine}
             const code = input.value.trim().toUpperCase();
 
             if (!/^[A-Z0-9]{4,8}$/.test(code)) {
-                alert('Please enter a valid party code (4–8 letters/numbers)');
+                await partyAlert('Please enter a valid party code (4–8 letters/numbers)');
                 return;
             }
 
@@ -24541,9 +24574,9 @@ ${attemptLine}
         function broadcastLeaderAction(action) { /* room is source of truth; nothing to relay */ }
         
         // Sync all party members (leader only)
-        function syncPartyAll() {
+        async function syncPartyAll() {
             if (!partyState.is_leader) {
-                alert('Only the party leader can sync the party.');
+                await partyAlert('Only the party leader can sync the party.');
                 return;
             }
             
@@ -25042,33 +25075,46 @@ ${attemptLine}
                     }
                 }
 
-                // Fix #7: Kick button — leader-only, not shown for self or other leaders.
-                const canKick = partyState.is_leader && !isSelf && !isLeader;
+                // Kick button — leader-only, not shown for self (can kick ANY non-self member
+                // regardless of joining/posting state — the leader needs to be able to remove
+                // stuck/offline members even if they never posted a fight).
+                const canKick = partyState.is_leader && !isSelf;
                 const kickBtn = canKick
                     ? `<button class="party-kick-btn" onclick="kickPartyMember('${escapeHtml(m.user_id)}','${escapeHtml(m.username)}')" `
                       + `title="Kick ${escapeHtml(m.username)}" `
-                      + `style="margin-left:auto;padding:1px 7px;font-size:0.7rem;background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.5);color:#fca5a5;border-radius:4px;cursor:pointer;">✕ Kick</button>`
+                      + `style="margin-left:4px;padding:1px 7px;font-size:0.7rem;background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.5);color:#fca5a5;border-radius:4px;cursor:pointer;">✕ Kick</button>`
+                    : '';
+
+                // Make Leader button — visible only when local client is leader AND this is not
+                // the leader's own row (can't transfer crown to yourself).
+                const canMakeLeader = partyState.is_leader && !isSelf && !isLeader;
+                const makeLeaderBtn = canMakeLeader
+                    ? `<button class="party-make-leader-btn" onclick="makePartyLeader('${escapeHtml(m.user_id)}','${escapeHtml(m.username)}')" `
+                      + `title="Transfer leader to ${escapeHtml(m.username)}" `
+                      + `style="margin-left:4px;padding:1px 7px;font-size:0.7rem;background:rgba(250,204,21,0.2);border:1px solid rgba(250,204,21,0.45);color:#fbbf24;border-radius:4px;cursor:pointer;">👑 Lead</button>`
                     : '';
 
                 return `
                     <div class="party-member-item ${isLeader ? 'leader' : ''} ${isSelf ? 'self' : ''} ${!isOnline ? 'offline' : ''}">
                         <span class="party-member-status ${isOnline ? 'online' : 'offline'}"></span>
                         <span class="party-member-name">${safeName}</span>
-                        ${badges}${transmitBadge}${kickBtn}
+                        ${badges}${transmitBadge}${makeLeaderBtn}${kickBtn}
                     </div>
                 `;
             }).join('');
 
-            // Fix #7: Reset Roster button — appended below the list, leader-only.
+            // Reset Roster button — appended below the list, leader-only.
+            // Semantics (v2): removes only OFFLINE members; online members are kept.
             if (partyState.is_leader) {
                 container.innerHTML += `<div style="margin-top:8px;text-align:right;">
-                    <button onclick="resetPartyRoster()" title="Remove all offline / old members" `
-                    + `style="padding:3px 10px;font-size:0.72rem;background:rgba(100,116,139,0.2);border:1px solid rgba(100,116,139,0.4);color:#94a3b8;border-radius:4px;cursor:pointer;">🔄 Reset Roster</button>
+                    <button onclick="resetPartyRoster()" title="Remove offline / disconnected members (online members are kept)" `
+                    + `style="padding:3px 10px;font-size:0.72rem;background:rgba(100,116,139,0.2);border:1px solid rgba(100,116,139,0.4);color:#94a3b8;border-radius:4px;cursor:pointer;">🔄 Clear Offline</button>
                 </div>`;
             }
         }
 
-        // Fix #7: Kick a member (leader only) — sends the worker kick command.
+        // Kick a member (leader only) — sends the worker kick command.
+        // Bug fix: worker expects `user_id` (not `target_uid`) in the kick message.
         async function kickPartyMember(userId, username) {
             if (!partyState.is_leader) return;
             if (!await partyConfirm(`Kick ${username} from the party?`)) return;
@@ -25077,17 +25123,34 @@ ${attemptLine}
                 return;
             }
             try {
-                partyWS.send(JSON.stringify({ type: 'kick', target_uid: userId }));
-                partyDebug('party.kick', { target_uid: userId, username: username });
+                partyWS.send(JSON.stringify({ type: 'kick', user_id: userId }));
+                partyDebug('party.kick', { user_id: userId, username: username });
             } catch (err) {
                 console.error('[Party] Error sending kick:', err);
             }
         }
 
-        // Fix #8: Reset roster (leader only) — clears stale/offline members server-side.
+        // Make Leader (leader only) — transfers the crown to another party member.
+        async function makePartyLeader(userId, username) {
+            if (!partyState.is_leader) return;
+            if (!await partyConfirm(`Transfer party leader to ${username}?\nYou will no longer be the leader.`)) return;
+            if (!partyWS || partyWS.readyState !== WebSocket.OPEN) {
+                console.warn('[Party] make_leader: WS not open');
+                return;
+            }
+            try {
+                partyWS.send(JSON.stringify({ type: 'make_leader', user_id: userId }));
+                partyDebug('party.make_leader', { user_id: userId, username: username });
+            } catch (err) {
+                console.error('[Party] Error sending make_leader:', err);
+            }
+        }
+
+        // Reset roster (leader only) — evicts OFFLINE members server-side.
+        // Online (connected) members are kept; only disconnected/stale slots are removed.
         async function resetPartyRoster() {
             if (!partyState.is_leader) return;
-            if (!await partyConfirm('Reset the party roster? This removes stale and offline members.')) return;
+            if (!await partyConfirm('Clear offline members from the roster?\nOnline members will NOT be removed.')) return;
             if (!partyWS || partyWS.readyState !== WebSocket.OPEN) {
                 console.warn('[Party] reset_roster: WS not open');
                 return;
