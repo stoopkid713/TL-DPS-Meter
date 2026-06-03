@@ -22,6 +22,11 @@ from constants import (
     GAP_DEAD_THRESHOLD,
     GAP_LIVE_LIST_THRESHOLD,
     GAP_MAJOR_THRESHOLD,
+    HIT_TYPE_CRIT,
+    HIT_TYPE_MAX_NORMAL,
+    HIT_TYPE_MIN,
+    HIT_TYPE_MISS,
+    HIT_TYPE_NORMAL,
     ROUND_DEAD_TIME,
     ROUND_DPS,
     ROUND_DURATION,
@@ -141,12 +146,109 @@ def _gap_stats(hits: list[Hit]) -> dict:
     }
 
 
+def hit_quality(hits: list[Hit]) -> dict:
+    """Accuracy / hit-quality distribution over a hit list (spec §3).
+
+    Counts each ``hit_type`` value and derives rates.  The denominator for every
+    rate is **all** hits (including misses), so ``miss_rate + normal_rate +
+    min_normal_rate + max_normal_rate + crit_rate_ht == 100 %`` (give or take
+    rounding).  ``accuracy`` is the complement of ``miss_rate`` and equals
+    the fraction of attempts that actually dealt damage.
+
+    Miss handling: ``kMiss`` rows carry ``damage == 0`` (verified on the gold
+    fixture).  They already inflate ``hit_count`` in ``build_stat_block`` but add
+    zero damage — so existing crit/heavy denominators treat them as non-crit /
+    non-heavy swings.  This helper makes that behaviour explicit and adds a
+    dedicated ``miss_count`` / ``miss_rate`` so the UI can show it separately.
+
+    Returned keys
+    -------------
+    miss_count          int   — kMiss hits
+    miss_rate           float — miss_count / total * 100, 1 dp
+    accuracy            float — (total - miss_count) / total * 100, 1 dp
+    normal_count        int   — kNormalHit
+    normal_rate         float
+    min_normal_count    int   — kMinDamageByNormal
+    min_normal_rate     float
+    max_normal_count    int   — kMaxDamageByNormal
+    max_normal_rate     float
+    crit_decision_count int   — kMaxDamageByCriticalDecision
+    crit_decision_rate  float
+    total               int   — len(hits), convenience copy
+    """
+    total = len(hits)
+    counts: dict[str, int] = {
+        HIT_TYPE_MISS: 0,
+        HIT_TYPE_NORMAL: 0,
+        HIT_TYPE_MIN: 0,
+        HIT_TYPE_MAX_NORMAL: 0,
+        HIT_TYPE_CRIT: 0,
+    }
+    for h in hits:
+        ht = h.get("hit_type", "")
+        if ht in counts:
+            counts[ht] += 1
+
+    miss = counts[HIT_TYPE_MISS]
+    normal = counts[HIT_TYPE_NORMAL]
+    min_n = counts[HIT_TYPE_MIN]
+    max_n = counts[HIT_TYPE_MAX_NORMAL]
+    crit = counts[HIT_TYPE_CRIT]
+
+    return {
+        "miss_count": miss,
+        "miss_rate": _rate(miss, total),
+        "accuracy": _rate(total - miss, total),
+        "normal_count": normal,
+        "normal_rate": _rate(normal, total),
+        "min_normal_count": min_n,
+        "min_normal_rate": _rate(min_n, total),
+        "max_normal_count": max_n,
+        "max_normal_rate": _rate(max_n, total),
+        "crit_decision_count": crit,
+        "crit_decision_rate": _rate(crit, total),
+        "total": total,
+    }
+
+
+def build_target_blocks(hits: list[Hit]) -> dict[str, dict]:
+    """Full per-target stat blocks, keyed by target name (spec §2).
+
+    Buckets ``hits`` by ``h["target"]``, then runs ``build_stat_block`` over
+    each bucket.  Each resulting block has the **same shape** as the overall
+    stat block (dps, total_damage, duration, hit_count, crit/heavy rates,
+    skills, top_hits) computed over *that target's own first→last time window*.
+
+    An additional ``hit_quality`` key is added to each per-target block using
+    the same ``hit_quality()`` helper, giving per-target accuracy/miss data.
+
+    Usage: expose behind a new ``target_breakdown`` key in the results/overall
+    payloads.  The existing ``targets`` array (damage-share list) is unchanged.
+    """
+    # Bucket hits by target (preserve arrival order within each bucket).
+    buckets: dict[str, list[Hit]] = {}
+    for h in hits:
+        t = h["target"]
+        if t not in buckets:
+            buckets[t] = []
+        buckets[t].append(h)
+
+    result: dict[str, dict] = {}
+    for target, target_hits in buckets.items():
+        sb = build_stat_block(target_hits)
+        sb["hit_quality"] = hit_quality(target_hits)
+        result[target] = sb
+    return result
+
+
 def build_stat_block(
     hits: list[Hit],
     *,
     with_targets: bool = False,
     with_rotation: bool = False,
     with_gap_stats: bool = False,
+    with_target_breakdown: bool = False,
+    with_hit_quality: bool = False,
 ) -> dict:
     """Build one stat block from a list of hits (the shared core of every view).
 
@@ -186,12 +288,18 @@ def build_stat_block(
         block["rotation"] = [dict(h) for h in hits]
     if with_gap_stats:
         block["gap_stats"] = _gap_stats(hits)
+    if with_target_breakdown:
+        block["target_breakdown"] = build_target_blocks(hits)
+    if with_hit_quality:
+        block["hit_quality"] = hit_quality(hits)
     return block
 
 
 def build_overall_block(hits: list[Hit]) -> dict:
-    """The encounter-wide block: includes per-target share, no rotation/gap_stats."""
-    return build_stat_block(hits, with_targets=True)
+    """The encounter-wide block: includes per-target share + target_breakdown + hit_quality."""
+    return build_stat_block(hits, with_targets=True,
+                            with_target_breakdown=True,
+                            with_hit_quality=True)
 
 
 def build_first_60s_block(hits: list[Hit]) -> dict:

@@ -26,10 +26,12 @@ IDX_HIT_TYPE = 7    # kMaxDamageByCriticalDecision / kNormalHit / kMinDamageByNo
 IDX_CASTER = 8      # player filter
 IDX_TARGET = 9      # parts[9:] re-joined on "," (target names may contain commas)
 
-# Hit-type string values (disasm const pool).
-HIT_TYPE_CRIT = "kMaxDamageByCriticalDecision"
-HIT_TYPE_NORMAL = "kNormalHit"
-HIT_TYPE_MIN = "kMinDamageByNormal"
+# Hit-type string values (disasm const pool / field[7] histogram on gold_combat.log).
+HIT_TYPE_CRIT = "kMaxDamageByCriticalDecision"   # crit-decision hit (highest roll)
+HIT_TYPE_NORMAL = "kNormalHit"                   # ordinary hit
+HIT_TYPE_MIN = "kMinDamageByNormal"              # minimum-roll normal hit
+HIT_TYPE_MAX_NORMAL = "kMaxDamageByNormal"       # maximum-roll normal hit (no crit decision)
+HIT_TYPE_MISS = "kMiss"                          # complete miss; damage == 0
 
 # --- Stats / aggregation ---------------------------------------------------
 TOP_HITS_LIMIT = 10              # disasm: slice(None, 10, None) on damage-sorted hits

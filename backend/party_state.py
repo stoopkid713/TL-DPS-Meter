@@ -32,7 +32,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Optional
 
-from combat_stats import build_stat_block
+from combat_stats import build_stat_block, build_target_blocks, hit_quality
 from encounter_boundary import is_new_encounter
 
 
@@ -101,20 +101,34 @@ class PartyEncounter:
             return 0
         return max((last - first).total_seconds(), 1.0)
 
-    def results(self, include_hits: bool = False) -> dict:
+    def results(self, include_hits: bool = False,
+               include_target_breakdown: bool = False) -> dict:
         """Final per-target breakdown + totals — the ``results`` payload shape.
 
         Byte-identical to the pre-A2 ``PartyState.get_results`` output (per-target
-        keys, rounding, ``fight_ts``) when ``include_hits`` is False (the default,
-        and the live-tick path). With ``include_hits=True`` (the final post only) a
-        ``rotation`` key carries the full retained hit list (Phase 3 / C1b) — a copy
-        of each :attr:`hits` dict, in solo-hit shape, for the room to store opaquely
-        and serve on drill-down (C1a/C3)."""
+        keys, rounding, ``fight_ts``) when ``include_hits`` and
+        ``include_target_breakdown`` are False (the defaults, and the live-tick path).
+
+        With ``include_hits=True`` (the final post only) a ``rotation`` key carries
+        the full retained hit list (Phase 3 / C1b) — a copy of each :attr:`hits`
+        dict, in solo-hit shape, for the room to store opaquely and serve on
+        drill-down (C1a/C3).
+
+        With ``include_target_breakdown=True`` a ``target_breakdown`` key carries the
+        full per-target stat blocks from ``build_target_blocks(self.hits)`` — same
+        shape as the solo ``build_overall_block`` ``target_breakdown`` key, so the
+        future UI can render per-target drill-down with identical renderer logic.
+        Note: party hits do not carry ``hit_type`` (not plumbed through
+        ``record_hit``), so ``hit_quality`` within each per-target block will show
+        zeroes for hit-type counts; the damage/crit/skill/dps fields are correct.
+        """
         fight_ts = self.fight_ts()
         if not self.target_damage:
             empty = {"targets": [], "total_damage": 0, "duration": 0, "fight_ts": fight_ts}
             if include_hits:
                 empty["rotation"] = []
+            if include_target_breakdown:
+                empty["target_breakdown"] = {}
             return empty
         duration = self.duration()
         total_damage = self.total_damage()
@@ -160,6 +174,8 @@ class PartyEncounter:
         }
         if include_hits:
             out["rotation"] = [dict(h) for h in self.hits]
+        if include_target_breakdown:
+            out["target_breakdown"] = build_target_blocks(self.hits)
         return out
 
     def meta(self) -> dict:
@@ -287,7 +303,8 @@ class PartyState:
         return self.current.duration() if self.current else 0
 
     def get_results(self, encounter_id: Optional[str] = None,
-                    include_hits: bool = False) -> dict:
+                    include_hits: bool = False,
+                    include_target_breakdown: bool = False) -> dict:
         """Per-target breakdown + totals for one encounter (the ``results`` payload).
 
         Defaults to the **current** encounter (the legacy behaviour); pass an
@@ -296,14 +313,21 @@ class PartyState:
 
         ``include_hits=True`` (final post only) adds the full ``rotation`` hit list
         (Phase 3 / C1b); the default keeps the live tick light + byte-identical.
+
+        ``include_target_breakdown=True`` adds a ``target_breakdown`` key with full
+        per-target stat blocks (spec §2).  Off by default so the live tick stays
+        byte-identical and lightweight.
         """
         enc = self._find(encounter_id) if encounter_id is not None else self.current
         if enc is None:
             empty = {"targets": [], "total_damage": 0, "duration": 0, "fight_ts": None}
             if include_hits:
                 empty["rotation"] = []
+            if include_target_breakdown:
+                empty["target_breakdown"] = {}
             return empty
-        return enc.results(include_hits=include_hits)
+        return enc.results(include_hits=include_hits,
+                           include_target_breakdown=include_target_breakdown)
 
     def _find(self, encounter_id: str) -> Optional[PartyEncounter]:
         for enc in self.encounters:
