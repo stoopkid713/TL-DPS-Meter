@@ -12590,11 +12590,12 @@
         }
 
         // ── Solo Lab dropdown state ──────────────────────────────────────────
-        // soloLabTabNames: the 9 tabs hidden inside the overflow menu
+        // soloLabTabNames: the 5 analysis/lab tabs hidden inside the overflow menu.
+        // Config tabs (skillSettings, skillAssign, targetAssign, log) are now
+        // accessible via Settings → Configuration, not the Solo Lab dropdown.
         const soloLabTabNames = new Set([
             'buildTesting', 'saved', 'compare',
-            'fullEncounter', 'runSummary',
-            'skillSettings', 'skillAssign', 'targetAssign', 'log'
+            'fullEncounter', 'runSummary'
         ]);
 
         // ── Sidebar auto-collapse state ──────────────────────────────────────
@@ -24193,6 +24194,30 @@ ${attemptLine}
             if (bannerRefreshInterval) { clearInterval(bannerRefreshInterval); bannerRefreshInterval = null; }
         }
 
+        // #14 LOGGING STATE MACHINE — intercept updateLogInfo (defined in encounter-edit.js,
+        // which is inlined before this module) to capture last_combat_age_s from every
+        // stats broadcast. Wrapping rather than replacing preserves the existing log-info
+        // UI updates (current file, size display, welcome modal).  Build order:
+        // encounter-edit.js (alpha first) → party.js (alpha second) → wrapper wins.
+        (function _wrapUpdateLogInfo() {
+            const _orig = typeof updateLogInfo === 'function' ? updateLogInfo : null;
+            updateLogInfo = function(info) {
+                if (_orig) _orig(info);
+                // Capture the new deterministic signal emitted by the backend.
+                // last_combat_age_s: float|null — age of last combat line in seconds.
+                if (info && typeof info.last_combat_age_s === 'number') {
+                    lastCombatAgeS = info.last_combat_age_s;
+                } else if (info && info.last_combat_age_s === null) {
+                    lastCombatAgeS = null;
+                }
+                // Re-render the banner immediately on every log-info update so the
+                // state machine transitions without waiting for the 3 s tick.
+                if (partyState.connected && partyState.party_code) {
+                    renderLogStatusBanner();
+                }
+            };
+        })();
+
         // Open (or re-open) the room socket. isLeader is passed to the room as a query param.
         function connectPartyWS(code, isLeader) {
             if (!partyState.user_id || !partyState.username) return;
@@ -24784,6 +24809,10 @@ ${attemptLine}
         let diagnosticsOpen = false;
         let lastLogActivity = null;
         let lastLogFile = null;  // actual detected combat-log file (from log_info), null if none
+        // #14 LOGGING STATE MACHINE: age (seconds) of the last parsed combat line as of
+        // the last stats broadcast. null = no combat ingested yet (or no log file).
+        // Set by the updateLogInfo wrapper below; read by _logBannerState().
+        let lastCombatAgeS = null;
         
         function toggleDiagnostics() {
             diagnosticsOpen = !diagnosticsOpen;
@@ -24816,10 +24845,15 @@ ${attemptLine}
             updateDiagItem('diagLogFound', logFound ? 'ok' : 'error',
                 logFound ? `Combat log: ${lastLogFile}` : 'Combat log found');
             
-            // 3. Log file active (based on recent stats)
-            const logActiveText = lastLogActivity ? `Active (${formatTimeAgo(lastLogActivity)})` : 'Log file active';
-            const logActive = lastLogActivity && (Date.now() - lastLogActivity) < 30000;
-            updateDiagItem('diagLogActive', logActive ? 'ok' : (lastLogActivity ? 'warn' : 'waiting'), logActiveText);
+            // 3. Log file active — #14 state machine: use lastCombatAgeS (deterministic)
+            // with lastLogActivity as a legacy fallback for the text display.
+            const logBannerSt = _logBannerState();
+            const logActiveText = lastCombatAgeS !== null
+                ? `Active (${lastCombatAgeS.toFixed(0)}s ago)`
+                : (lastLogActivity ? `Active (${formatTimeAgo(lastLogActivity)})` : 'Log file active');
+            const logActive = logBannerSt === 'ok';
+            const logWaiting = logBannerSt === 'waiting';
+            updateDiagItem('diagLogActive', logActive ? 'ok' : (logWaiting ? 'warn' : 'waiting'), logActiveText);
             
             // 4. Party room connected (Cloudflare WebSocket)
             updateDiagItem('diagSupabase', partyWSConnected ? 'ok' : 'error', 'Party room connected');
@@ -24875,27 +24909,40 @@ ${attemptLine}
         // Renders an unmissable banner inside the party active view so the local user
         // knows immediately if their combat log is missing or silent.
         //
-        // Three states:
-        //   "off"     — no combat-log file detected at all (lastLogFile is null).
-        //               Big amber warning; includes a one-line how-to-enable hint.
-        //   "waiting" — log file present but no combat activity seen yet (lastLogActivity
-        //               is null OR more than COMBAT_STALE_MS ms ago).  Calm blue/grey pill.
-        //   "ok"      — log file present AND combat seen recently.  No banner (silent ok).
+        // DETERMINISTIC STATE MACHINE (three states, matches oracle doc):
+        //   "off"     — NO_LOG_FILE: no *.txt present in the log dir (lastLogFile is null).
+        //               Big amber warning + how-to-enable hint.
+        //   "waiting" — LOG_PRESENT_NO_RECENT_COMBAT: log file found but last combat line
+        //               is stale (lastCombatAgeS > COMBAT_STALE_S) OR null (no combat seen
+        //               yet). Covers the game-off false-positive: a stale log file no
+        //               longer reads as GREEN. Calm grey pill "Logging on — waiting…".
+        //   "ok"      — LOGGING_ACTIVE: log file present AND last combat line age <=
+        //               COMBAT_STALE_S (fresh combat flowing). No banner (silent green).
+        //
+        // Signal source: lastCombatAgeS — set by the updateLogInfo wrapper above from
+        // log_info.last_combat_age_s on every stats broadcast (~0.5 s tick).
+        // lastLogActivity / party_live_hit is RETAINED as a fallback for the diagnostics
+        // panel only (not the banner state) to preserve existing diag behaviour.
         //
         // The banner is refreshed:
+        //   • on every stats broadcast (via updateLogInfo wrapper above)
         //   • each time updatePartyUI() runs (covers join/leave/reconnect)
-        //   • each time refreshDiagnostics() runs (covers every stats broadcast tick)
-        //   • from party_live_hit handler (called in encounter-edit.js — no extra hook needed;
-        //     diagnosticsOpen check is skipped so the banner always stays current)
+        //   • each time refreshDiagnostics() runs
+        //   • from the 3 s bannerRefreshInterval
         //
         // The banner only appears while the party active view is visible (connected to a room).
-        const COMBAT_STALE_MS = 60_000; // 60 s of silence = "waiting for combat"
+        const COMBAT_STALE_S = 300;           // 5 min of silence = stale (game-off threshold)
 
         function _logBannerState() {
+            // Layer 1: log file must exist (NO_LOG_FILE guard).
             const logFound = !!lastLogFile;
             if (!logFound) return 'off';
-            const recentCombat = lastLogActivity && (Date.now() - lastLogActivity) < COMBAT_STALE_MS;
-            return recentCombat ? 'ok' : 'waiting';
+            // Layer 2: last combat line must be recent (LOGGING_ACTIVE guard).
+            // lastCombatAgeS is null when no combat lines have been ingested yet,
+            // or when the backend hasn't received the new field yet (old build
+            // fallback: treat as waiting, not as an error).
+            if (lastCombatAgeS === null || lastCombatAgeS > COMBAT_STALE_S) return 'waiting';
+            return 'ok';
         }
 
         function renderLogStatusBanner() {
@@ -26988,12 +27035,6 @@ const PartyRender = {
                 title: 'Compare Tab',
                 text: 'Compare up to 3 saved builds side by side — skill breakdown, rotation timing, DPS by segment. Great for cross-session build comparisons.',
                 target: '[data-tab="compare"]', tab: 'compare', position: 'bottom'
-            },
-            {
-                icon: '👥',
-                title: 'Party DPS',
-                text: 'The centerpiece feature. Share a party code with your group and everyone\'s DPS streams in live — ranked by damage, color-coded by class. Perfect for dungeons and raids where you want full party visibility without any external tools.',
-                target: '[data-tab="partyDps"]', tab: 'partyDps', position: 'bottom'
             },
             {
                 icon: '🎉',
