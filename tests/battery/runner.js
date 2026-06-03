@@ -63,6 +63,10 @@ const BACKEND_DIR = path.join(MAIN_REPO, 'backend');
 const PYTHON      = path.join(BACKEND_DIR, '.venv', 'Scripts', 'python.exe');
 const SIM_SCRIPT  = path.join(BACKEND_DIR, 'tools', 'sim_party.py');
 const INDEX_HTML  = path.join(MAIN_REPO, 'index.html');
+// Deterministic combat-log fixture (Aelindra → Tevent, a known boss, 180 DamageDone hits).
+// Injected into any sim call that would otherwise read the machine's LIVE combat log,
+// so scenario results don't depend on whether the user is currently playing.
+const FIXTURE_LOG = path.join(__dirname, 'fixtures', 'party_fixture_tevent.txt');
 
 const WRANGLER_PORT = 8787;
 const WRANGLER_HOST = `ws://127.0.0.1:${WRANGLER_PORT}`;
@@ -143,7 +147,12 @@ async function waitForWrangler(timeoutMs = 45_000) {
  */
 function runSim(simArgs, timeoutMs = 20_000) {
   return new Promise((resolve) => {
-    const fullArgs = [SIM_SCRIPT, ...simArgs, '--host', WRANGLER_HOST];
+    // If this call would read the LIVE combat log (no --multiboss/--scenario/--log),
+    // inject the deterministic fixture so the test is reproducible regardless of the
+    // machine's current combat log state.
+    const needsLog = !simArgs.some(a => a === '--multiboss' || a === '--scenario' || a === '--log');
+    const logArgs = needsLog ? ['--log', FIXTURE_LOG] : [];
+    const fullArgs = [SIM_SCRIPT, ...simArgs, ...logArgs, '--host', WRANGLER_HOST];
     const proc = spawn(PYTHON, fullArgs, {
       cwd: BACKEND_DIR,
       shell: false,

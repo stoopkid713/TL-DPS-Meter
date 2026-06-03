@@ -30,6 +30,18 @@ const disbandOnLeaderLeave  = require('./disband-on-leader-leave');
 const idleTtl               = require('./idle-ttl');
 const multiPhaseUndercount  = require('./multi-phase-undercount');
 
+// ── Finish-battery: full spec coverage (stats / merge / overlay / adversarial) ──
+const { statsPariyCritHeavy, statsTotalReconciles } = require('./stats-parity');
+const { dupBossDistinct, trashOnlyHidden, gapSplits } = require('./encounter-accuracy');
+const { mergeTwoClients, mergeWindowDistinct, lateJoinMidfight } = require('./multi-client-merge');
+const { loggingNotPosting, loggingLateStart } = require('./logging-detect');
+const { overlayFollowsActive, overlayEqualsApp } = require('./overlay-sync');
+const { feedbackFlow, feedbackLogsAttached } = require('./bug-report-telemetry');
+const adversarialRace     = require('./adversarial-race');
+const adversarialFaults   = require('./adversarial-faults');
+const adversarialFuzz     = require('./adversarial-fuzz');
+const adversarialBoundary = require('./adversarial-boundary');
+
 const scenarios = [
   // ── S1.3 SMOKE SCENARIOS (runtime: browser) ────────────────────────────
   {
@@ -97,6 +109,35 @@ const scenarios = [
     tags:    ['regression', 'scoreboard', 'cluster-a', 'expected-fail'],
     fn:      multiPhaseUndercount,
   },
+
+  // ── FINISH-BATTERY: stats parity + encounter accuracy ──────────────────
+  { name: 'stats-parity-crit-heavy', runtime: 'browser', tags: ['stats','scoreboard','parity','expected-pass-now'], fn: statsPariyCritHeavy },
+  { name: 'stats-total-reconciles',  runtime: 'browser', tags: ['stats','scoreboard','parity','expected-pass-now'], fn: statsTotalReconciles },
+  { name: 'dup-boss-distinct',       runtime: 'browser', tags: ['encounter','scoreboard','regression','expected-pass-now'], fn: dupBossDistinct },
+  { name: 'trash-only-hidden',       runtime: 'browser', tags: ['encounter','scoreboard','expected-pass-now'], fn: trashOnlyHidden },
+  { name: 'gap-splits',              runtime: 'browser', tags: ['encounter','accuracy','expected-pass-now'], fn: gapSplits },
+
+  // ── FINISH-BATTERY: multi-client merge + #14 logging ───────────────────
+  { name: 'merge-two-clients',      runtime: 'browser', tags: ['regression','merge','multi-client','expected-fail'], fn: mergeTwoClients },
+  { name: 'merge-window-distinct',  runtime: 'browser', tags: ['regression','merge','multi-client','expected-fail'], fn: mergeWindowDistinct },
+  { name: 'late-join-midfight',     runtime: 'browser', tags: ['regression','merge','multi-client','expected-fail'], fn: lateJoinMidfight },
+  { name: 'logging-not-posting',    runtime: 'browser', tags: ['regression','logging-detect','roster','expected-fail'], fn: loggingNotPosting },
+  { name: 'logging-late-start',     runtime: 'browser', tags: ['regression','logging-detect','roster','expected-fail'], fn: loggingLateStart },
+
+  // ── FINISH-BATTERY: overlay + bug-report telemetry ─────────────────────
+  { name: 'overlay-follows-active', runtime: 'browser', tags: ['overlay','overlay-sync'], fn: overlayFollowsActive },
+  { name: 'overlay-equals-app',     runtime: 'browser', tags: ['overlay','overlay-sync'], fn: overlayEqualsApp },
+  { name: 'feedback-flow',          runtime: 'browser', tags: ['feedback','telemetry'], fn: feedbackFlow },
+  { name: 'feedback-logs-attached', runtime: 'browser', tags: ['feedback','telemetry','expected-fail'], fn: feedbackLogsAttached },
+
+  // ── FINISH-BATTERY: adversarial / break-it layer ───────────────────────
+  // adversarial-race + adversarial-faults FAIL today = REAL worker gaps the break-it layer
+  // surfaced (ghost-online-on-churn; fight-post lost on abrupt socket drop). Tagged
+  // expected-fail as documented regression guards — they go green when the worker is hardened.
+  { name: 'adversarial-race',     runtime: 'browser', tags: ['regression','adversarial','lifecycle','expected-fail'], fn: adversarialRace },
+  { name: 'adversarial-faults',   runtime: 'browser', tags: ['regression','adversarial','lifecycle','expected-fail'], fn: adversarialFaults },
+  { name: 'adversarial-fuzz',     runtime: 'browser', tags: ['regression','adversarial','protocol'], fn: adversarialFuzz },
+  { name: 'adversarial-boundary', runtime: 'browser', tags: ['regression','adversarial','lifecycle','protocol'], fn: adversarialBoundary },
 
   // ── REAL-APP GATE EXAMPLES (runtime: real-app) ─────────────────────────
   // These are registered so they appear in --list and the gate report;

@@ -265,4 +265,178 @@ async function waitForWorkerMessage(messages, predicate, timeoutMs = 10_000) {
   return null;
 }
 
-module.exports = { openReceivingClient, waitForWorkerMessage };
+// ---------------------------------------------------------------------------
+// Adversarial fault-injection primitives
+// (S1.adv — used by adversarial-*.js scenarios)
+// ---------------------------------------------------------------------------
+
+/**
+ * Open a RAW Node.js WebSocket to /party/<code> — no welcome wait, full control.
+ * Returns {ws} immediately after TCP open; the caller drives the socket.
+ *
+ * @param {string} wranglerHost  - ws://127.0.0.1:8787
+ * @param {string} code          - party code
+ * @param {string} userId        - user_id query param
+ * @param {boolean} isLeader     - leader query param
+ * @param {number}  [timeoutMs]  - give up if TCP open not received in this time
+ * @returns {Promise<{ws: import('ws').WebSocket, messages: object[], frames: string[]}>}
+ *   messages = parsed JSON frames; frames = raw strings (including malformed)
+ */
+function rawWsOpen(wranglerHost, code, userId, isLeader, timeoutMs = 8_000) {
+  const WebSocket = require('ws');
+  return new Promise((resolve, reject) => {
+    const url = `${wranglerHost}/party/${code}?user_id=${encodeURIComponent(userId)}&username=${encodeURIComponent(userId)}&leader=${isLeader ? 1 : 0}`;
+    const ws = new WebSocket(url);
+    const messages = [];
+    const frames = [];
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(new Error(`rawWsOpen timeout (${timeoutMs}ms) connecting to ${code} as ${userId}`));
+    }, timeoutMs);
+
+    ws.on('open', () => {
+      clearTimeout(timer);
+      resolve({ ws, messages, frames });
+    });
+    ws.on('message', (data) => {
+      const raw = String(data);
+      frames.push(raw);
+      try { messages.push(JSON.parse(raw)); } catch (_) {}
+    });
+    ws.on('error', (err) => { clearTimeout(timer); reject(err); });
+    // If the server rejects with a non-101 HTTP response (e.g. 403 party_full),
+    // the 'error' event fires with a connect-level error.
+  });
+}
+
+/**
+ * Wait for the worker's 'welcome' frame on a rawWsOpen socket.
+ * Resolves with the welcome message or rejects on timeout.
+ *
+ * @param {{messages: object[]}} handle - from rawWsOpen
+ * @param {number} [timeoutMs]
+ * @returns {Promise<object>}
+ */
+function waitForWelcome(handle, timeoutMs = 8_000) {
+  return waitForWorkerMessage(handle.messages, m => m.type === 'welcome', timeoutMs)
+    .then(m => {
+      if (!m) throw new Error(`waitForWelcome: no welcome within ${timeoutMs}ms`);
+      return m;
+    });
+}
+
+/**
+ * Send a raw string frame (no JSON serialisation) — use for malformed payloads.
+ * Silently ignores send errors (socket may already be closed).
+ *
+ * @param {import('ws').WebSocket} ws
+ * @param {string} raw
+ */
+function sendRaw(ws, raw) {
+  try {
+    if (ws.readyState === 1 /* OPEN */) ws.send(raw);
+  } catch (_) {}
+}
+
+/**
+ * Send a JSON-serialised frame (normal path).
+ *
+ * @param {import('ws').WebSocket} ws
+ * @param {object} obj
+ */
+function sendJson(ws, obj) {
+  sendRaw(ws, JSON.stringify(obj));
+}
+
+/**
+ * Abruptly destroy the socket without sending a close frame.
+ * Simulates a network drop (TCP RST) rather than a graceful WS close.
+ *
+ * @param {import('ws').WebSocket} ws
+ */
+function dropSocket(ws) {
+  try { ws.terminate(); } catch (_) {}
+}
+
+/**
+ * Graceful leave: send { type: 'leave' }, brief drain, then close.
+ *
+ * @param {import('ws').WebSocket} ws
+ * @param {number} [drainMs=200]
+ */
+async function leaveClose(ws, drainMs = 200) {
+  sendJson(ws, { type: 'leave' });
+  await new Promise(r => setTimeout(r, drainMs));
+  try { ws.close(); } catch (_) {}
+  await new Promise(r => setTimeout(r, 150));
+}
+
+/**
+ * Collect all messages on a socket for a fixed window then resolve.
+ * Non-destructive: messages also appear in the handle.messages array.
+ *
+ * @param {{messages: object[]}} handle - from rawWsOpen
+ * @param {number} durationMs
+ * @returns {Promise<object[]>}  snapshot of messages received during the window
+ */
+function collectFor(handle, durationMs) {
+  const start = handle.messages.length;
+  return new Promise(resolve => setTimeout(() => {
+    resolve(handle.messages.slice(start));
+  }, durationMs));
+}
+
+/**
+ * Attempt a WS connect that is expected to be REJECTED (HTTP 403 or socket-level error).
+ * Returns {rejected: true} if the server refused, {rejected: false, ws} if somehow accepted.
+ *
+ * @param {string} wranglerHost
+ * @param {string} code
+ * @param {string} userId
+ * @param {boolean} isLeader
+ * @returns {Promise<{rejected: boolean, ws?: import('ws').WebSocket, statusCode?: number}>}
+ */
+function expectReject(wranglerHost, code, userId, isLeader) {
+  const WebSocket = require('ws');
+  return new Promise((resolve) => {
+    const url = `${wranglerHost}/party/${code}?user_id=${encodeURIComponent(userId)}&username=${encodeURIComponent(userId)}&leader=${isLeader ? 1 : 0}`;
+    const ws = new WebSocket(url);
+    const timer = setTimeout(() => { ws.close(); resolve({ rejected: true }); }, 6_000);
+
+    ws.on('unexpected-response', (_req, res) => {
+      clearTimeout(timer);
+      ws.terminate();
+      resolve({ rejected: true, statusCode: res.statusCode });
+    });
+    ws.on('error', () => {
+      clearTimeout(timer);
+      resolve({ rejected: true });
+    });
+    ws.on('message', (data) => {
+      let m; try { m = JSON.parse(data); } catch (_) { return; }
+      if (m.type === 'welcome') {
+        clearTimeout(timer);
+        resolve({ rejected: false, ws });
+      }
+    });
+    ws.on('close', (code_) => {
+      clearTimeout(timer);
+      // Code 1008 = Policy Violation (party full), any close after our request = rejected
+      resolve({ rejected: true, statusCode: code_ });
+    });
+  });
+}
+
+module.exports = {
+  openReceivingClient,
+  waitForWorkerMessage,
+  // Adversarial primitives
+  rawWsOpen,
+  waitForWelcome,
+  sendRaw,
+  sendJson,
+  dropSocket,
+  leaveClose,
+  collectFor,
+  expectReject,
+};
