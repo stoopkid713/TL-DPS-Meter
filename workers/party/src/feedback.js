@@ -22,6 +22,38 @@ function json(status, body) {
   });
 }
 
+// Per-type display metadata for the Discord feed embed.
+const TYPE_META = {
+  bug: { emoji: "🐞", color: 0xe74c3c },
+  idea: { emoji: "💡", color: 0xf1c40f },
+  feedback: { emoji: "💬", color: 0x3498db },
+};
+
+// Best-effort fan-out of a feedback record to the #feedback-feed Discord webhook.
+// KV is the source of truth; Discord is a convenience mirror — callers swallow errors
+// so a webhook failure never affects the user's submission.
+async function postToDiscord(webhookUrl, record) {
+  const meta = TYPE_META[record.type] || TYPE_META.feedback;
+  const ctx = record.context && typeof record.context === "object" ? record.context : {};
+  const fields = [];
+  if (ctx.app_version) fields.push({ name: "Version", value: String(ctx.app_version).slice(0, 64), inline: true });
+  if (ctx.screen) fields.push({ name: "Screen", value: String(ctx.screen).slice(0, 64), inline: true });
+  if (record.contact) fields.push({ name: "Contact", value: String(record.contact).slice(0, 256), inline: true });
+  const embed = {
+    title: `${meta.emoji} ${String(record.type).toUpperCase()}`,
+    description: String(record.message).slice(0, 4000),
+    color: meta.color,
+    fields,
+    footer: { text: `ref ${record.ref}` },
+    timestamp: record.ts,
+  };
+  await fetch(webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: "STOOP Feedback", embeds: [embed] }),
+  });
+}
+
 export async function handleFeedback(request, env) {
   // Handle CORS preflight
   if (request.method === "OPTIONS") {
@@ -84,6 +116,16 @@ export async function handleFeedback(request, env) {
     await env.FEEDBACK_KV.put(kvKey, JSON.stringify(record));
   } catch (err) {
     return json(503, { ok: false, error: "failed to store feedback" });
+  }
+
+  // Best-effort mirror to the Discord #feedback-feed. KV already succeeded above;
+  // a webhook failure must never fail the user's submission, so it's swallowed.
+  if (env.DISCORD_FEEDBACK_WEBHOOK) {
+    try {
+      await postToDiscord(env.DISCORD_FEEDBACK_WEBHOOK, record);
+    } catch {
+      /* swallow — KV is the source of truth; Discord is a convenience mirror */
+    }
   }
 
   return json(200, { ok: true, ref });
