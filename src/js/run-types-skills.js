@@ -1124,7 +1124,7 @@
                 longbow: '#84cc16',     // Lime
                 staff: '#3b82f6',       // Blue
                 wand: '#D96444',        // Cyan
-                orb: '#8b5cf6',         // Violet
+                orb: '#5B92D4',         // Violet
                 mastery: '#fbbf24',     // Yellow
                 other: '#7A8CB8',       // Gray
                 unassigned: '#405A85'   // Dark gray

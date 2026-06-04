@@ -344,10 +344,10 @@
                         skillCard.onmouseout = function() { this.style.background = 'rgba(34, 197, 94, 0.08)'; };
                     } else {
                         skillCountEl.style.color = '#5B92D4';
-                        skillCard.style.background = 'rgba(168, 85, 247, 0.08)';
-                        skillCard.style.borderColor = 'rgba(168, 85, 247, 0.25)';
-                        skillCard.onmouseover = function() { this.style.background = 'rgba(168, 85, 247, 0.15)'; };
-                        skillCard.onmouseout = function() { this.style.background = 'rgba(168, 85, 247, 0.08)'; };
+                        skillCard.style.background = 'rgba(91, 146, 212, 0.08)';
+                        skillCard.style.borderColor = 'rgba(91, 146, 212, 0.25)';
+                        skillCard.onmouseover = function() { this.style.background = 'rgba(91, 146, 212, 0.15)'; };
+                        skillCard.onmouseout = function() { this.style.background = 'rgba(91, 146, 212, 0.08)'; };
                     }
                 }
             }

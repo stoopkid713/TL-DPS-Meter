@@ -765,7 +765,7 @@ ${attemptLine}
             list.innerHTML = rlPrompt + sessionQueue.map((item, i) => {
                 const borderColor = item.saved
                     ? 'rgba(34,197,94,0.4)'
-                    : (!item.id ? '#263956' : item.runLabSlot === 'A' ? 'rgba(217,100,68,0.5)' : item.runLabSlot === 'B' ? 'rgba(167,139,250,0.5)' : 'rgba(167,139,250,0.3)');
+                    : (!item.id ? '#263956' : item.runLabSlot === 'A' ? 'rgba(217,100,68,0.5)' : item.runLabSlot === 'B' ? 'rgba(91,146,212,0.5)' : 'rgba(91,146,212,0.3)');
                 const statusBadge = item.saved
                     ? `<span style="font-size:0.62rem; color:#22c55e; background:rgba(34,197,94,0.15); padding:2px 5px; border-radius:4px; font-weight:700;">✓</span>`
                     : (!item.id
@@ -779,7 +779,7 @@ ${attemptLine}
                     color:${item.runLabSlot==='A' ? '#D96444' : '#7A8CB8'};">A</button>`;
                 const slotBtnB = `<button onclick="setRunLabSlot('B',${i})" title="Assign as Run B"
                     style="padding:2px 7px; font-size:0.62rem; font-weight:700; border-radius:4px; cursor:pointer; transition:all 0.15s;
-                    background:${item.runLabSlot==='B' ? 'rgba(167,139,250,0.3)' : 'rgba(21,32,53,0.6)'};
+                    background:${item.runLabSlot==='B' ? 'rgba(91,146,212,0.3)' : 'rgba(21,32,53,0.6)'};
                     border:1px solid ${item.runLabSlot==='B' ? '#5B92D4' : '#263956'};
                     color:${item.runLabSlot==='B' ? '#5B92D4' : '#7A8CB8'};">B</button>`;
 

@@ -744,7 +744,7 @@
                 longbow: '#84cc16',
                 staff: '#3b82f6',
                 wand: '#D96444',
-                orb: '#8b5cf6',
+                orb: '#5B92D4',
                 mastery: '#fbbf24',
                 other: '#7A8CB8',
                 unassigned: '#405A85'

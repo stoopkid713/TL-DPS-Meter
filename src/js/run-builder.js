@@ -1047,9 +1047,9 @@
                         html += `
                             <div onclick="selectNavItem('${typeEsc}', '${level2Esc}', '${level3Esc}')" 
                                  style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin-bottom: 4px;
-                                        background: ${isLevel3Selected ? 'rgba(168, 85, 247, 0.15)' : 'transparent'}; 
+                                        background: ${isLevel3Selected ? 'rgba(91, 146, 212, 0.15)' : 'transparent'}; 
                                         border-radius: 6px; cursor: pointer; 
-                                        border: 1px solid ${isLevel3Selected ? 'rgba(168, 85, 247, 0.3)' : 'transparent'};
+                                        border: 1px solid ${isLevel3Selected ? 'rgba(91, 146, 212, 0.3)' : 'transparent'};
                                         transition: all 0.15s ease;">
                                 <span style="font-size: 0.85rem;">${level3Icon}</span>
                                 <span style="flex: 1; color: ${isLevel3Selected ? '#5B92D4' : '#F0EBE0'}; font-size: 0.85rem; font-weight: ${isLevel3Selected ? '600' : '400'};">
@@ -1262,7 +1262,7 @@
                             <div style="font-size: 0.7rem; color: #ef4444; text-transform: uppercase; margin-bottom: 4px;">💀 Adds Damage</div>
                             <div style="font-size: 1.4rem; font-weight: 700; color: #ef4444;">${formatCompactNumber(totalAdds)}</div>
                         </div>
-                        <div style="background: rgba(168, 85, 247, 0.1); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid rgba(168, 85, 247, 0.2);">
+                        <div style="background: rgba(91, 146, 212, 0.1); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid rgba(91, 146, 212, 0.2);">
                             <div style="font-size: 0.7rem; color: #5B92D4; text-transform: uppercase; margin-bottom: 4px;">📊 Avg DPS</div>
                             <div style="font-size: 1.4rem; font-weight: 700; color: #5B92D4;">${formatCompactNumber(avgDps)}</div>
                         </div>
@@ -1448,7 +1448,7 @@
                 
                 html += `
                     <div style="margin-bottom: 6px;">
-                        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: ${isRunExpanded ? 'rgba(168, 85, 247, 0.1)' : 'rgba(29, 47, 80, 0.3)'}; border-radius: 6px; border: 1px solid ${isRunExpanded ? 'rgba(168, 85, 247, 0.2)' : 'transparent'};">
+                        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: ${isRunExpanded ? 'rgba(91, 146, 212, 0.1)' : 'rgba(29, 47, 80, 0.3)'}; border-radius: 6px; border: 1px solid ${isRunExpanded ? 'rgba(91, 146, 212, 0.2)' : 'transparent'};">
                             <span onclick="toggleRunTimeline('${runExpandKey}')" style="color: ${isRunExpanded ? '#5B92D4' : '#405A85'}; font-size: 0.8rem; cursor: pointer; padding: 4px;">${isRunExpanded ? '▾' : '▸'}</span>
                             <span onclick="toggleRunTimeline('${runExpandKey}')" style="color: #7A8CB8; font-size: 0.9rem; width: 65px; cursor: pointer;">${dateStr}</span>
                             <span onclick="toggleRunTimeline('${runExpandKey}')" style="flex: 1; color: #F0EBE0; font-size: 0.95rem; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -1456,7 +1456,7 @@
                                 ${contextBadge}
                                 ${contributionBadge}
                                 ${lootBadge}
-                                ${classDisplay ? `<span style="font-size: 0.7rem; color: #5B92D4; background: rgba(168, 85, 247, 0.15); padding: 2px 6px; border-radius: 3px;">${escapeHtml(classDisplay)}</span>` : ''}
+                                ${classDisplay ? `<span style="font-size: 0.7rem; color: #5B92D4; background: rgba(91, 146, 212, 0.15); padding: 2px 6px; border-radius: 3px;">${escapeHtml(classDisplay)}</span>` : ''}
                                 ${buildTag ? `<span style="font-size: 0.7rem; color: #7A8CB8;">${escapeHtml(buildTag)}</span>` : ''}
                             </span>
                             <span style="font-size: 0.8rem; color: #3b82f6;" title="Boss damage">⚔️${formatCompactNumber(bossDamage)}</span>
@@ -1540,7 +1540,7 @@
                             <div style="font-size: 0.7rem; color: #7A8CB8; text-transform: uppercase; margin-bottom: 4px;">Total Runs</div>
                             <div style="font-size: 1.4rem; font-weight: 700; color: #F0EBE0;">${totalRuns}</div>
                         </div>
-                        <div style="background: rgba(168, 85, 247, 0.1); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid rgba(168, 85, 247, 0.2);">
+                        <div style="background: rgba(91, 146, 212, 0.1); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid rgba(91, 146, 212, 0.2);">
                             <div style="font-size: 0.7rem; color: #5B92D4; text-transform: uppercase; margin-bottom: 4px;">📊 Drop Rate</div>
                             <div style="font-size: 1.4rem; font-weight: 700; color: #5B92D4;">${dropRate}%</div>
                         </div>

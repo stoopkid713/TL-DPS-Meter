@@ -870,7 +870,7 @@
             let html = `
                 <div style="position: relative; min-height: 200px;">
                     <!-- Center timeline line -->
-                    <div style="position: absolute; left: 50%; top: 20px; bottom: 20px; width: 4px; transform: translateX(-50%); background: linear-gradient(to bottom, #fbbf24, #ec4899, #5B92D4, #3b82f6); border-radius: 2px; box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);"></div>
+                    <div style="position: absolute; left: 50%; top: 20px; bottom: 20px; width: 4px; transform: translateX(-50%); background: linear-gradient(to bottom, #fbbf24, #ec4899, #5B92D4, #3b82f6); border-radius: 2px; box-shadow: 0 0 15px rgba(91, 146, 212, 0.4);"></div>
             `;
             
             let groupCounter = 0;

@@ -684,7 +684,7 @@
         const TOUR_STEPS = [
             {
                 icon: '👋',
-                title: 'Welcome to CK DPS Meter',
+                title: 'Welcome to STOOP',
                 text: 'This quick tour walks you through the key features. Takes about 2 minutes. Use the arrows to navigate or ✕ to skip.',
                 target: null, tab: null
             },
@@ -878,7 +878,7 @@
             // Progress dots
             document.getElementById('tourDots').innerHTML = TOUR_STEPS.map((_, i) =>
                 `<div style="width:${i===index?'20px':'7px'}; height:7px; border-radius:4px;
-                     background:${i===index?'#a78bfa':'rgba(122,140,184,0.4)'};
+                     background:${i===index?'#5B92D4':'rgba(122,140,184,0.4)'};
                      transition:all 0.3s;"></div>`
             ).join('');
 

@@ -733,7 +733,7 @@
 
         /* Card Themes */
         .dashboard-card-tests {
-            background: linear-gradient(135deg, rgba(91, 146, 212, 0.2) 0%, rgba(139, 92, 246, 0.1) 100%);
+            background: linear-gradient(135deg, rgba(91, 146, 212, 0.2) 0%, rgba(91, 146, 212, 0.1) 100%);
             border-color: rgba(91, 146, 212, 0.3);
         }
         .dashboard-card-tests .dashboard-card-value { color: #5B92D4; }
@@ -1189,8 +1189,8 @@
         /* === RUN LAB === */
         .rl-header { display: flex; gap: 12px; align-items: stretch; margin-bottom: 20px; }
         .rl-run-card { flex: 1; padding: 14px 16px; border-radius: 10px; border: 2px solid; }
-        .rl-run-card.run-a { background: rgba(34,211,238,0.07); border-color: rgba(34,211,238,0.35); }
-        .rl-run-card.run-b { background: rgba(167,139,250,0.07); border-color: rgba(167,139,250,0.35); }
+        .rl-run-card.run-a { background: rgba(217,100,68,0.07); border-color: rgba(217,100,68,0.35); }
+        .rl-run-card.run-b { background: rgba(91,146,212,0.07); border-color: rgba(91,146,212,0.35); }
         .rl-run-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
         .rl-run-card.run-a .rl-run-label { color: #D96444; }
         .rl-run-card.run-b .rl-run-label { color: #5B92D4; }
@@ -1205,8 +1205,8 @@
         .rl-matrix { margin-bottom: 20px; }
         .rl-matrix-header { display: grid; grid-template-columns: 1fr 80px 75px 75px 52px 52px 52px; gap: 4px; padding: 6px 8px; font-size: 0.6rem; color: #7A8CB8; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid #263956; }
         .rl-matrix-row { display: grid; grid-template-columns: 1fr 80px 75px 75px 52px 52px 52px; gap: 4px; padding: 8px 8px; border-bottom: 1px solid rgba(38,57,86,0.5); cursor: pointer; border-radius: 6px; transition: background 0.15s; align-items: center; }
-        .rl-matrix-row:hover { background: rgba(34,211,238,0.05); }
-        .rl-matrix-row.selected { background: rgba(34,211,238,0.08); outline: 1px solid rgba(34,211,238,0.2); }
+        .rl-matrix-row:hover { background: rgba(217,100,68,0.05); }
+        .rl-matrix-row.selected { background: rgba(217,100,68,0.08); outline: 1px solid rgba(217,100,68,0.2); }
         .rl-skill-name { font-size: 0.78rem; color: #F0EBE0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .rl-cell-a { font-size: 0.76rem; text-align: right; color: #D96444; }
         .rl-cell-b { font-size: 0.76rem; text-align: right; color: #5B92D4; }
@@ -1218,7 +1218,7 @@
         .rl-toggle-bar { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; align-items: center; }
         .rl-toggle-label { font-size: 0.62rem; color: #7A8CB8; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 2px; flex-shrink: 0; }
         .rl-skill-toggle { padding: 3px 9px; border-radius: 12px; font-size: 0.7rem; cursor: pointer; border: 1px solid #263956; background: rgba(21,32,53,0.5); color: #7A8CB8; transition: all 0.15s; }
-        .rl-skill-toggle.on { background: rgba(34,211,238,0.15); border-color: rgba(34,211,238,0.4); color: #D96444; }
+        .rl-skill-toggle.on { background: rgba(217,100,68,0.15); border-color: rgba(217,100,68,0.4); color: #D96444; }
         .rl-piano-time-axis { display: flex; justify-content: space-between; padding: 0 0 4px 110px; font-size: 0.62rem; color: #405A85; }
         .rl-piano-skill-block { margin-bottom: 3px; }
         .rl-piano-skill-row { display: flex; align-items: center; height: 18px; }
@@ -1354,7 +1354,7 @@
         }
 
         .piano-roll-hit.normal {
-            background: linear-gradient(180deg, #D96444, #0891b2);
+            background: linear-gradient(180deg, #D96444, #B5492E);
         }
 
         .piano-roll-hit.crit {
@@ -1413,7 +1413,7 @@
         }
 
         .piano-roll-legend-dot.normal {
-            background: linear-gradient(180deg, #D96444, #0891b2);
+            background: linear-gradient(180deg, #D96444, #B5492E);
         }
 
         .piano-roll-legend-dot.crit {
@@ -1876,7 +1876,7 @@
             border-radius: 2px;
         }
 
-        .legend-dot.damage { background: linear-gradient(180deg, #D96444, #0891b2); }
+        .legend-dot.damage { background: linear-gradient(180deg, #D96444, #B5492E); }
         .legend-dot.gap { background: rgba(239, 68, 68, 0.4); }
         .legend-dot.burst { background: rgba(34, 197, 94, 0.4); }
 
@@ -1919,7 +1919,7 @@
         }
 
         .rotation-dps-bar.normal {
-            background: linear-gradient(180deg, #D96444, #0891b2);
+            background: linear-gradient(180deg, #D96444, #B5492E);
         }
 
         .rotation-dps-bar.gap-zone {
@@ -3111,7 +3111,7 @@
             width: 32px;
             height: 32px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #D96444, #0891b2);
+            background: linear-gradient(135deg, #D96444, #B5492E);
             color: #152035;
             font-weight: 700;
             font-size: 1rem;
@@ -3195,7 +3195,7 @@
             top: -12px;
             left: 50%;
             transform: translateX(-50%);
-            background: linear-gradient(135deg, #5B92D4, #8b5cf6);
+            background: linear-gradient(135deg, #5B92D4, #5B92D4);
             color: #ffffff;
             padding: 4px 16px;
             border-radius: 12px;
@@ -3761,7 +3761,7 @@
         }
 
         .compare-rotation-bar.normal {
-            background: linear-gradient(180deg, #D96444, #0891b2);
+            background: linear-gradient(180deg, #D96444, #B5492E);
         }
 
         .compare-rotation-bar.gap-zone {
@@ -3838,15 +3838,15 @@
         .compare-segment-row .dps-bar-fill {
             height: 100%;
             border-radius: 3px;
-            background: linear-gradient(90deg, #D96444, #0891b2);
+            background: linear-gradient(90deg, #D96444, #B5492E);
         }
 
         .compare-segment-row .dps-bar-fill.a {
-            background: linear-gradient(90deg, #5B92D4, #8b5cf6);
+            background: linear-gradient(90deg, #5B92D4, #5B92D4);
         }
 
         .compare-segment-row .dps-bar-fill.b {
-            background: linear-gradient(90deg, #D96444, #0891b2);
+            background: linear-gradient(90deg, #D96444, #B5492E);
         }
 
         .compare-segment-row .dps-bar-fill.c {
@@ -4551,7 +4551,7 @@
         }
         
         .target-category[data-category="field_boss"] .category-name {
-            color: #a855f7;
+            color: #5B92D4;
         }
         
         .target-category[data-category="dungeon_boss"] {
@@ -5561,7 +5561,7 @@
 
         .party-action-btn-join {
             padding: 10px 20px;
-            background: linear-gradient(135deg, #5B92D4, #8b5cf6);
+            background: linear-gradient(135deg, #5B92D4, #5B92D4);
             color: white;
         }
 
@@ -6479,7 +6479,7 @@
             background: rgba(0, 0, 0, 0.2); border-radius: 4px; padding: 4px;
         }
         .pr-rot-chart.compact { height: 48px; }
-        .pr-rot-bar { flex: 1; min-height: 1px; background: linear-gradient(180deg, #D96444, #0891b2); border-radius: 1px 1px 0 0; }
+        .pr-rot-bar { flex: 1; min-height: 1px; background: linear-gradient(180deg, #D96444, #B5492E); border-radius: 1px 1px 0 0; }
         .pr-rot-bar.gap { background: rgba(239, 68, 68, 0.25); }
         .pr-rot-axis { display: flex; justify-content: space-between; font-size: 0.68rem; color: #7A8CB8; margin-top: 4px; }
         .pr-empty { color: #7A8CB8; text-align: center; padding: 16px; font-size: 0.85rem; }
@@ -6553,8 +6553,8 @@
         .pr-trophy-loading, .pr-trophy-pending { color: #7A8CB8; font-size: 13px; padding: 8px 2px; }
         /* Update banner (prominent) */
         .update-banner { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 9px 14px;
-            background: linear-gradient(135deg, rgba(34,211,238,0.15), rgba(34,211,238,0.05));
-            border: 1px solid rgba(34,211,238,0.4); border-radius: 8px; color: #F0EBE0; font-size: 0.9rem; }
+            background: linear-gradient(135deg, rgba(217,100,68,0.15), rgba(217,100,68,0.05));
+            border: 1px solid rgba(217,100,68,0.4); border-radius: 8px; color: #F0EBE0; font-size: 0.9rem; }
         .update-banner a { color: #D96444; font-weight: 600; }
         .update-banner-x { margin-left: auto; background: none; border: none; color: #7A8CB8; cursor: pointer; font-size: 0.9rem; }
         .update-banner-x:hover { color: #F0EBE0; }
@@ -6564,7 +6564,7 @@
         .fb-title { font-size: 1.05rem; font-weight: 700; color: #F0EBE0; margin-bottom: 12px; }
         .fb-types { display: flex; gap: 6px; margin-bottom: 10px; }
         .fb-type { flex: 1; padding: 7px; background: rgba(122,140,184,0.08); border: 1px solid #263956; border-radius: 6px; color: #7A8CB8; cursor: pointer; font-size: 0.85rem; }
-        .fb-type.active { background: rgba(34,211,238,0.15); border-color: #D96444; color: #D96444; }
+        .fb-type.active { background: rgba(217,100,68,0.15); border-color: #D96444; color: #D96444; }
         .fb-input { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 9px; background: rgba(21,32,53,0.8); border: 1px solid #405A85; border-radius: 6px; color: #F0EBE0; font-family: inherit; font-size: 0.88rem; resize: vertical; }
         .fb-input:focus { outline: none; border-color: #D96444; }
         .fb-consent { display: block; color: #7A8CB8; font-size: 0.8rem; margin-bottom: 6px; }
@@ -6575,7 +6575,7 @@
         .fb-status.err { color: #f87171; }
         .fb-actions { display: flex; justify-content: flex-end; gap: 8px; }
         .fb-btn { padding: 8px 16px; background: rgba(122,140,184,0.1); border: 1px solid #263956; border-radius: 6px; color: #F0EBE0; cursor: pointer; font-size: 0.85rem; }
-        .fb-btn.fb-send { background: linear-gradient(135deg, #D96444, #0891b2); border-color: #D96444; color: #06262e; font-weight: 700; }
+        .fb-btn.fb-send { background: linear-gradient(135deg, #D96444, #B5492E); border-color: #D96444; color: #06262e; font-weight: 700; }
         .fb-btn:disabled { opacity: 0.5; cursor: default; }
 
         .party-result-row.rank-1 {
@@ -7319,7 +7319,7 @@
         }
 
         .weapon-stats-info .info-badge {
-            background: linear-gradient(135deg, #5B92D4 0%, #8b5cf6 100%);
+            background: linear-gradient(135deg, #5B92D4 0%, #5B92D4 100%);
             color: #152035;
             font-size: 0.7rem;
             font-weight: 700;
@@ -7484,8 +7484,8 @@
         }
 
         .weapon-breakdown-card.orb {
-            border-color: rgba(139, 92, 246, 0.5);
-            background: rgba(139, 92, 246, 0.1);
+            border-color: rgba(91, 146, 212, 0.5);
+            background: rgba(91, 146, 212, 0.1);
         }
 
         .weapon-breakdown-card.mastery {
@@ -7545,7 +7545,7 @@
         .weapon-breakdown-card.longbow .breakdown-percent { color: #84cc16; }
         .weapon-breakdown-card.staff .breakdown-percent { color: #3b82f6; }
         .weapon-breakdown-card.wand .breakdown-percent { color: #D96444; }
-        .weapon-breakdown-card.orb .breakdown-percent { color: #8b5cf6; }
+        .weapon-breakdown-card.orb .breakdown-percent { color: #5B92D4; }
         .weapon-breakdown-card.mastery .breakdown-percent { color: #fbbf24; }
         .weapon-breakdown-card.other .breakdown-percent { color: #7A8CB8; }
         .weapon-breakdown-card.unassigned .breakdown-percent { color: #7A8CB8; }
@@ -7574,13 +7574,13 @@
 
         .weapon-breakdown-card.greatsword .breakdown-bar-fill { background: linear-gradient(90deg, #ef4444, #dc2626); }
         .weapon-breakdown-card.sns .breakdown-bar-fill { background: linear-gradient(90deg, #f97316, #ea580c); }
-        .weapon-breakdown-card.dagger .breakdown-bar-fill { background: linear-gradient(90deg, #5B92D4, #8b5cf6); }
+        .weapon-breakdown-card.dagger .breakdown-bar-fill { background: linear-gradient(90deg, #5B92D4, #5B92D4); }
         .weapon-breakdown-card.spear .breakdown-bar-fill { background: linear-gradient(90deg, #ec4899, #db2777); }
         .weapon-breakdown-card.crossbow .breakdown-bar-fill { background: linear-gradient(90deg, #22c55e, #16a34a); }
         .weapon-breakdown-card.longbow .breakdown-bar-fill { background: linear-gradient(90deg, #84cc16, #65a30d); }
         .weapon-breakdown-card.staff .breakdown-bar-fill { background: linear-gradient(90deg, #3b82f6, #2563eb); }
-        .weapon-breakdown-card.wand .breakdown-bar-fill { background: linear-gradient(90deg, #D96444, #0891b2); }
-        .weapon-breakdown-card.orb .breakdown-bar-fill { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+        .weapon-breakdown-card.wand .breakdown-bar-fill { background: linear-gradient(90deg, #D96444, #B5492E); }
+        .weapon-breakdown-card.orb .breakdown-bar-fill { background: linear-gradient(90deg, #5B92D4, #3F6FA8); }
         .weapon-breakdown-card.mastery .breakdown-bar-fill { background: linear-gradient(90deg, #fbbf24, #d97706); }
         .weapon-breakdown-card.other .breakdown-bar-fill { background: linear-gradient(90deg, #7A8CB8, #7A8CB8); }
         .weapon-breakdown-card.unassigned .breakdown-bar-fill { background: linear-gradient(90deg, #7A8CB8, #405A85); }
@@ -7665,13 +7665,13 @@
 
         .category-bar.greatsword { background: linear-gradient(180deg, #ef4444, #dc2626); }
         .category-bar.sns { background: linear-gradient(180deg, #f97316, #ea580c); }
-        .category-bar.dagger { background: linear-gradient(180deg, #5B92D4, #8b5cf6); }
+        .category-bar.dagger { background: linear-gradient(180deg, #5B92D4, #5B92D4); }
         .category-bar.spear { background: linear-gradient(180deg, #ec4899, #db2777); }
         .category-bar.crossbow { background: linear-gradient(180deg, #22c55e, #16a34a); }
         .category-bar.longbow { background: linear-gradient(180deg, #84cc16, #65a30d); }
         .category-bar.staff { background: linear-gradient(180deg, #3b82f6, #2563eb); }
-        .category-bar.wand { background: linear-gradient(180deg, #D96444, #0891b2); }
-        .category-bar.orb { background: linear-gradient(180deg, #8b5cf6, #7c3aed); }
+        .category-bar.wand { background: linear-gradient(180deg, #D96444, #B5492E); }
+        .category-bar.orb { background: linear-gradient(180deg, #5B92D4, #3F6FA8); }
         .category-bar.mastery { background: linear-gradient(180deg, #fbbf24, #d97706); }
         .category-bar.other { background: linear-gradient(180deg, #7A8CB8, #7A8CB8); }
         .category-bar.unassigned { background: linear-gradient(180deg, #405A85, #263956); }
@@ -7705,7 +7705,7 @@
         .category-legend-dot.longbow { background: #84cc16; }
         .category-legend-dot.staff { background: #3b82f6; }
         .category-legend-dot.wand { background: #D96444; }
-        .category-legend-dot.orb { background: #8b5cf6; }
+        .category-legend-dot.orb { background: #5B92D4; }
         .category-legend-dot.mastery { background: #fbbf24; }
         .category-legend-dot.other { background: #7A8CB8; }
         .category-legend-dot.unassigned { background: #405A85; }
@@ -7822,7 +7822,7 @@
         .weapon-drop-card[data-weapon="wand"].drag-over,
         .weapon-drop-card[data-weapon="wand"]:hover { border-color: #D96444; }
         .weapon-drop-card[data-weapon="orb"].drag-over,
-        .weapon-drop-card[data-weapon="orb"]:hover { border-color: #8b5cf6; }
+        .weapon-drop-card[data-weapon="orb"]:hover { border-color: #5B92D4; }
         .weapon-drop-card[data-weapon="mastery"].drag-over,
         .weapon-drop-card[data-weapon="mastery"]:hover { border-color: #fbbf24; }
         .weapon-drop-card[data-weapon="other"].drag-over,
@@ -7945,7 +7945,7 @@
         .skill-chip[data-weapon="longbow"] { border-color: rgba(132, 204, 22, 0.5); background: rgba(132, 204, 22, 0.1); }
         .skill-chip[data-weapon="staff"] { border-color: rgba(59, 130, 246, 0.5); background: rgba(59, 130, 246, 0.1); }
         .skill-chip[data-weapon="wand"] { border-color: rgba(217, 100, 68, 0.5); background: rgba(217, 100, 68, 0.1); }
-        .skill-chip[data-weapon="orb"] { border-color: rgba(139, 92, 246, 0.5); background: rgba(139, 92, 246, 0.1); }
+        .skill-chip[data-weapon="orb"] { border-color: rgba(91, 146, 212, 0.5); background: rgba(91, 146, 212, 0.1); }
         .skill-chip[data-weapon="mastery"] { border-color: rgba(251, 191, 36, 0.5); background: rgba(251, 191, 36, 0.1); }
         .skill-chip[data-weapon="other"] { border-color: rgba(122, 140, 184, 0.5); background: rgba(122, 140, 184, 0.1); }
 
@@ -8273,7 +8273,7 @@
         .welcome-card.cyan:hover { border-color: rgba(217, 100, 68, 0.4); background: rgba(217, 100, 68, 0.1); }
         .welcome-card.cyan .welcome-card-icon { color: #D96444; }
 
-        .welcome-card.purple::before { background: linear-gradient(90deg, #5B92D4, #8b5cf6); }
+        .welcome-card.purple::before { background: linear-gradient(90deg, #5B92D4, #5B92D4); }
         .welcome-card.purple:hover { border-color: rgba(91, 146, 212, 0.4); background: rgba(91, 146, 212, 0.1); }
         .welcome-card.purple .welcome-card-icon { color: #5B92D4; }
 
@@ -9413,7 +9413,7 @@
                                 <div style="font-size: 1.5rem;">⚔️</div>
                                 <div>
                                     <div style="display: flex; align-items: baseline; gap: 6px;">
-                                        <span id="unassignedSkillsCount" style="font-size: 1.4rem; font-weight: 700; color: #a855f7;">0</span>
+                                        <span id="unassignedSkillsCount" style="font-size: 1.4rem; font-weight: 700; color: #5B92D4;">0</span>
                                         <span style="font-size: 0.75rem; color: #7A8CB8;">unassigned</span>
                                     </div>
                                     <div style="font-size: 0.7rem; color: #7A8CB8; margin-top: 2px;">Skill Weapons</div>
@@ -9493,8 +9493,8 @@
                 <div class="main-header-title">BUILD • TEST • SAVE • COMPARE</div>
                 <!-- Top-right header actions -->
                 <div style="position:absolute; top:10px; right:14px; z-index:3; display:flex; gap:6px; align-items:center;">
-                    <button onclick="checkUpdateBanner(true)" title="Check for a newer version" style="padding:5px 10px; background:rgba(21,32,53,0.7); border:1px solid #263956; border-radius:6px; color:#7A8CB8; font-size:0.75rem; cursor:pointer; transition:all 0.2s; font-weight:500; line-height:1;" onmouseover="this.style.borderColor='#D96444';this.style.color='#D96444';this.style.background='rgba(34,211,238,0.1)';" onmouseout="this.style.borderColor='#263956';this.style.color='#7A8CB8';this.style.background='rgba(21,32,53,0.7)';">⬆ Updates</button>
-                    <button onclick="openFeedbackModal()" title="Send feedback or report a bug" style="padding:5px 10px; background:rgba(21,32,53,0.7); border:1px solid #263956; border-radius:6px; color:#7A8CB8; font-size:0.75rem; cursor:pointer; transition:all 0.2s; font-weight:500; line-height:1;" onmouseover="this.style.borderColor='#D96444';this.style.color='#D96444';this.style.background='rgba(34,211,238,0.1)';" onmouseout="this.style.borderColor='#263956';this.style.color='#7A8CB8';this.style.background='rgba(21,32,53,0.7)';">💬 Feedback</button>
+                    <button onclick="checkUpdateBanner(true)" title="Check for a newer version" style="padding:5px 10px; background:rgba(21,32,53,0.7); border:1px solid #263956; border-radius:6px; color:#7A8CB8; font-size:0.75rem; cursor:pointer; transition:all 0.2s; font-weight:500; line-height:1;" onmouseover="this.style.borderColor='#D96444';this.style.color='#D96444';this.style.background='rgba(217,100,68,0.1)';" onmouseout="this.style.borderColor='#263956';this.style.color='#7A8CB8';this.style.background='rgba(21,32,53,0.7)';">⬆ Updates</button>
+                    <button onclick="openFeedbackModal()" title="Send feedback or report a bug" style="padding:5px 10px; background:rgba(21,32,53,0.7); border:1px solid #263956; border-radius:6px; color:#7A8CB8; font-size:0.75rem; cursor:pointer; transition:all 0.2s; font-weight:500; line-height:1;" onmouseover="this.style.borderColor='#D96444';this.style.color='#D96444';this.style.background='rgba(217,100,68,0.1)';" onmouseout="this.style.borderColor='#263956';this.style.color='#7A8CB8';this.style.background='rgba(21,32,53,0.7)';">💬 Feedback</button>
                 </div>
             </div>
             
@@ -9708,7 +9708,7 @@
                             <!-- Save/Load Buttons (same size as Reset) -->
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
                                 <button onclick="openSaveModal()" style="padding: 16px; font-size: 1rem; font-weight: 700; background: linear-gradient(135deg, rgba(217, 100, 68, 0.2) 0%, rgba(217, 100, 68, 0.1) 100%); border: 1px solid rgba(217, 100, 68, 0.4); color: #D96444; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 15px rgba(217, 100, 68, 0.15); transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(217, 100, 68, 0.25)'; this.style.background='linear-gradient(135deg, rgba(217, 100, 68, 0.3) 0%, rgba(217, 100, 68, 0.15) 100%)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(217, 100, 68, 0.15)'; this.style.background='linear-gradient(135deg, rgba(217, 100, 68, 0.2) 0%, rgba(217, 100, 68, 0.1) 100%)';">💾 Save</button>
-                                <button onclick="openLoadModal()" style="padding: 16px; font-size: 1rem; font-weight: 700; background: linear-gradient(135deg, rgba(91, 146, 212, 0.2) 0%, rgba(91, 146, 212, 0.1) 100%); border: 1px solid rgba(91, 146, 212, 0.4); color: #a855f7; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 15px rgba(91, 146, 212, 0.15); transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(91, 146, 212, 0.25)'; this.style.background='linear-gradient(135deg, rgba(91, 146, 212, 0.3) 0%, rgba(91, 146, 212, 0.15) 100%)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(91, 146, 212, 0.15)'; this.style.background='linear-gradient(135deg, rgba(91, 146, 212, 0.2) 0%, rgba(91, 146, 212, 0.1) 100%)';">📂 Load</button>
+                                <button onclick="openLoadModal()" style="padding: 16px; font-size: 1rem; font-weight: 700; background: linear-gradient(135deg, rgba(91, 146, 212, 0.2) 0%, rgba(91, 146, 212, 0.1) 100%); border: 1px solid rgba(91, 146, 212, 0.4); color: #5B92D4; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 15px rgba(91, 146, 212, 0.15); transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(91, 146, 212, 0.25)'; this.style.background='linear-gradient(135deg, rgba(91, 146, 212, 0.3) 0%, rgba(91, 146, 212, 0.15) 100%)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(91, 146, 212, 0.15)'; this.style.background='linear-gradient(135deg, rgba(91, 146, 212, 0.2) 0%, rgba(91, 146, 212, 0.1) 100%)';">📂 Load</button>
                             </div>
                             
                             <!-- Next Actions (After test completes - shown only when NOT in session queue mode) -->
@@ -9748,7 +9748,7 @@
                                     3. View results in tabs →
                                 </div>
                                 <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #263956; font-size: 0.7rem; color: #7A8CB8;">
-                                    Or click <strong style="color: #a855f7;">Load</strong> to view a saved test
+                                    Or click <strong style="color: #5B92D4;">Load</strong> to view a saved test
                                 </div>
                             </div>
                             
@@ -10150,7 +10150,7 @@
                                         
                                         <!-- Class/Build Selection -->
                                         <div style="margin-bottom: 12px; padding: 12px; background: rgba(91, 146, 212, 0.1); border: 1px solid rgba(91, 146, 212, 0.2); border-radius: 6px;">
-                                            <div style="font-size: 0.7rem; color: #a855f7; font-weight: 600; margin-bottom: 8px; text-transform: uppercase;">Build Info (Optional)</div>
+                                            <div style="font-size: 0.7rem; color: #5B92D4; font-weight: 600; margin-bottom: 8px; text-transform: uppercase;">Build Info (Optional)</div>
                                             <div style="margin-bottom: 8px;">
                                                 <select id="runClassSelect" style="width: 100%; padding: 8px 10px; background: #152035; border: 1px solid #263956; border-radius: 6px; color: #F0EBE0; font-size: 0.8rem; cursor: pointer;">
                                                     <option value="">-- Class --</option>
@@ -10242,7 +10242,7 @@
                                                 <div style="color: #7A8CB8; font-size: 0.65rem; text-transform: uppercase;">Overall DPS</div>
                                             </div>
                                             <div style="text-align: center; padding: 12px 8px; background: rgba(21, 32, 53, 0.5); border: 1px solid #263956; border-radius: 6px;">
-                                                <div style="color: #a855f7; font-size: 1.2rem; font-weight: 700;" id="runActiveDuration">0s</div>
+                                                <div style="color: #5B92D4; font-size: 1.2rem; font-weight: 700;" id="runActiveDuration">0s</div>
                                                 <div style="color: #7A8CB8; font-size: 0.65rem; text-transform: uppercase;">Active Time</div>
                                             </div>
                                             <div style="text-align: center; padding: 12px 8px; background: rgba(21, 32, 53, 0.5); border: 1px solid #263956; border-radius: 6px;">
@@ -10345,7 +10345,7 @@
                                 </div>
                                 <div class="category-description">1-2 minute gaps (shows warning for 60s-90s gaps)</div>
                                 <div style="text-align: center; padding: 16px 0;">
-                                    <div style="font-size: 2rem; font-weight: 700; color: #a855f7;" id="count-field_boss">0</div>
+                                    <div style="font-size: 2rem; font-weight: 700; color: #5B92D4;" id="count-field_boss">0</div>
                                     <div style="font-size: 0.75rem; color: #7A8CB8;">Targets Assigned</div>
                                 </div>
                                 <button onclick="showAssignedTargets('field_boss')" style="width: 100%; padding: 8px; background: #1D2F50; border: 1px solid #263956; color: #F0EBE0; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">📋 Show Assigned</button>
@@ -10373,7 +10373,7 @@
                                 </div>
                                 <div class="category-description">Assign adds to specific dungeon (optional)</div>
                                 <div style="text-align: center; padding: 16px 0;">
-                                    <div style="font-size: 2rem; font-weight: 700; color: #8b5cf6;" id="count-dungeon_adds">0</div>
+                                    <div style="font-size: 2rem; font-weight: 700; color: #5B92D4;" id="count-dungeon_adds">0</div>
                                     <div style="font-size: 0.75rem; color: #7A8CB8;">Targets Assigned</div>
                                 </div>
                                 <button onclick="showAssignedTargets('dungeon_adds')" style="width: 100%; padding: 8px; background: #1D2F50; border: 1px solid #263956; color: #F0EBE0; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">📋 Show Assigned</button>
@@ -10553,11 +10553,11 @@
                                     <div class="encounters-detail-meta" style="display:flex;align-items:center;gap:10px;">
                                         <span id="encDetailTime">--</span>
                                         <button id="encSaveBtn" onclick="openEncounterSaveModal()"
-                                            style="padding:5px 12px;background:linear-gradient(135deg,rgba(34,211,238,0.15),rgba(167,139,250,0.1));
-                                                   border:1px solid rgba(34,211,238,0.4);border-radius:7px;color:#D96444;
+                                            style="padding:5px 12px;background:linear-gradient(135deg,rgba(217,100,68,0.15),rgba(91,146,212,0.1));
+                                                   border:1px solid rgba(217,100,68,0.4);border-radius:7px;color:#D96444;
                                                    font-size:0.75rem;font-weight:600;cursor:pointer;white-space:nowrap;"
-                                            onmouseover="this.style.background='rgba(34,211,238,0.2)'"
-                                            onmouseout="this.style.background='linear-gradient(135deg,rgba(34,211,238,0.15),rgba(167,139,250,0.1))'">
+                                            onmouseover="this.style.background='rgba(217,100,68,0.2)'"
+                                            onmouseout="this.style.background='linear-gradient(135deg,rgba(217,100,68,0.15),rgba(91,146,212,0.1))'">
                                             💾 Save
                                         </button>
                                     </div>
@@ -10992,10 +10992,10 @@
                             <div class="target-category" data-category="dagger" data-weapon="dagger" ondragover="allowDrop(event)" ondrop="dropSkill(event, 'dagger')" ondragleave="dragLeave(event)" style="border-color: rgba(91, 146, 212, 0.4); background: linear-gradient(135deg, rgba(91, 146, 212, 0.05), rgba(126, 34, 206, 0.05));">
                                 <div class="category-header" style="border-bottom-color: rgba(91, 146, 212, 0.3);">
                                     <span class="category-icon">🗡️</span>
-                                    <span class="category-name" style="color: #a855f7;">Dagger</span>
+                                    <span class="category-name" style="color: #5B92D4;">Dagger</span>
                                 </div>
                                 <div style="text-align: center; padding: 16px 0;">
-                                    <div style="font-size: 2rem; font-weight: 700; color: #a855f7;" id="count-dagger">0</div>
+                                    <div style="font-size: 2rem; font-weight: 700; color: #5B92D4;" id="count-dagger">0</div>
                                     <div style="font-size: 0.75rem; color: #7A8CB8;">Skills Assigned</div>
                                 </div>
                                 <button onclick="showAssignedSkillsModal('dagger')" style="width: 100%; padding: 8px; background: #1D2F50; border: 1px solid #263956; color: #F0EBE0; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">📋 Show Assigned</button>
@@ -11054,13 +11054,13 @@
                             </div>
 
                             <!-- Wand -->
-                            <div class="target-category" data-category="wand" data-weapon="wand" ondragover="allowDrop(event)" ondrop="dropSkill(event, 'wand')" ondragleave="dragLeave(event)" style="border-color: rgba(139, 92, 246, 0.4); background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(109, 40, 217, 0.05));">
-                                <div class="category-header" style="border-bottom-color: rgba(139, 92, 246, 0.3);">
+                            <div class="target-category" data-category="wand" data-weapon="wand" ondragover="allowDrop(event)" ondrop="dropSkill(event, 'wand')" ondragleave="dragLeave(event)" style="border-color: rgba(91, 146, 212, 0.4); background: linear-gradient(135deg, rgba(91, 146, 212, 0.05), rgba(109, 40, 217, 0.05));">
+                                <div class="category-header" style="border-bottom-color: rgba(91, 146, 212, 0.3);">
                                     <span class="category-icon">✨</span>
-                                    <span class="category-name" style="color: #8b5cf6;">Wand</span>
+                                    <span class="category-name" style="color: #5B92D4;">Wand</span>
                                 </div>
                                 <div style="text-align: center; padding: 16px 0;">
-                                    <div style="font-size: 2rem; font-weight: 700; color: #8b5cf6;" id="count-wand">0</div>
+                                    <div style="font-size: 2rem; font-weight: 700; color: #5B92D4;" id="count-wand">0</div>
                                     <div style="font-size: 0.75rem; color: #7A8CB8;">Skills Assigned</div>
                                 </div>
                                 <button onclick="showAssignedSkillsModal('wand')" style="width: 100%; padding: 8px; background: #1D2F50; border: 1px solid #263956; color: #F0EBE0; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">📋 Show Assigned</button>
@@ -11537,14 +11537,14 @@
             <!-- GitHub Link -->
             <div style="border-top: 1px solid #263956; margin: 20px 0; padding-top: 20px;">
                 <h3 style="font-size: 0.9rem; color: #7A8CB8; margin-bottom: 12px;">🔗 Links</h3>
-                <a href="https://github.com/stoopkid713/TL-DPS-Meter" target="_blank" style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: rgba(29, 47, 80, 0.8); border: 1px solid #263956; border-radius: 8px; color: #F0EBE0; text-decoration: none; transition: all 0.2s;" onmouseover="this.style.borderColor='#D96444'; this.style.background='rgba(217, 100, 68, 0.1)';" onmouseout="this.style.borderColor='#263956'; this.style.background='rgba(29, 47, 80, 0.8)';">
+                <a href="https://github.com/stoopkid713/STOOP" target="_blank" style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: rgba(29, 47, 80, 0.8); border: 1px solid #263956; border-radius: 8px; color: #F0EBE0; text-decoration: none; transition: all 0.2s;" onmouseover="this.style.borderColor='#D96444'; this.style.background='rgba(217, 100, 68, 0.1)';" onmouseout="this.style.borderColor='#263956'; this.style.background='rgba(29, 47, 80, 0.8)';">
                     <svg height="24" width="24" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
                     <div>
                         <div style="font-weight: 600;">GitHub Repository</div>
-                        <div style="font-size: 0.75rem; color: #7A8CB8;">github.com/stoopkid713/TL-DPS-Meter</div>
+                        <div style="font-size: 0.75rem; color: #7A8CB8;">github.com/stoopkid713/STOOP</div>
                     </div>
                 </a>
-                <button onclick="checkForUpdates()" style="width:100%; margin-top:10px; display:flex; align-items:center; gap:10px; padding:12px 16px; background:rgba(29,47,80,0.8); border:1px solid #263956; border-radius:8px; color:#F0EBE0; cursor:pointer; text-align:left; transition:all 0.2s;" onmouseover="this.style.borderColor='#D96444'; this.style.background='rgba(34,211,238,0.1)';" onmouseout="this.style.borderColor='#263956'; this.style.background='rgba(29,47,80,0.8)';">
+                <button onclick="checkForUpdates()" style="width:100%; margin-top:10px; display:flex; align-items:center; gap:10px; padding:12px 16px; background:rgba(29,47,80,0.8); border:1px solid #263956; border-radius:8px; color:#F0EBE0; cursor:pointer; text-align:left; transition:all 0.2s;" onmouseover="this.style.borderColor='#D96444'; this.style.background='rgba(217,100,68,0.1)';" onmouseout="this.style.borderColor='#263956'; this.style.background='rgba(29,47,80,0.8)';">
                     <span style="font-size:22px;">🔄</span>
                     <div>
                         <div style="font-weight:600;">Check for Updates</div>
@@ -11562,14 +11562,14 @@
             <div style="border-top: 1px solid #263956; margin: 20px 0; padding-top: 20px;">
                 <h3 style="font-size: 0.9rem; color: #7A8CB8; margin-bottom: 12px;">🔧 Configuration</h3>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <button onclick="closeSettings(); switchToTab('skillSettings');" style="display:flex; align-items:center; gap:10px; padding:11px 14px; background:rgba(29,47,80,0.8); border:1px solid #263956; border-radius:8px; color:#F0EBE0; cursor:pointer; text-align:left; transition:all 0.2s; font-size:0.875rem;" onmouseover="this.style.borderColor='#5B92D4'; this.style.background='rgba(167,139,250,0.1)';" onmouseout="this.style.borderColor='#263956'; this.style.background='rgba(29,47,80,0.8)';">
+                    <button onclick="closeSettings(); switchToTab('skillSettings');" style="display:flex; align-items:center; gap:10px; padding:11px 14px; background:rgba(29,47,80,0.8); border:1px solid #263956; border-radius:8px; color:#F0EBE0; cursor:pointer; text-align:left; transition:all 0.2s; font-size:0.875rem;" onmouseover="this.style.borderColor='#5B92D4'; this.style.background='rgba(91,146,212,0.1)';" onmouseout="this.style.borderColor='#263956'; this.style.background='rgba(29,47,80,0.8)';">
                         <span style="font-size:1.1rem;">⚙️</span>
                         <div>
                             <div style="font-weight:600;">Skill Settings</div>
                             <div style="font-size:0.72rem; color:#7A8CB8; margin-top:2px;">Mark skills that cannot crit or trigger heavy attacks</div>
                         </div>
                     </button>
-                    <button onclick="closeSettings(); switchToTab('skillAssign');" style="display:flex; align-items:center; gap:10px; padding:11px 14px; background:rgba(29,47,80,0.8); border:1px solid #263956; border-radius:8px; color:#F0EBE0; cursor:pointer; text-align:left; transition:all 0.2s; font-size:0.875rem;" onmouseover="this.style.borderColor='#5B92D4'; this.style.background='rgba(167,139,250,0.1)';" onmouseout="this.style.borderColor='#263956'; this.style.background='rgba(29,47,80,0.8)';">
+                    <button onclick="closeSettings(); switchToTab('skillAssign');" style="display:flex; align-items:center; gap:10px; padding:11px 14px; background:rgba(29,47,80,0.8); border:1px solid #263956; border-radius:8px; color:#F0EBE0; cursor:pointer; text-align:left; transition:all 0.2s; font-size:0.875rem;" onmouseover="this.style.borderColor='#5B92D4'; this.style.background='rgba(91,146,212,0.1)';" onmouseout="this.style.borderColor='#263956'; this.style.background='rgba(29,47,80,0.8)';">
                         <span style="font-size:1.1rem;">🗡️</span>
                         <div>
                             <div style="font-weight:600;">Skill Assign</div>
@@ -11583,7 +11583,7 @@
                             <div style="font-size:0.72rem; color:#7A8CB8; margin-top:2px;">Categorize targets as boss, trash, etc. for accurate stats</div>
                         </div>
                     </button>
-                    <button onclick="closeSettings(); switchToTab('log');" style="display:flex; align-items:center; gap:10px; padding:11px 14px; background:rgba(29,47,80,0.8); border:1px solid #263956; border-radius:8px; color:#F0EBE0; cursor:pointer; text-align:left; transition:all 0.2s; font-size:0.875rem;" onmouseover="this.style.borderColor='#D96444'; this.style.background='rgba(34,211,238,0.1)';" onmouseout="this.style.borderColor='#263956'; this.style.background='rgba(29,47,80,0.8)';">
+                    <button onclick="closeSettings(); switchToTab('log');" style="display:flex; align-items:center; gap:10px; padding:11px 14px; background:rgba(29,47,80,0.8); border:1px solid #263956; border-radius:8px; color:#F0EBE0; cursor:pointer; text-align:left; transition:all 0.2s; font-size:0.875rem;" onmouseover="this.style.borderColor='#D96444'; this.style.background='rgba(217,100,68,0.1)';" onmouseout="this.style.borderColor='#263956'; this.style.background='rgba(29,47,80,0.8)';">
                         <span style="font-size:1.1rem;">📋</span>
                         <div>
                             <div style="font-weight:600;">Log File</div>
@@ -11807,7 +11807,7 @@
             
             <!-- Class/Build Section -->
             <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #263956;">
-                <div style="font-size: 0.7rem; color: #a855f7; font-weight: 600; margin-bottom: 8px; text-transform: uppercase;">Build Info (Optional)</div>
+                <div style="font-size: 0.7rem; color: #5B92D4; font-weight: 600; margin-bottom: 8px; text-transform: uppercase;">Build Info (Optional)</div>
                 <div class="form-group" style="margin-bottom: 8px;">
                     <select id="editRunClass" style="width: 100%; padding: 10px; background: #1D2F50; border: 1px solid #263956; border-radius: 6px; color: #F0EBE0; font-size: 0.9rem;">
                         <option value="">-- Class --</option>
@@ -11902,7 +11902,7 @@
                     </div>
                     <div class="accordion-content">
                         <p><strong>1. Enable Combat Logging</strong> in Throne and Liberty settings.</p>
-                        <p><strong>2. Launch the DPS Meter</strong> — it auto-detects your log folder.</p>
+                        <p><strong>2. Launch STOOP</strong> — it auto-detects your log folder.</p>
                         <p><strong>3. Start combat</strong> — stats appear after you stop attacking.</p>
                         <p><strong>4. Reset before each pull</strong> for accurate per-fight data.</p>
                         <div class="guide-tip">
@@ -11978,7 +11978,7 @@
                         <p><strong>Color-Coded Categories:</strong></p>
                         <table class="guide-table">
                             <tr><td style="color: #ef4444;">👹 Archboss</td><td>Red — World bosses</td></tr>
-                            <tr><td style="color: #a855f7;">🏰 Raid</td><td>Purple — Raid encounters</td></tr>
+                            <tr><td style="color: #5B92D4;">🏰 Raid</td><td>Purple — Raid encounters</td></tr>
                             <tr><td style="color: #f97316;">🐉 Field Boss</td><td>Orange — Open-world bosses</td></tr>
                             <tr><td style="color: #3b82f6;">⚔️ Dungeon</td><td>Blue — Dungeon bosses</td></tr>
                             <tr><td style="color: #7A8CB8;">💀 Adds</td><td>Gray — Trash mobs</td></tr>
@@ -12294,7 +12294,7 @@
                         <span class="accordion-title">❤️ Credits</span>
                     </div>
                     <div class="accordion-content">
-                        <p style="color: #7A8CB8; margin-bottom: 12px;">Built on top of the original CK DPS Meter by SirPHz. Continued and extended by the guild.</p>
+                        <p style="color: #7A8CB8; margin-bottom: 12px;">An independent rebuild, inspired by the original CK DPS Meter by SirPHz — no original code reused.</p>
                         <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;">
                             <div style="background: linear-gradient(135deg, rgba(217, 100, 68, 0.1), rgba(91, 146, 212, 0.1)); border: 1px solid rgba(217, 100, 68, 0.3); padding: 10px 16px; border-radius: 8px;">
                                 <div style="color: #D96444; font-weight: 600;">SirPHz</div>
@@ -15749,7 +15749,7 @@
             let html = `
                 <div style="position: relative; min-height: 200px;">
                     <!-- Center timeline line -->
-                    <div style="position: absolute; left: 50%; top: 20px; bottom: 20px; width: 4px; transform: translateX(-50%); background: linear-gradient(to bottom, #fbbf24, #ec4899, #5B92D4, #3b82f6); border-radius: 2px; box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);"></div>
+                    <div style="position: absolute; left: 50%; top: 20px; bottom: 20px; width: 4px; transform: translateX(-50%); background: linear-gradient(to bottom, #fbbf24, #ec4899, #5B92D4, #3b82f6); border-radius: 2px; box-shadow: 0 0 15px rgba(91, 146, 212, 0.4);"></div>
             `;
             
             let groupCounter = 0;
@@ -17442,7 +17442,7 @@ ${attemptLine}
             list.innerHTML = rlPrompt + sessionQueue.map((item, i) => {
                 const borderColor = item.saved
                     ? 'rgba(34,197,94,0.4)'
-                    : (!item.id ? '#263956' : item.runLabSlot === 'A' ? 'rgba(217,100,68,0.5)' : item.runLabSlot === 'B' ? 'rgba(167,139,250,0.5)' : 'rgba(167,139,250,0.3)');
+                    : (!item.id ? '#263956' : item.runLabSlot === 'A' ? 'rgba(217,100,68,0.5)' : item.runLabSlot === 'B' ? 'rgba(91,146,212,0.5)' : 'rgba(91,146,212,0.3)');
                 const statusBadge = item.saved
                     ? `<span style="font-size:0.62rem; color:#22c55e; background:rgba(34,197,94,0.15); padding:2px 5px; border-radius:4px; font-weight:700;">✓</span>`
                     : (!item.id
@@ -17456,7 +17456,7 @@ ${attemptLine}
                     color:${item.runLabSlot==='A' ? '#D96444' : '#7A8CB8'};">A</button>`;
                 const slotBtnB = `<button onclick="setRunLabSlot('B',${i})" title="Assign as Run B"
                     style="padding:2px 7px; font-size:0.62rem; font-weight:700; border-radius:4px; cursor:pointer; transition:all 0.15s;
-                    background:${item.runLabSlot==='B' ? 'rgba(167,139,250,0.3)' : 'rgba(21,32,53,0.6)'};
+                    background:${item.runLabSlot==='B' ? 'rgba(91,146,212,0.3)' : 'rgba(21,32,53,0.6)'};
                     border:1px solid ${item.runLabSlot==='B' ? '#5B92D4' : '#263956'};
                     color:${item.runLabSlot==='B' ? '#5B92D4' : '#7A8CB8'};">B</button>`;
 
@@ -18628,9 +18628,9 @@ ${attemptLine}
                         html += `
                             <div onclick="selectNavItem('${typeEsc}', '${level2Esc}', '${level3Esc}')" 
                                  style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin-bottom: 4px;
-                                        background: ${isLevel3Selected ? 'rgba(168, 85, 247, 0.15)' : 'transparent'}; 
+                                        background: ${isLevel3Selected ? 'rgba(91, 146, 212, 0.15)' : 'transparent'}; 
                                         border-radius: 6px; cursor: pointer; 
-                                        border: 1px solid ${isLevel3Selected ? 'rgba(168, 85, 247, 0.3)' : 'transparent'};
+                                        border: 1px solid ${isLevel3Selected ? 'rgba(91, 146, 212, 0.3)' : 'transparent'};
                                         transition: all 0.15s ease;">
                                 <span style="font-size: 0.85rem;">${level3Icon}</span>
                                 <span style="flex: 1; color: ${isLevel3Selected ? '#5B92D4' : '#F0EBE0'}; font-size: 0.85rem; font-weight: ${isLevel3Selected ? '600' : '400'};">
@@ -18843,7 +18843,7 @@ ${attemptLine}
                             <div style="font-size: 0.7rem; color: #ef4444; text-transform: uppercase; margin-bottom: 4px;">💀 Adds Damage</div>
                             <div style="font-size: 1.4rem; font-weight: 700; color: #ef4444;">${formatCompactNumber(totalAdds)}</div>
                         </div>
-                        <div style="background: rgba(168, 85, 247, 0.1); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid rgba(168, 85, 247, 0.2);">
+                        <div style="background: rgba(91, 146, 212, 0.1); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid rgba(91, 146, 212, 0.2);">
                             <div style="font-size: 0.7rem; color: #5B92D4; text-transform: uppercase; margin-bottom: 4px;">📊 Avg DPS</div>
                             <div style="font-size: 1.4rem; font-weight: 700; color: #5B92D4;">${formatCompactNumber(avgDps)}</div>
                         </div>
@@ -19029,7 +19029,7 @@ ${attemptLine}
                 
                 html += `
                     <div style="margin-bottom: 6px;">
-                        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: ${isRunExpanded ? 'rgba(168, 85, 247, 0.1)' : 'rgba(29, 47, 80, 0.3)'}; border-radius: 6px; border: 1px solid ${isRunExpanded ? 'rgba(168, 85, 247, 0.2)' : 'transparent'};">
+                        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: ${isRunExpanded ? 'rgba(91, 146, 212, 0.1)' : 'rgba(29, 47, 80, 0.3)'}; border-radius: 6px; border: 1px solid ${isRunExpanded ? 'rgba(91, 146, 212, 0.2)' : 'transparent'};">
                             <span onclick="toggleRunTimeline('${runExpandKey}')" style="color: ${isRunExpanded ? '#5B92D4' : '#405A85'}; font-size: 0.8rem; cursor: pointer; padding: 4px;">${isRunExpanded ? '▾' : '▸'}</span>
                             <span onclick="toggleRunTimeline('${runExpandKey}')" style="color: #7A8CB8; font-size: 0.9rem; width: 65px; cursor: pointer;">${dateStr}</span>
                             <span onclick="toggleRunTimeline('${runExpandKey}')" style="flex: 1; color: #F0EBE0; font-size: 0.95rem; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -19037,7 +19037,7 @@ ${attemptLine}
                                 ${contextBadge}
                                 ${contributionBadge}
                                 ${lootBadge}
-                                ${classDisplay ? `<span style="font-size: 0.7rem; color: #5B92D4; background: rgba(168, 85, 247, 0.15); padding: 2px 6px; border-radius: 3px;">${escapeHtml(classDisplay)}</span>` : ''}
+                                ${classDisplay ? `<span style="font-size: 0.7rem; color: #5B92D4; background: rgba(91, 146, 212, 0.15); padding: 2px 6px; border-radius: 3px;">${escapeHtml(classDisplay)}</span>` : ''}
                                 ${buildTag ? `<span style="font-size: 0.7rem; color: #7A8CB8;">${escapeHtml(buildTag)}</span>` : ''}
                             </span>
                             <span style="font-size: 0.8rem; color: #3b82f6;" title="Boss damage">⚔️${formatCompactNumber(bossDamage)}</span>
@@ -19121,7 +19121,7 @@ ${attemptLine}
                             <div style="font-size: 0.7rem; color: #7A8CB8; text-transform: uppercase; margin-bottom: 4px;">Total Runs</div>
                             <div style="font-size: 1.4rem; font-weight: 700; color: #F0EBE0;">${totalRuns}</div>
                         </div>
-                        <div style="background: rgba(168, 85, 247, 0.1); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid rgba(168, 85, 247, 0.2);">
+                        <div style="background: rgba(91, 146, 212, 0.1); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid rgba(91, 146, 212, 0.2);">
                             <div style="font-size: 0.7rem; color: #5B92D4; text-transform: uppercase; margin-bottom: 4px;">📊 Drop Rate</div>
                             <div style="font-size: 1.4rem; font-weight: 700; color: #5B92D4;">${dropRate}%</div>
                         </div>
@@ -20445,7 +20445,7 @@ ${attemptLine}
                 longbow: '#84cc16',     // Lime
                 staff: '#3b82f6',       // Blue
                 wand: '#D96444',        // Cyan
-                orb: '#8b5cf6',         // Violet
+                orb: '#5B92D4',         // Violet
                 mastery: '#fbbf24',     // Yellow
                 other: '#7A8CB8',       // Gray
                 unassigned: '#405A85'   // Dark gray
@@ -21750,7 +21750,7 @@ ${attemptLine}
                 longbow: '#84cc16',
                 staff: '#3b82f6',
                 wand: '#D96444',
-                orb: '#8b5cf6',
+                orb: '#5B92D4',
                 mastery: '#fbbf24',
                 other: '#7A8CB8',
                 unassigned: '#405A85'
@@ -23012,10 +23012,10 @@ ${attemptLine}
                         skillCard.onmouseout = function() { this.style.background = 'rgba(34, 197, 94, 0.08)'; };
                     } else {
                         skillCountEl.style.color = '#5B92D4';
-                        skillCard.style.background = 'rgba(168, 85, 247, 0.08)';
-                        skillCard.style.borderColor = 'rgba(168, 85, 247, 0.25)';
-                        skillCard.onmouseover = function() { this.style.background = 'rgba(168, 85, 247, 0.15)'; };
-                        skillCard.onmouseout = function() { this.style.background = 'rgba(168, 85, 247, 0.08)'; };
+                        skillCard.style.background = 'rgba(91, 146, 212, 0.08)';
+                        skillCard.style.borderColor = 'rgba(91, 146, 212, 0.25)';
+                        skillCard.onmouseover = function() { this.style.background = 'rgba(91, 146, 212, 0.15)'; };
+                        skillCard.onmouseout = function() { this.style.background = 'rgba(91, 146, 212, 0.08)'; };
                     }
                 }
             }
@@ -25024,7 +25024,7 @@ ${attemptLine}
 
         // B2 Cut A: shareable invite link → the gh-pages join page (shows the code + how to get
         // the app). Drop it in Discord/DM; even a non-user lands on download + join instructions.
-        const INVITE_BASE = 'https://stoopkid713.github.io/TL-DPS-Meter/join.html';
+        const INVITE_BASE = 'https://stoopkid713.github.io/STOOP/join.html';
         function copyInviteLink() {
             if (!partyState.party_code) return;
             const link = `${INVITE_BASE}#${encodeURIComponent(partyState.party_code)}`;
@@ -26951,7 +26951,7 @@ const PartyRender = {
         const TOUR_STEPS = [
             {
                 icon: '👋',
-                title: 'Welcome to CK DPS Meter',
+                title: 'Welcome to STOOP',
                 text: 'This quick tour walks you through the key features. Takes about 2 minutes. Use the arrows to navigate or ✕ to skip.',
                 target: null, tab: null
             },
@@ -27145,7 +27145,7 @@ const PartyRender = {
             // Progress dots
             document.getElementById('tourDots').innerHTML = TOUR_STEPS.map((_, i) =>
                 `<div style="width:${i===index?'20px':'7px'}; height:7px; border-radius:4px;
-                     background:${i===index?'#a78bfa':'rgba(122,140,184,0.4)'};
+                     background:${i===index?'#5B92D4':'rgba(122,140,184,0.4)'};
                      transition:all 0.3s;"></div>`
             ).join('');
 
@@ -27925,12 +27925,12 @@ const PartyRender = {
         <div id="tourSpotlight" style="display:none; position:absolute; border-radius:8px;
              box-shadow:0 0 0 9999px rgba(0,0,0,0.72); pointer-events:none; z-index:1;
              transition: top 0.35s ease, left 0.35s ease, width 0.35s ease, height 0.35s ease;
-             outline: 2px solid rgba(167,139,250,0.8); outline-offset: 2px;"></div>
+             outline: 2px solid rgba(91,146,212,0.8); outline-offset: 2px;"></div>
         <!-- Tooltip card -->
         <div id="tourTooltip" style="position:absolute; z-index:2; pointer-events:all;
              width:320px; background:linear-gradient(135deg,#1D2F50,#152035);
-             border:1px solid rgba(167,139,250,0.5); border-radius:14px;
-             box-shadow:0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(167,139,250,0.1);
+             border:1px solid rgba(91,146,212,0.5); border-radius:14px;
+             box-shadow:0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(91,146,212,0.1);
              padding:20px; transition: top 0.35s ease, left 0.35s ease;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                 <div id="tourStepCounter" style="font-size:0.65rem; color:#7A8CB8; text-transform:uppercase; letter-spacing:0.8px; font-weight:700;"></div>
@@ -27950,7 +27950,7 @@ const PartyRender = {
                 </button>
                 <button id="tourNextBtn" onclick="nextTourStep()"
                     style="flex:2; padding:9px; border-radius:8px; border:none;
-                           background:linear-gradient(135deg,#7c3aed,#5B92D4); color:white;
+                           background:linear-gradient(135deg,#3F6FA8,#5B92D4); color:white;
                            cursor:pointer; font-size:0.85rem; font-weight:700;">
                     Next →
                 </button>

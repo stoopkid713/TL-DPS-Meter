@@ -1119,7 +1119,7 @@
 
         // B2 Cut A: shareable invite link → the gh-pages join page (shows the code + how to get
         // the app). Drop it in Discord/DM; even a non-user lands on download + join instructions.
-        const INVITE_BASE = 'https://stoopkid713.github.io/TL-DPS-Meter/join.html';
+        const INVITE_BASE = 'https://stoopkid713.github.io/STOOP/join.html';
         function copyInviteLink() {
             if (!partyState.party_code) return;
             const link = `${INVITE_BASE}#${encodeURIComponent(partyState.party_code)}`;
