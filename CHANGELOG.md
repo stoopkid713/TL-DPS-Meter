@@ -5,6 +5,18 @@ All notable changes are documented here. Format loosely based on
 
 ---
 
+## [1.1.0] - 2026-06-03
+
+### Changed
+- **Rebrand: ツCKヤ DPS Meter → STOOP** — new product name, palette, and visual identity.
+  - App title, window chrome, sidebar wordmark, and About text updated to STOOP.
+  - **Night & Brick + palette** — deep midnight navy bg (`#080C14`), brick primary (`#D96444`),
+    sky secondary (`#5B92D4`), amber accent (`#F0B845`). Replaces the teal/purple CK design.
+  - Font stack updated to Bebas Neue (wordmark) + Barlow Condensed + Barlow + JetBrains Mono.
+  - Installer publisher updated to OhStoopKid.
+
+---
+
 ## [1.0.3] - 2026-06-01
 
 Party polish + quality-of-life. Validated in a live 2-player session.

@@ -1,4 +1,4 @@
-        const WS_URL = 'ws://localhost:8765';
+﻿        const WS_URL = 'ws://localhost:8765';
         let ws = null;
         let reconnectInterval = null;
         let currentStats = null;
@@ -68,7 +68,7 @@
 
         // Skill color palette — consistent hash-based, global scope
         const SKILL_PALETTE = [
-            '#22d3ee','#a78bfa','#fb923c','#34d399','#f472b6',
+            '#D96444','#5B92D4','#fb923c','#34d399','#f472b6',
             '#fbbf24','#60a5fa','#f87171','#4ade80','#c084fc',
             '#38bdf8','#fb7185','#a3e635','#e879f9','#2dd4bf',
             '#fdba74','#818cf8','#86efac','#fcd34d','#94a3b8'
@@ -362,7 +362,7 @@
             // Update sidebar encounter time (always shows raw log data)
             if (data.first_hit) {
                 document.getElementById('encounterTime').innerHTML = `
-                    <div style="color: #22d3ee; font-weight: 600;">${data.first_hit} → ${data.last_hit}</div>
+                    <div style="color: #D96444; font-weight: 600;">${data.first_hit} → ${data.last_hit}</div>
                     <div style="margin-top: 4px;">${formatDuration(data.duration)}</div>
                 `;
             }

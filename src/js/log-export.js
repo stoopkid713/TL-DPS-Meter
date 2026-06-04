@@ -1,4 +1,4 @@
-        function showExportToast() {
+﻿        function showExportToast() {
             const toast = document.createElement('div');
             toast.className = 'export-toast';
             toast.textContent = '✔ Copied to clipboard!';
@@ -81,7 +81,7 @@
                             // Parse contribution info out of notes
                             const { contribPct, bossHp, cleanNotes } = parseContribNotes(enc.notes);
                             const contribHtml = contribPct
-                                ? `<div class="encounter-stat" style="color:#a78bfa;">
+                                ? `<div class="encounter-stat" style="color:#5B92D4;">
                                        <strong>${contribPct.toFixed(1)}%</strong> contribution
                                        ${bossHp ? `<span style="color:#64748b;font-size:0.72rem;"> · Boss HP ≈ ${formatNumber(bossHp)}</span>` : ''}
                                    </div>` : '';
@@ -234,7 +234,7 @@
                 const classEncounters = groupedByClass[className];
                 encountersHtml += `
                     <div style="margin-top: 12px;">
-                        <div style="font-size: 0.8rem; font-weight: 600; color: #22d3ee; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(34, 211, 238, 0.2);">
+                        <div style="font-size: 0.8rem; font-weight: 600; color: #D96444; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(217, 100, 68, 0.2);">
                             ${className} (${classEncounters.length})
                         </div>
                         ${classEncounters.map(enc => `
@@ -249,7 +249,7 @@
                             ">
                                 <div style="font-weight: 600; color: #e2e8f0; margin-bottom: 4px;">${enc.build_tag}</div>
                                 <div style="display: flex; gap: 16px; font-size: 0.85rem;">
-                                    <span style="color: #22d3ee; font-weight: 600;">${formatNumber(Math.round(enc.first_60s.dps))} DPS</span>
+                                    <span style="color: #D96444; font-weight: 600;">${formatNumber(Math.round(enc.first_60s.dps))} DPS</span>
                                     <span style="color: #94a3b8;">${formatNumber(enc.first_60s.total_damage)} dmg</span>
                                     <span style="color: #64748b;">${formatDate(enc.timestamp)}</span>
                                 </div>
@@ -261,7 +261,7 @@
             });
             
             dialog.innerHTML = `
-                <h3 style="color: #a78bfa; margin-bottom: 16px;">Select Encounter for Build ${buildLetter}</h3>
+                <h3 style="color: #5B92D4; margin-bottom: 16px;">Select Encounter for Build ${buildLetter}</h3>
                 <div style="display: flex; flex-direction: column;">
                     ${encountersHtml}
                 </div>
@@ -280,8 +280,8 @@
             // Add click handlers
             dialog.querySelectorAll('.encounter-select-item').forEach(item => {
                 item.addEventListener('mouseenter', () => {
-                    item.style.borderColor = '#22d3ee';
-                    item.style.background = 'rgba(34, 211, 238, 0.1)';
+                    item.style.borderColor = '#D96444';
+                    item.style.background = 'rgba(217, 100, 68, 0.1)';
                 });
                 item.addEventListener('mouseleave', () => {
                     item.style.borderColor = '#334155';
@@ -1027,7 +1027,7 @@
                     ${encounters.map(e => renderComparePianoRoll(e, winnerLabels.includes(e.label))).join('')}
                     <div class="compare-piano-legend">
                         <div class="compare-piano-legend-item">
-                            <div class="compare-piano-legend-dot" style="background: #22d3ee;"></div>
+                            <div class="compare-piano-legend-dot" style="background: #D96444;"></div>
                             <span>Normal</span>
                         </div>
                         <div class="compare-piano-legend-item">

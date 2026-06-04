@@ -1,4 +1,4 @@
-        function openCustomModal(mode) {
+﻿        function openCustomModal(mode) {
             const modal = document.getElementById('customDungeonModal');
             const addTypePanel = document.getElementById('customAddTypePanel');
             const addEntryPanel = document.getElementById('customAddEntryPanel');
@@ -262,7 +262,7 @@
                 const durationFormatted = formatDuration(stats.duration || 0);
                 const createdDate = new Date(run.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 const createdTime = new Date(run.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-                const dungeonDisplay = run.dungeon_name ? `<span style="color: #a855f7;">${run.dungeon_name}</span> · ` : '';
+                const dungeonDisplay = run.dungeon_name ? `<span style="color: #5B92D4;">${run.dungeon_name}</span> · ` : '';
                 const attemptCount = stats.attempt_count || 0;
                 const attemptBadge = attemptCount > 0 ? `<span class="attempt-badge" style="margin-left: 6px;">${attemptCount} attempt${attemptCount > 1 ? 's' : ''}</span>` : '';
                 
@@ -276,11 +276,11 @@
                             <button onclick="deleteSavedRun('${run.run_id}')" style="padding: 2px 6px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; border-radius: 4px; cursor: pointer; font-size: 0.65rem;" title="Delete run">🗑️</button>
                         </div>
                         <div style="display: flex; gap: 12px; font-size: 0.75rem; margin-bottom: 8px;">
-                            <span style="color: #22d3ee;"><strong>${dpsFormatted}</strong> DPS</span>
+                            <span style="color: #D96444;"><strong>${dpsFormatted}</strong> DPS</span>
                             <span style="color: #94a3b8;">${damageFormatted}</span>
-                            <span style="color: #a855f7;">${durationFormatted}</span>
+                            <span style="color: #5B92D4;">${durationFormatted}</span>
                         </div>
-                        <button onclick="viewSavedRunStats(${index})" style="width: 100%; padding: 6px 10px; background: rgba(34, 211, 238, 0.1); border: 1px solid rgba(34, 211, 238, 0.3); color: #22d3ee; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 600;">📊 View Stats</button>
+                        <button onclick="viewSavedRunStats(${index})" style="width: 100%; padding: 6px 10px; background: rgba(217, 100, 68, 0.1); border: 1px solid rgba(217, 100, 68, 0.3); color: #D96444; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 600;">📊 View Stats</button>
                     </div>
                 `;
             });
@@ -737,10 +737,10 @@ ${attemptLine}
                     : `${total} run${total !== 1 ? 's' : ''}`;
                 countEl.style.background = savedCount === total && total > 0
                     ? 'rgba(34, 197, 94, 0.2)'
-                    : 'rgba(167, 139, 250, 0.2)';
+                    : 'rgba(91, 146, 212, 0.2)';
                 countEl.style.color = savedCount === total && total > 0
                     ? '#22c55e'
-                    : '#a78bfa';
+                    : '#5B92D4';
             }
 
             // Update Run Lab badge
@@ -756,16 +756,16 @@ ${attemptLine}
 
             // Open Run Lab prompt when both slots filled
             const rlPrompt = (hasA && hasB)
-                ? `<div style="margin-bottom:8px; padding:8px 10px; background:rgba(34,211,238,0.08); border:1px solid rgba(34,211,238,0.3); border-radius:6px; display:flex; justify-content:space-between; align-items:center;">
-                       <span style="font-size:0.72rem; color:#22d3ee; font-weight:600;">🔬 Run A &amp; B selected</span>
-                       <button onclick="openRunLab()" style="padding:4px 10px; background:rgba(34,211,238,0.2); border:1px solid rgba(34,211,238,0.5); border-radius:5px; color:#22d3ee; font-size:0.72rem; font-weight:700; cursor:pointer;">Open Run Lab →</button>
+                ? `<div style="margin-bottom:8px; padding:8px 10px; background:rgba(217,100,68,0.08); border:1px solid rgba(217,100,68,0.3); border-radius:6px; display:flex; justify-content:space-between; align-items:center;">
+                       <span style="font-size:0.72rem; color:#D96444; font-weight:600;">🔬 Run A &amp; B selected</span>
+                       <button onclick="openRunLab()" style="padding:4px 10px; background:rgba(217,100,68,0.2); border:1px solid rgba(217,100,68,0.5); border-radius:5px; color:#D96444; font-size:0.72rem; font-weight:700; cursor:pointer;">Open Run Lab →</button>
                    </div>`
                 : (total >= 2 ? `<div style="font-size:0.65rem; color:#64748b; text-align:center; margin-bottom:6px;">Assign A and B to compare runs</div>` : '');
 
             list.innerHTML = rlPrompt + sessionQueue.map((item, i) => {
                 const borderColor = item.saved
                     ? 'rgba(34,197,94,0.4)'
-                    : (!item.id ? '#334155' : item.runLabSlot === 'A' ? 'rgba(34,211,238,0.5)' : item.runLabSlot === 'B' ? 'rgba(167,139,250,0.5)' : 'rgba(167,139,250,0.3)');
+                    : (!item.id ? '#334155' : item.runLabSlot === 'A' ? 'rgba(217,100,68,0.5)' : item.runLabSlot === 'B' ? 'rgba(167,139,250,0.5)' : 'rgba(167,139,250,0.3)');
                 const statusBadge = item.saved
                     ? `<span style="font-size:0.62rem; color:#22c55e; background:rgba(34,197,94,0.15); padding:2px 5px; border-radius:4px; font-weight:700;">✓</span>`
                     : (!item.id
@@ -774,21 +774,21 @@ ${attemptLine}
 
                 const slotBtnA = `<button onclick="setRunLabSlot('A',${i})" title="Assign as Run A"
                     style="padding:2px 7px; font-size:0.62rem; font-weight:700; border-radius:4px; cursor:pointer; transition:all 0.15s;
-                    background:${item.runLabSlot==='A' ? 'rgba(34,211,238,0.3)' : 'rgba(15,23,42,0.6)'};
-                    border:1px solid ${item.runLabSlot==='A' ? '#22d3ee' : '#334155'};
-                    color:${item.runLabSlot==='A' ? '#22d3ee' : '#64748b'};">A</button>`;
+                    background:${item.runLabSlot==='A' ? 'rgba(217,100,68,0.3)' : 'rgba(15,23,42,0.6)'};
+                    border:1px solid ${item.runLabSlot==='A' ? '#D96444' : '#334155'};
+                    color:${item.runLabSlot==='A' ? '#D96444' : '#64748b'};">A</button>`;
                 const slotBtnB = `<button onclick="setRunLabSlot('B',${i})" title="Assign as Run B"
                     style="padding:2px 7px; font-size:0.62rem; font-weight:700; border-radius:4px; cursor:pointer; transition:all 0.15s;
                     background:${item.runLabSlot==='B' ? 'rgba(167,139,250,0.3)' : 'rgba(15,23,42,0.6)'};
-                    border:1px solid ${item.runLabSlot==='B' ? '#a78bfa' : '#334155'};
-                    color:${item.runLabSlot==='B' ? '#a78bfa' : '#64748b'};">B</button>`;
+                    border:1px solid ${item.runLabSlot==='B' ? '#5B92D4' : '#334155'};
+                    color:${item.runLabSlot==='B' ? '#5B92D4' : '#64748b'};">B</button>`;
 
                 return `
                 <div style="padding:9px 10px; background:rgba(15,23,42,0.6); border:1px solid ${borderColor}; border-radius:8px; margin-bottom:7px; transition:border-color 0.3s; box-sizing:border-box;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                         <span style="font-size:0.68rem; color:#64748b; font-weight:700; text-transform:uppercase;">Run #${item.runNumber}</span>
                         <div style="display:flex; align-items:center; gap:5px;">
-                            <span style="font-size:0.82rem; font-weight:700; color:#a78bfa;">${formatNumber(item.dps)} DPS</span>
+                            <span style="font-size:0.82rem; font-weight:700; color:#5B92D4;">${formatNumber(item.dps)} DPS</span>
                             <span style="font-size:0.72rem; color:#64748b;" title="60s total damage">${formatNumber(item.totalDamage || 0)}</span>
                         </div>
                     </div>

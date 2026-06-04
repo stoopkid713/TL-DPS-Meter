@@ -1,4 +1,4 @@
-        async function saveEncounterEdit() {
+﻿        async function saveEncounterEdit() {
             const id = document.getElementById('editEncounterId').value;
             const classValue = document.getElementById('editClassSelect').value;
             const buildTag = document.getElementById('editBuildTagInput').value.trim();
@@ -254,10 +254,10 @@
                     
                     <p style="margin-top: 16px;"><strong>Why does this matter?</strong></p>
                     <ul style="margin: 12px 0; padding-left: 20px; color: #94a3b8;">
-                        <li style="margin-bottom: 8px;"><strong style="color: #22d3ee;">Run Builder</strong> — Encounters display with proper boss/adds styling and icons</li>
-                        <li style="margin-bottom: 8px;"><strong style="color: #22d3ee;">Merge Detection</strong> — Boss wipes can be merged (only works for boss categories)</li>
-                        <li style="margin-bottom: 8px;"><strong style="color: #22d3ee;">Run Summary</strong> — Accurate Boss DPS vs Trash DPS breakdowns</li>
-                        <li style="margin-bottom: 8px;"><strong style="color: #22d3ee;">Encounter Detection</strong> — 30s gap rule only applies to bosses</li>
+                        <li style="margin-bottom: 8px;"><strong style="color: #D96444;">Run Builder</strong> — Encounters display with proper boss/adds styling and icons</li>
+                        <li style="margin-bottom: 8px;"><strong style="color: #D96444;">Merge Detection</strong> — Boss wipes can be merged (only works for boss categories)</li>
+                        <li style="margin-bottom: 8px;"><strong style="color: #D96444;">Run Summary</strong> — Accurate Boss DPS vs Trash DPS breakdowns</li>
+                        <li style="margin-bottom: 8px;"><strong style="color: #D96444;">Encounter Detection</strong> — 30s gap rule only applies to bosses</li>
                     </ul>
                     
                     <p style="margin-top: 16px; color: #64748b; font-size: 0.85rem;">Click this card to open Target Assignment settings.</p>
@@ -270,9 +270,9 @@
                     
                     <p style="margin-top: 16px;"><strong>Why does this matter?</strong></p>
                     <ul style="margin: 12px 0; padding-left: 20px; color: #94a3b8;">
-                        <li style="margin-bottom: 8px;"><strong style="color: #a855f7;">Weapon Breakdown</strong> — See damage distribution by weapon type</li>
-                        <li style="margin-bottom: 8px;"><strong style="color: #a855f7;">Build Comparison</strong> — Compare weapon performance across builds</li>
-                        <li style="margin-bottom: 8px;"><strong style="color: #a855f7;">Rotation Analysis</strong> — Understand weapon swap patterns</li>
+                        <li style="margin-bottom: 8px;"><strong style="color: #5B92D4;">Weapon Breakdown</strong> — See damage distribution by weapon type</li>
+                        <li style="margin-bottom: 8px;"><strong style="color: #5B92D4;">Build Comparison</strong> — Compare weapon performance across builds</li>
+                        <li style="margin-bottom: 8px;"><strong style="color: #5B92D4;">Rotation Analysis</strong> — Understand weapon swap patterns</li>
                     </ul>
                     
                     <p style="margin-top: 16px; color: #64748b; font-size: 0.85rem;">Click this card to open Skill Settings.</p>
@@ -343,7 +343,7 @@
                         skillCard.onmouseover = function() { this.style.background = 'rgba(34, 197, 94, 0.15)'; };
                         skillCard.onmouseout = function() { this.style.background = 'rgba(34, 197, 94, 0.08)'; };
                     } else {
-                        skillCountEl.style.color = '#a855f7';
+                        skillCountEl.style.color = '#5B92D4';
                         skillCard.style.background = 'rgba(168, 85, 247, 0.08)';
                         skillCard.style.borderColor = 'rgba(168, 85, 247, 0.25)';
                         skillCard.onmouseover = function() { this.style.background = 'rgba(168, 85, 247, 0.15)'; };

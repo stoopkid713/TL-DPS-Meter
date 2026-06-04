@@ -1,4 +1,4 @@
-        // === IN-APP CONFIRM MODAL ===
+﻿        // === IN-APP CONFIRM MODAL ===
         // Native confirm()/alert() return falsy in pywebview/WebView2 — never use them.
         // partyConfirm(message) returns a Promise<boolean> resolved by user action.
         function partyConfirm(message) {
@@ -87,8 +87,8 @@
                 const okBtn = document.createElement('button');
                 okBtn.textContent = 'OK';
                 okBtn.style.cssText = [
-                    'padding:7px 24px', 'border-radius:6px', 'border:1px solid rgba(34,211,238,0.4)',
-                    'background:rgba(34,211,238,0.15)', 'color:#22d3ee',
+                    'padding:7px 24px', 'border-radius:6px', 'border:1px solid rgba(217,100,68,0.4)',
+                    'background:rgba(217,100,68,0.15)', 'color:#D96444',
                     'cursor:pointer', 'font-size:0.9rem', 'font-family:inherit', 'font-weight:600'
                 ].join(';');
 
@@ -527,7 +527,7 @@
             chips.innerHTML = partySuggestedNames.map((n) =>
                 `<button type="button" class="party-name-chip" data-name="${escapeHtml(n)}" onclick="pickPartyName(this.dataset.name)" `
                 + `style="margin:2px 4px 2px 0; padding:3px 9px; font-size:12px; border-radius:11px; `
-                + `border:1px solid rgba(34,211,238,0.4); background:rgba(34,211,238,0.12); color:inherit; cursor:pointer;">`
+                + `border:1px solid rgba(217,100,68,0.4); background:rgba(217,100,68,0.12); color:inherit; cursor:pointer;">`
                 + `${escapeHtml(n)}</button>`
             ).join('');
             wrap.style.display = 'flex';
@@ -1766,8 +1766,8 @@
         // Render party results
         // Player colors for consistent coloring
         const partyPlayerColors = [
-            { bg: 'rgba(34, 211, 238, 0.25)', border: 'rgba(34, 211, 238, 0.5)', text: '#22d3ee' },   // Cyan
-            { bg: 'rgba(167, 139, 250, 0.25)', border: 'rgba(167, 139, 250, 0.5)', text: '#a78bfa' }, // Purple
+            { bg: 'rgba(217, 100, 68, 0.25)', border: 'rgba(217, 100, 68, 0.5)', text: '#D96444' },   // Cyan
+            { bg: 'rgba(91, 146, 212, 0.25)', border: 'rgba(91, 146, 212, 0.5)', text: '#5B92D4' }, // Purple
             { bg: 'rgba(74, 222, 128, 0.25)', border: 'rgba(74, 222, 128, 0.5)', text: '#4ade80' },   // Green
             { bg: 'rgba(251, 191, 36, 0.25)', border: 'rgba(251, 191, 36, 0.5)', text: '#fbbf24' },   // Yellow
             { bg: 'rgba(244, 114, 182, 0.25)', border: 'rgba(244, 114, 182, 0.5)', text: '#f472b6' }, // Pink

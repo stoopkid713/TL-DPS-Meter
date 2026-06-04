@@ -1,4 +1,4 @@
-        function encRotationShowAll() {
+﻿        function encRotationShowAll() {
             encRotationHiddenSkills.clear();
             if (lastEncRotationCache) renderEncStackedChart(lastEncRotationCache.rotation, lastEncRotationCache.duration);
         }
@@ -201,10 +201,10 @@
                 const castImpact = castDiff>0 ? castDiff*avgW : 0;
                 const avgImpact = Math.abs(avgDiffPct)>8 && castsL>0 ? Math.abs(avgDiff)*Math.min(castsW,castsL) : 0;
                 if (castDiff>0 && castImpact>50000)
-                    findings.push({impact:castImpact, text:`<strong style="color:#e2e8f0">${sk}</strong>: ${slotW} landed <span style="color:#22c55e;font-weight:700">+${castDiff} cast${castDiff>1?'s':''}</span> — ~<span style="color:#a78bfa;font-weight:700">+${formatNumber(Math.round(castImpact))}</span> extra damage`});
+                    findings.push({impact:castImpact, text:`<strong style="color:#e2e8f0">${sk}</strong>: ${slotW} landed <span style="color:#22c55e;font-weight:700">+${castDiff} cast${castDiff>1?'s':''}</span> — ~<span style="color:#5B92D4;font-weight:700">+${formatNumber(Math.round(castImpact))}</span> extra damage`});
                 if (Math.abs(avgDiffPct)>10 && avgImpact>50000 && castsL>0) {
                     const dir=avgDiff>0?'higher':'lower', col=avgDiff>0?'#22c55e':'#ef4444';
-                    findings.push({impact:avgImpact, text:`<strong style="color:#e2e8f0">${sk}</strong>: avg/cast <span style="color:${col};font-weight:700">${Math.abs(avgDiffPct).toFixed(0)}% ${dir}</span> in ${slotW} — ~<span style="color:#a78bfa;font-weight:700">${formatNumber(Math.round(avgImpact))}</span> swing`});
+                    findings.push({impact:avgImpact, text:`<strong style="color:#e2e8f0">${sk}</strong>: avg/cast <span style="color:${col};font-weight:700">${Math.abs(avgDiffPct).toFixed(0)}% ${dir}</span> in ${slotW} — ~<span style="color:#5B92D4;font-weight:700">${formatNumber(Math.round(avgImpact))}</span> swing`});
                 }
                 if (chW-chL>6 && castsW>=3)
                     findings.push({impact:(chW-chL)*avgW/100*castsW, text:`<strong style="color:#e2e8f0">${sk}</strong>: C+H rate <span style="color:#f472b6;font-weight:700">${chW.toFixed(0)}%</span> vs ${chL.toFixed(0)}% — more big hits in ${slotW}`});
@@ -227,7 +227,7 @@
                 const diff = winner.stats.dps - other.stats.dps;
                 const pct = other.stats.dps>0 ? (diff/other.stats.dps*100).toFixed(1) : 0;
                 return `<div style="margin-bottom:10px;">
-                    <div style="font-size:0.7rem;color:#64748b;margin-bottom:5px;">${winner.label} vs ${other.label} — <span style="color:#22d3ee;font-weight:700">+${formatNumber(Math.round(diff))} DPS (${pct}%)</span></div>
+                    <div style="font-size:0.7rem;color:#64748b;margin-bottom:5px;">${winner.label} vs ${other.label} — <span style="color:#D96444;font-weight:700">+${formatNumber(Math.round(diff))} DPS (${pct}%)</span></div>
                     ${findings.length
                         ? findings.map(f=>`<div style="font-size:0.77rem;color:#94a3b8;padding:5px 8px;background:rgba(15,23,42,0.4);border-radius:5px;margin-bottom:3px;">${f.text}</div>`).join('')
                         : `<div style="font-size:0.77rem;color:#64748b;padding:5px 0;">Runs are very close — check the skill matrix for fine details.</div>`}
@@ -266,7 +266,7 @@
             const sorted = [...allSkills].sort((a,b)=>(skillTotals[b]||0)-(skillTotals[a]||0));
             const letters = buildsData.map(b=>b.label);
 
-            const headerCols = letters.map(l=>`<th style="color:#22d3ee;font-weight:700;font-size:0.7rem;padding:0 6px 7px;text-align:right;">${l}</th>`).join('');
+            const headerCols = letters.map(l=>`<th style="color:#D96444;font-weight:700;font-size:0.7rem;padding:0 6px 7px;text-align:right;">${l}</th>`).join('');
 
             const rows = sorted.map(sk => {
                 const vals = letters.map(l => {

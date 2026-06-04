@@ -1,4 +1,4 @@
-        function updateClassPreview(className) {
+﻿        function updateClassPreview(className) {
             const card = document.getElementById('classPreviewCard');
             if (!className) {
                 card.style.display = 'none';
@@ -511,7 +511,7 @@
             container.innerHTML = sorted.map((skill, i) => {
                 const pct = totalDamage > 0 ? (skill.damage / totalDamage * 100).toFixed(1) : 0;
                 const barWidth = (skill.damage / maxDamage * 100).toFixed(1);
-                const colors = ['#a78bfa', '#22d3ee', '#f472b6', '#34d399', '#fbbf24'];
+                const colors = ['#5B92D4', '#D96444', '#f472b6', '#34d399', '#fbbf24'];
                 
                 return `
                     <div style="display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: rgba(15, 23, 42, 0.4); border-radius: 8px;">
@@ -678,7 +678,7 @@
                         <td class="num">${formatNumber(skill.damage)}</td>
                         <td style="width: 100px;">
                             <div style="height: 8px; background: rgba(100, 116, 139, 0.3); border-radius: 4px; overflow: hidden;">
-                                <div style="height: 100%; width: ${barWidth}%; background: linear-gradient(90deg, #22d3ee, #a78bfa); border-radius: 4px;"></div>
+                                <div style="height: 100%; width: ${barWidth}%; background: linear-gradient(90deg, #D96444, #5B92D4); border-radius: 4px;"></div>
                             </div>
                         </td>
                         <td class="num">${skill.hits}</td>
@@ -686,7 +686,7 @@
                         <td class="num" style="color: #fbbf24;">${critPct}%</td>
                         <td class="num" style="color: #fb923c;">${skill.heavies}</td>
                         <td class="num" style="color: #fb923c;">${heavyPct}%</td>
-                        <td class="num" style="color: #a78bfa; font-weight: 600;">${pct}%</td>
+                        <td class="num" style="color: #5B92D4; font-weight: 600;">${pct}%</td>
                     </tr>
                 `;
             }).join('');
@@ -738,12 +738,12 @@
             const categoryColors = {
                 greatsword: '#ef4444',
                 sns: '#f97316',
-                dagger: '#a78bfa',
+                dagger: '#5B92D4',
                 spear: '#ec4899',
                 crossbow: '#22c55e',
                 longbow: '#84cc16',
                 staff: '#3b82f6',
-                wand: '#22d3ee',
+                wand: '#D96444',
                 orb: '#8b5cf6',
                 mastery: '#fbbf24',
                 other: '#94a3b8',
@@ -1371,7 +1371,7 @@
                 // Only show class header if showing all classes
                 if (!filterClass) {
                     html += `
-                        <div style="font-size: 0.8rem; font-weight: 600; color: #22d3ee; text-transform: uppercase; letter-spacing: 0.05em; margin: 16px 0 8px 0; padding-bottom: 4px; border-bottom: 1px solid rgba(34, 211, 238, 0.2);">
+                        <div style="font-size: 0.8rem; font-weight: 600; color: #D96444; text-transform: uppercase; letter-spacing: 0.05em; margin: 16px 0 8px 0; padding-bottom: 4px; border-bottom: 1px solid rgba(217, 100, 68, 0.2);">
                             ${className} (${classEncounters.length})
                         </div>
                     `;
@@ -1526,7 +1526,7 @@
             const statusEl = document.getElementById('buildTestStatus');
             if (statusEl) {
                 statusEl.textContent = 'Viewing Saved';
-                statusEl.style.color = '#a855f7';
+                statusEl.style.color = '#5B92D4';
             }
             
             // Now update the UI with loaded encounter data

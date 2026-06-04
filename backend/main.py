@@ -353,7 +353,7 @@ def main() -> None:
     import webview  # lazy: keeps the module headless-importable for tests
 
     webview.create_window(
-        "TL-DPS-Meter",
+        "STOOP",
         url=index.as_uri(),  # file:// URI to the local frontend
         width=1280,
         height=800,

@@ -1,4 +1,4 @@
-        function onEditRunTypeChange() {
+﻿        function onEditRunTypeChange() {
             const type = document.getElementById('editRunType').value;
             const modeContainer = document.getElementById('editRunModeContainer');
             const tierContainer = document.getElementById('editRunTierContainer');
@@ -149,7 +149,7 @@
             const categoryStyles = {
                 'archboss': { icon: '👑', color: '#fbbf24', label: 'Archboss' },
                 'raid_boss': { icon: '🏰', color: '#ec4899', label: 'Raid Boss' },
-                'field_boss': { icon: '🐉', color: '#a855f7', label: 'Field Boss' },
+                'field_boss': { icon: '🐉', color: '#5B92D4', label: 'Field Boss' },
                 'dungeon_boss': { icon: '⚔️', color: '#3b82f6', label: 'Boss' },
                 'adds': { icon: '💀', color: '#ef4444', label: 'Adds' },
                 'other': { icon: '📦', color: '#64748b', label: 'Other' }
@@ -348,10 +348,10 @@
             
             html += `
                 <div style="display: flex; gap: 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #334155; font-size: 0.75rem;">
-                    <span style="color: #64748b;">Total: <strong style="color: #22d3ee;">${formatCompactNumber(totalDamage)} dmg</strong></span>
+                    <span style="color: #64748b;">Total: <strong style="color: #D96444;">${formatCompactNumber(totalDamage)} dmg</strong></span>
                     <span style="color: #64748b;">Boss: <strong style="color: #22c55e;">${formatCompactNumber(bossDamage)} dmg</strong></span>
                     <span style="color: #64748b;">Trash: <strong style="color: #ef4444;">${formatCompactNumber(trashDamage)} dmg</strong></span>
-                    <span style="color: #64748b;">Time: <strong style="color: #a855f7;">${formatDuration(stats.duration || 0)}</strong></span>
+                    <span style="color: #64748b;">Time: <strong style="color: #5B92D4;">${formatDuration(stats.duration || 0)}</strong></span>
                 </div>
             `;
             
@@ -1118,12 +1118,12 @@
             const categoryColors = {
                 greatsword: '#ef4444',  // Red
                 sns: '#f97316',         // Orange
-                dagger: '#a78bfa',      // Purple
+                dagger: '#5B92D4',      // Purple
                 spear: '#ec4899',       // Pink
                 crossbow: '#22c55e',    // Green
                 longbow: '#84cc16',     // Lime
                 staff: '#3b82f6',       // Blue
-                wand: '#22d3ee',        // Cyan
+                wand: '#D96444',        // Cyan
                 orb: '#8b5cf6',         // Violet
                 mastery: '#fbbf24',     // Yellow
                 other: '#94a3b8',       // Gray

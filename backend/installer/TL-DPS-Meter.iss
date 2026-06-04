@@ -1,12 +1,12 @@
-; Inno Setup script for ツCKヤ DPS Meter — per-user install (no admin/UAC).
+; Inno Setup script for STOOP — per-user install (no admin/UAC).
 ; Built by build.py via ISCC; paths are relative to this file (backend/installer/).
 ; Per-user install to %LOCALAPPDATA%\Programs; the app keeps its writable state in
 ; %LOCALAPPDATA%\TL-DPS-Meter (see main.app_dir), so it never writes under a
 ; read-only install dir.
 
-#define MyAppName "TL DPS Meter"
-#define MyAppVersion "1.0.3"
-#define MyAppPublisher "StoopKid"
+#define MyAppName "STOOP"
+#define MyAppVersion "1.1.0"
+#define MyAppPublisher "OhStoopKid"
 #define MyAppURL "https://github.com/stoopkid713/TL-DPS-Meter"
 #define MyAppExeName "TL-DPS-Meter.exe"
 
@@ -94,7 +94,7 @@ begin
   if GetUninstallString() <> '' then
   begin
     choice := MsgBox(
-      'TL DPS Meter is already installed. What would you like to do?' + #13#10#13#10 +
+      'STOOP is already installed. What would you like to do?' + #13#10#13#10 +
       'Yes' + #9 + '— Reinstall / repair (keeps your saved data)' + #13#10 +
       'No' + #9 + '— Uninstall it and exit' + #13#10 +
       'Cancel' + #9 + '— Do nothing',

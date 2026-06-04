@@ -1,4 +1,4 @@
-
+﻿
         // Phase 2 (A5): repurpose the old Targets dropdown into the encounter switcher.
         // Lists every stored encounter (oldest-first), with a category icon, boss, time, and an
         // attempt ordinal (#1/#2) for duplicate bosses; the live/active one is marked ●.
@@ -510,7 +510,7 @@
         // ============================================================
         // CHECK FOR UPDATES — compare APP_VERSION to latest GitHub release
         // ============================================================
-        const APP_VERSION = '1.0.3';
+        const APP_VERSION = '1.1.0';
         // Set the displayed current-version from APP_VERSION so the static placeholder never goes stale.
         (function() { const _us = document.getElementById('updateStatus'); if (_us) _us.textContent = 'Current version v' + APP_VERSION; })();
         const RELEASES_LATEST_API = 'https://api.github.com/repos/stoopkid713/TL-DPS-Meter/releases/latest';
@@ -533,14 +533,14 @@
                 const latest = (data.tag_name || '').replace(/^v/, '');
                 const url = data.html_url || RELEASES_PAGE;
                 if (latest && _verGt(latest, APP_VERSION)) {
-                    status.innerHTML = `Update available: <strong style="color:#22d3ee;">v${latest}</strong> — `
-                        + `<a href="${url}" target="_blank" style="color:#22d3ee;">Download</a> (you have v${APP_VERSION})`;
+                    status.innerHTML = `Update available: <strong style="color:#D96444;">v${latest}</strong> — `
+                        + `<a href="${url}" target="_blank" style="color:#D96444;">Download</a> (you have v${APP_VERSION})`;
                 } else {
                     status.textContent = `You're up to date (v${APP_VERSION})`;
                 }
             } catch (e) {
                 status.innerHTML = `Couldn't check (${e.message}). `
-                    + `<a href="${RELEASES_PAGE}" target="_blank" style="color:#22d3ee;">View releases</a>`;
+                    + `<a href="${RELEASES_PAGE}" target="_blank" style="color:#D96444;">View releases</a>`;
             }
         }
 

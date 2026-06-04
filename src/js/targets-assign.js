@@ -1,4 +1,4 @@
-        function filterUnassignedTargets() {
+﻿        function filterUnassignedTargets() {
             const searchInput = document.getElementById('unassignedSearch');
             const query = searchInput.value.toLowerCase();
             const chips = document.querySelectorAll('#unassignedTargetsList .target-chip');
@@ -104,7 +104,7 @@
             // Build categorized display
             const categoryInfo = {
                 'archboss': { icon: '👹', name: 'Archbosses', color: '#fbbf24' },
-                'field_boss': { icon: '🐉', name: 'Field Bosses', color: '#a855f7' },
+                'field_boss': { icon: '🐉', name: 'Field Bosses', color: '#5B92D4' },
                 'dungeon_boss': { icon: '⚔️', name: 'Dungeon Bosses', color: '#3b82f6' },
                 'adds': { icon: '💀', name: 'Adds/Trash', color: '#ef4444' },
                 'other': { icon: '📦', name: 'Other', color: '#94a3b8' }
@@ -194,7 +194,7 @@
                             </div>
                         </div>
                         <div style="display: flex; gap: 16px; margin-bottom: 8px; font-size: 0.8rem;">
-                            <div><span style="color: #22d3ee; font-weight: 600;">${Math.round(enc.dps).toLocaleString()}</span> <span style="color: #64748b;">DPS</span></div>
+                            <div><span style="color: #D96444; font-weight: 600;">${Math.round(enc.dps).toLocaleString()}</span> <span style="color: #64748b;">DPS</span></div>
                             <div><span style="color: #e2e8f0; font-weight: 600;">${(enc.total_damage / 1000).toFixed(0)}K</span> <span style="color: #64748b;">dmg</span></div>
                         </div>
                         ${gapWarning}
@@ -295,7 +295,7 @@
             const categoryColors = {
                 'archboss': '#fbbf24',
                 'raid_boss': '#ec4899',
-                'field_boss': '#a855f7',
+                'field_boss': '#5B92D4',
                 'dungeon_boss': '#3b82f6',
                 'adds': '#ef4444',
                 'other': '#64748b'
@@ -318,7 +318,7 @@
             let html = '<div style="position: relative; padding-left: 24px;">';
             
             // Vertical line
-            html += '<div style="position: absolute; left: 10px; top: 30px; bottom: 30px; width: 3px; background: linear-gradient(to bottom, #22d3ee, #a855f7, #ef4444); border-radius: 2px; box-shadow: 0 0 8px rgba(34, 211, 238, 0.3);"></div>';
+            html += '<div style="position: absolute; left: 10px; top: 30px; bottom: 30px; width: 3px; background: linear-gradient(to bottom, #D96444, #5B92D4, #ef4444); border-radius: 2px; box-shadow: 0 0 8px rgba(217, 100, 68, 0.3);"></div>';
             
             // Start time marker
             html += `<div style="margin-bottom: 12px; padding-left: 8px; color: #64748b; font-size: 0.75rem; font-weight: 600;">▶ START: ${firstTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>`;
@@ -408,7 +408,7 @@
                 const rgbMap = {
                     '#fbbf24': '251, 191, 36',
                     '#ec4899': '236, 72, 153',
-                    '#a855f7': '168, 85, 247',
+                    '#5B92D4': '168, 85, 247',
                     '#3b82f6': '59, 130, 246',
                     '#ef4444': '239, 68, 68',
                     '#64748b': '100, 116, 139'
@@ -440,7 +440,7 @@
                 
                 const isSelected = selectedTimelineIndices.has(idx);
                 const selectedStyles = isSelected && !isUsed ? `
-                    box-shadow: 0 0 0 2px #22d3ee, 0 4px 12px rgba(34, 211, 238, 0.3);
+                    box-shadow: 0 0 0 2px #D96444, 0 4px 12px rgba(217, 100, 68, 0.3);
                 ` : '';
                 
                 // Check for merged/attempt flags
@@ -449,7 +449,7 @@
                 const isBoss = isBossCategory(enc.category);
                 
                 // Determine border color
-                const borderColor = isUsed ? '#334155' : (isAttempt ? '#ef4444' : (isMerged ? '#fbbf24' : (isSelected ? '#22d3ee' : color)));
+                const borderColor = isUsed ? '#334155' : (isAttempt ? '#ef4444' : (isMerged ? '#fbbf24' : (isSelected ? '#D96444' : color)));
                 
                 // Check if this is the start of a consecutive adds group (for bulk select)
                 let addsGroupSize = 0;
@@ -511,8 +511,8 @@
                             
                             <!-- Full card -->
                             <div style="${cardUsedStyles} ${selectedStyles} ${mergedStyles} ${attemptStyles} border-left: 3px solid ${borderColor}; border-radius: 6px; padding: 8px; transition: all 0.2s; position: relative;">
-                                ${isUsed ? '<div style="position: absolute; top: 4px; right: 6px; font-size: 0.6rem; color: #22d3ee; font-weight: 600;">✓ IN RUN</div>' : 
-                                  `<div onclick="event.stopPropagation(); toggleTimelineSelection(${idx}, event)" style="position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; background: ${isSelected ? '#22d3ee' : 'rgba(30, 41, 59, 0.8)'}; border: 2px solid ${isSelected ? '#22d3ee' : '#475569'}; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                                ${isUsed ? '<div style="position: absolute; top: 4px; right: 6px; font-size: 0.6rem; color: #D96444; font-weight: 600;">✓ IN RUN</div>' : 
+                                  `<div onclick="event.stopPropagation(); toggleTimelineSelection(${idx}, event)" style="position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; background: ${isSelected ? '#D96444' : 'rgba(30, 41, 59, 0.8)'}; border: 2px solid ${isSelected ? '#D96444' : '#475569'}; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
                                       ${isSelected ? '<span style="color: #0f172a; font-size: 0.7rem; font-weight: 700;">✓</span>' : ''}
                                   </div>`}
                                 <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; ${!isUsed ? 'padding-right: 24px;' : ''}">
@@ -562,10 +562,10 @@
                             <div style="position: absolute; left: -17px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; background: ${isUsed ? '#334155' : color}; border: 1.5px solid #0f172a; border-radius: 50%; z-index: 10;"></div>
                             
                             <!-- Compact single-line card -->
-                            <div style="background: ${isUsed ? 'rgba(30, 41, 59, 0.3)' : 'rgba(30, 41, 59, 0.6)'}; ${isSelected && !isUsed ? 'box-shadow: 0 0 0 1px #22d3ee;' : ''} border-left: 2px solid ${isUsed ? '#334155' : (isSelected ? '#22d3ee' : color)}; border-radius: 3px; padding: 4px 6px; display: flex; align-items: center; gap: 5px; transition: all 0.15s;">
+                            <div style="background: ${isUsed ? 'rgba(30, 41, 59, 0.3)' : 'rgba(30, 41, 59, 0.6)'}; ${isSelected && !isUsed ? 'box-shadow: 0 0 0 1px #D96444;' : ''} border-left: 2px solid ${isUsed ? '#334155' : (isSelected ? '#D96444' : color)}; border-radius: 3px; padding: 4px 6px; display: flex; align-items: center; gap: 5px; transition: all 0.15s;">
                                 <!-- Checkbox -->
                                 ${isUsed ? '' : `
-                                    <div onclick="event.stopPropagation(); toggleTimelineSelection(${idx}, event)" style="width: 12px; height: 12px; min-width: 12px; background: ${isSelected ? '#22d3ee' : 'transparent'}; border: 1.5px solid ${isSelected ? '#22d3ee' : '#475569'}; border-radius: 2px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                                    <div onclick="event.stopPropagation(); toggleTimelineSelection(${idx}, event)" style="width: 12px; height: 12px; min-width: 12px; background: ${isSelected ? '#D96444' : 'transparent'}; border: 1.5px solid ${isSelected ? '#D96444' : '#475569'}; border-radius: 2px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                                         ${isSelected ? '<span style="color: #0f172a; font-size: 0.5rem; font-weight: 700;">✓</span>' : ''}
                                     </div>
                                 `}
@@ -579,7 +579,7 @@
                                 <!-- Time only -->
                                 <span style="font-size: 0.6rem; color: ${isUsed ? '#475569' : '#64748b'}; white-space: nowrap;">${startTime}</span>
                                 
-                                ${isUsed ? '<span style="font-size: 0.5rem; color: #22d3ee;">✓</span>' : ''}
+                                ${isUsed ? '<span style="font-size: 0.5rem; color: #D96444;">✓</span>' : ''}
                                 
                                 <!-- Group select button -->
                                 ${showGroupButton ? `
@@ -825,7 +825,7 @@
             const categoryColors = {
                 'archboss': '#fbbf24',
                 'raid_boss': '#ec4899',
-                'field_boss': '#a855f7',
+                'field_boss': '#5B92D4',
                 'dungeon_boss': '#3b82f6',
                 'adds': '#ef4444',
                 'other': '#64748b'
@@ -870,7 +870,7 @@
             let html = `
                 <div style="position: relative; min-height: 200px;">
                     <!-- Center timeline line -->
-                    <div style="position: absolute; left: 50%; top: 20px; bottom: 20px; width: 4px; transform: translateX(-50%); background: linear-gradient(to bottom, #fbbf24, #ec4899, #a855f7, #3b82f6); border-radius: 2px; box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);"></div>
+                    <div style="position: absolute; left: 50%; top: 20px; bottom: 20px; width: 4px; transform: translateX(-50%); background: linear-gradient(to bottom, #fbbf24, #ec4899, #5B92D4, #3b82f6); border-radius: 2px; box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);"></div>
             `;
             
             let groupCounter = 0;
@@ -962,7 +962,7 @@
                     const rgbMap = {
                         '#fbbf24': '251, 191, 36',
                         '#ec4899': '236, 72, 153',
-                        '#a855f7': '168, 85, 247',
+                        '#5B92D4': '168, 85, 247',
                         '#3b82f6': '59, 130, 246',
                         '#ef4444': '239, 68, 68',
                         '#64748b': '100, 116, 139'
@@ -1362,7 +1362,7 @@
             const categoryColors = {
                 'archboss': '#fbbf24',
                 'raid_boss': '#ec4899',
-                'field_boss': '#a855f7',
+                'field_boss': '#5B92D4',
                 'dungeon_boss': '#3b82f6',
                 'adds': '#ef4444',
                 'other': '#64748b'
