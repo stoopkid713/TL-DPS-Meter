@@ -62,6 +62,7 @@ class TestLastCombatAgeS:
         """After ingest_lines processes at least one DamageDone line,
         last_combat_age_s must be a non-negative float."""
         srv, _ = _server_with_capture(tmp_path)
+        _configure_log_dir(srv, tmp_path)
 
         srv.ingest_lines([
             _line("20260601-10:00:00:000", "Slash", 1000, False, False, "Boss"),
@@ -79,6 +80,7 @@ class TestLastCombatAgeS:
         confirming it is wall-clock age and not a cached constant."""
         import time
         srv, _ = _server_with_capture(tmp_path)
+        _configure_log_dir(srv, tmp_path)
 
         srv.ingest_lines([
             _line("20260601-10:00:00:000", "Slash", 1000, False, False, "Boss"),
@@ -97,6 +99,7 @@ class TestLastCombatAgeS:
         clock), confirming the backend updates _last_combat_ts per-hit."""
         import time
         srv, _ = _server_with_capture(tmp_path)
+        _configure_log_dir(srv, tmp_path)
 
         # First ingest — old timestamp in log line but _last_combat_ts = datetime.now() copy
         srv.ingest_lines([
@@ -131,6 +134,16 @@ def _server_with_capture(tmp_path) -> tuple[DPSMeterServer, list[dict]]:
     emitted: list[dict] = []
     srv._emit = lambda payload: emitted.append(payload)
     return srv, emitted
+
+
+def _configure_log_dir(srv, tmp_path) -> None:
+    """Point the server at an existing (empty) log dir so _log_info() doesn't
+    early-return last_combat_age_s=None on a missing dir. Without this, the
+    ingest tests implicitly depend on the host having Throne & Liberty installed
+    (the _default_log_dir() fallback) and fail on a clean CI runner."""
+    d = tmp_path / "tl_logs"
+    d.mkdir(exist_ok=True)
+    srv.config["log_path"] = str(d)
 
 
 # ---------------------------------------------------------------------------
