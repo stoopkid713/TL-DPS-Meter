@@ -140,9 +140,9 @@
             if (encounters.length === 0) {
                 // Fallback for old runs without encounter data
                 if (stats.encounter_count > 0) {
-                    return `<div style="color: #64748b; font-size: 0.75rem; font-style: italic;">⚠️ This run was saved before encounter timeline was added. Re-save to enable timeline.</div>`;
+                    return `<div style="color: #7A8CB8; font-size: 0.75rem; font-style: italic;">⚠️ This run was saved before encounter timeline was added. Re-save to enable timeline.</div>`;
                 }
-                return `<div style="color: #64748b; font-size: 0.75rem; font-style: italic;">No encounter data available</div>`;
+                return `<div style="color: #7A8CB8; font-size: 0.75rem; font-style: italic;">No encounter data available</div>`;
             }
             
             // Category styling
@@ -152,7 +152,7 @@
                 'field_boss': { icon: '🐉', color: '#5B92D4', label: 'Field Boss' },
                 'dungeon_boss': { icon: '⚔️', color: '#3b82f6', label: 'Boss' },
                 'adds': { icon: '💀', color: '#ef4444', label: 'Adds' },
-                'other': { icon: '📦', color: '#64748b', label: 'Other' }
+                'other': { icon: '📦', color: '#7A8CB8', label: 'Other' }
             };
             
             // Group consecutive adds together
@@ -188,7 +188,7 @@
             html += `<div style="position: relative; padding-left: 20px;">`;
             
             // Timeline line
-            html += `<div style="position: absolute; left: 6px; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, #334155, #1e293b);"></div>`;
+            html += `<div style="position: absolute; left: 6px; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, #263956, #1D2F50);"></div>`;
             
             // Calculate run start time for relative timestamps
             const runStart = encounters.length > 0 ? new Date(encounters[0].start_time) : null;
@@ -226,10 +226,10 @@
                                     <span style="font-size: 0.75rem; transition: transform 0.2s; transform: rotate(${isExpanded ? '90deg' : '0deg'});">▶</span>
                                     <span style="font-size: 0.85rem;">${style.icon}</span>
                                     <div style="flex: 1; min-width: 0;">
-                                        <div style="font-weight: 600; color: #e2e8f0; font-size: 0.8rem;">Adds <span style="color: ${style.color}; font-weight: 400;">(${addsCount})</span></div>
+                                        <div style="font-weight: 600; color: #F0EBE0; font-size: 0.8rem;">Adds <span style="color: ${style.color}; font-weight: 400;">(${addsCount})</span></div>
                                     </div>
                                     <div style="text-align: right;">
-                                        <div style="font-size: 0.65rem; color: #64748b;">${relativeTime}</div>
+                                        <div style="font-size: 0.65rem; color: #7A8CB8;">${relativeTime}</div>
                                         <div style="font-size: 0.75rem; font-weight: 600; color: ${style.color};">${formatCompactNumber(totalDamage)} dmg</div>
                                     </div>
                                 </div>
@@ -251,15 +251,15 @@
                         }
                         
                         html += `
-                            <div style="padding: 4px 8px; margin-bottom: 4px; background: rgba(15, 23, 42, 0.3); border-radius: 3px;">
+                            <div style="padding: 4px 8px; margin-bottom: 4px; background: rgba(21, 32, 53, 0.3); border-radius: 3px;">
                                 <div style="display: flex; align-items: center; gap: 6px;">
-                                    <span style="color: #475569; font-size: 0.65rem;">└</span>
+                                    <span style="color: #405A85; font-size: 0.65rem;">└</span>
                                     <span style="font-size: 0.7rem;">${style.icon}</span>
                                     <div style="flex: 1; min-width: 0;">
-                                        <div style="font-weight: 500; color: #94a3b8; font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${enc.target_name}</div>
+                                        <div style="font-weight: 500; color: #7A8CB8; font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${enc.target_name}</div>
                                     </div>
                                     <div style="text-align: right;">
-                                        <div style="font-size: 0.6rem; color: #64748b;">${addRelativeTime}</div>
+                                        <div style="font-size: 0.6rem; color: #7A8CB8;">${addRelativeTime}</div>
                                         <div style="font-size: 0.7rem; font-weight: 600; color: ${style.color};">${formatCompactNumber(enc.total_damage || 0)} dmg</div>
                                     </div>
                                 </div>
@@ -296,20 +296,20 @@
                     if (isBoss) {
                         // BOSS - Prominent card with color highlight
                         html += `
-                            <div style="position: relative; margin-bottom: 14px; padding: 12px 14px; background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%); border-radius: 8px; border: 1px solid ${style.color}; border-left: 4px solid ${style.color}; box-shadow: 0 2px 12px rgba(0,0,0,0.3), 0 0 20px ${style.color}20;">
+                            <div style="position: relative; margin-bottom: 14px; padding: 12px 14px; background: linear-gradient(135deg, rgba(21, 32, 53, 0.9) 0%, rgba(29, 47, 80, 0.8) 100%); border-radius: 8px; border: 1px solid ${style.color}; border-left: 4px solid ${style.color}; box-shadow: 0 2px 12px rgba(0,0,0,0.3), 0 0 20px ${style.color}20;">
                                 <!-- Timeline dot -->
-                                <div style="position: absolute; left: ${dotOffset}; top: 50%; transform: translate(-100%, -50%); width: ${dotSize}; height: ${dotSize}; background: ${style.color}; border: 2px solid #0f172a; border-radius: 50%; box-shadow: 0 0 8px ${style.color}60, 0 0 0 3px ${style.color}30;"></div>
+                                <div style="position: absolute; left: ${dotOffset}; top: 50%; transform: translate(-100%, -50%); width: ${dotSize}; height: ${dotSize}; background: ${style.color}; border: 2px solid #152035; border-radius: 50%; box-shadow: 0 0 8px ${style.color}60, 0 0 0 3px ${style.color}30;"></div>
                                 
                                 <div style="display: flex; align-items: center; gap: 10px;">
                                     <span style="font-size: 1.3rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));">${style.icon}</span>
                                     <div style="flex: 1; min-width: 0;">
-                                        <div style="font-weight: 700; color: #e2e8f0; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">${enc.target_name}</div>
+                                        <div style="font-weight: 700; color: #F0EBE0; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">${enc.target_name}</div>
                                         <div style="font-size: 0.65rem; color: ${style.color}; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${style.label}</div>
                                     </div>
                                     <div style="text-align: right; padding: 6px 10px; background: rgba(0,0,0,0.2); border-radius: 6px;">
-                                        <div style="font-size: 0.6rem; color: #64748b; margin-bottom: 2px;">${relativeTime}</div>
+                                        <div style="font-size: 0.6rem; color: #7A8CB8; margin-bottom: 2px;">${relativeTime}</div>
                                         <div style="font-size: 0.95rem; font-weight: 700; color: ${style.color}; text-shadow: 0 0 10px ${style.color}40;">${formatCompactNumber(enc.dps || 0)} DPS</div>
-                                        <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 2px;">${formatCompactNumber(enc.total_damage || 0)} dmg</div>
+                                        <div style="font-size: 0.7rem; color: #7A8CB8; margin-top: 2px;">${formatCompactNumber(enc.total_damage || 0)} dmg</div>
                                     </div>
                                 </div>
                             </div>
@@ -317,17 +317,17 @@
                     } else {
                         // OTHER - minimal styling
                         html += `
-                            <div style="position: relative; margin-bottom: 8px; padding: 6px 10px; background: rgba(15, 23, 42, 0.3); border-radius: 4px; border-left: 2px solid ${style.color};">
+                            <div style="position: relative; margin-bottom: 8px; padding: 6px 10px; background: rgba(21, 32, 53, 0.3); border-radius: 4px; border-left: 2px solid ${style.color};">
                                 <!-- Timeline dot -->
                                 <div style="position: absolute; left: ${dotOffset}; top: 50%; transform: translate(-100%, -50%); width: ${dotSize}; height: ${dotSize}; background: ${style.color}; border-radius: 50%; box-shadow: 0 0 3px ${style.color}40;"></div>
                                 
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <span style="font-size: 0.8rem;">${style.icon}</span>
                                     <div style="flex: 1; min-width: 0;">
-                                        <div style="font-weight: 500; color: #94a3b8; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${enc.target_name}</div>
+                                        <div style="font-weight: 500; color: #7A8CB8; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${enc.target_name}</div>
                                     </div>
                                     <div style="text-align: right;">
-                                        <div style="font-size: 0.7rem; color: #64748b;">${relativeTime}</div>
+                                        <div style="font-size: 0.7rem; color: #7A8CB8;">${relativeTime}</div>
                                         <div style="font-size: 0.75rem; font-weight: 600; color: ${style.color};">${formatCompactNumber(enc.total_damage || 0)} dmg</div>
                                     </div>
                                 </div>
@@ -347,11 +347,11 @@
             const trashDamage = stats.trash_damage || encounters.filter(e => e.category === 'adds').reduce((sum, e) => sum + (e.total_damage || 0), 0);
             
             html += `
-                <div style="display: flex; gap: 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #334155; font-size: 0.75rem;">
-                    <span style="color: #64748b;">Total: <strong style="color: #D96444;">${formatCompactNumber(totalDamage)} dmg</strong></span>
-                    <span style="color: #64748b;">Boss: <strong style="color: #22c55e;">${formatCompactNumber(bossDamage)} dmg</strong></span>
-                    <span style="color: #64748b;">Trash: <strong style="color: #ef4444;">${formatCompactNumber(trashDamage)} dmg</strong></span>
-                    <span style="color: #64748b;">Time: <strong style="color: #5B92D4;">${formatDuration(stats.duration || 0)}</strong></span>
+                <div style="display: flex; gap: 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #263956; font-size: 0.75rem;">
+                    <span style="color: #7A8CB8;">Total: <strong style="color: #D96444;">${formatCompactNumber(totalDamage)} dmg</strong></span>
+                    <span style="color: #7A8CB8;">Boss: <strong style="color: #22c55e;">${formatCompactNumber(bossDamage)} dmg</strong></span>
+                    <span style="color: #7A8CB8;">Trash: <strong style="color: #ef4444;">${formatCompactNumber(trashDamage)} dmg</strong></span>
+                    <span style="color: #7A8CB8;">Time: <strong style="color: #5B92D4;">${formatDuration(stats.duration || 0)}</strong></span>
                 </div>
             `;
             
@@ -487,14 +487,14 @@
                 .sort((a, b) => a.target.localeCompare(b.target));
             
             if (targets.length === 0) {
-                container.innerHTML = '<div style="text-align: center; color: #64748b; padding: 40px;">No targets assigned to this category</div>';
+                container.innerHTML = '<div style="text-align: center; color: #7A8CB8; padding: 40px;">No targets assigned to this category</div>';
                 return;
             }
             
             container.innerHTML = targets.map(item => `
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #152035; border: 1px solid #263956; border-radius: 6px; margin-bottom: 8px;">
                     <div style="flex: 1;">
-                        <span style="color: #e2e8f0; font-size: 0.9rem;">${escapeHtml(item.target)}</span>
+                        <span style="color: #F0EBE0; font-size: 0.9rem;">${escapeHtml(item.target)}</span>
                         ${item.dungeon ? `<span style="display: block; color: #3b82f6; font-size: 0.75rem; margin-top: 2px;">📍 ${escapeHtml(item.dungeon)}</span>` : 
                           (isDungeonCategory ? `<span style="display: block; color: #f59e0b; font-size: 0.75rem; margin-top: 2px;">⚠️ No dungeon assigned</span>` : '')}
                     </div>
@@ -1126,8 +1126,8 @@
                 wand: '#D96444',        // Cyan
                 orb: '#8b5cf6',         // Violet
                 mastery: '#fbbf24',     // Yellow
-                other: '#94a3b8',       // Gray
-                unassigned: '#475569'   // Dark gray
+                other: '#7A8CB8',       // Gray
+                unassigned: '#405A85'   // Dark gray
             };
             
             // Collect data for pie chart
@@ -1161,10 +1161,10 @@
                 // Draw empty state
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-                ctx.fillStyle = '#334155';
+                ctx.fillStyle = '#263956';
                 ctx.fill();
                 
-                ctx.fillStyle = '#64748b';
+                ctx.fillStyle = '#7A8CB8';
                 ctx.font = '14px system-ui';
                 ctx.textAlign = 'center';
                 ctx.fillText('No data', centerX, centerY);
@@ -1187,7 +1187,7 @@
                 ctx.fill();
                 
                 // Add subtle border between slices
-                ctx.strokeStyle = '#1e293b';
+                ctx.strokeStyle = '#1D2F50';
                 ctx.lineWidth = 2;
                 ctx.stroke();
                 
@@ -1197,17 +1197,17 @@
             // Draw center hole (donut effect)
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius * 0.5, 0, 2 * Math.PI);
-            ctx.fillStyle = '#1e293b';
+            ctx.fillStyle = '#1D2F50';
             ctx.fill();
             
             // Draw total damage in center
-            ctx.fillStyle = '#e2e8f0';
+            ctx.fillStyle = '#F0EBE0';
             ctx.font = 'bold 18px system-ui';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(formatNumber(totalDamage), centerX, centerY - 8);
             
-            ctx.fillStyle = '#64748b';
+            ctx.fillStyle = '#7A8CB8';
             ctx.font = '11px system-ui';
             ctx.fillText('60s Damage', centerX, centerY + 12);
             
@@ -1353,7 +1353,7 @@
                 .sort();
             
             if (skills.length === 0) {
-                container.innerHTML = '<div style="text-align: center; color: #64748b; padding: 40px;">No skills assigned to this weapon</div>';
+                container.innerHTML = '<div style="text-align: center; color: #7A8CB8; padding: 40px;">No skills assigned to this weapon</div>';
                 return;
             }
             
@@ -1365,10 +1365,10 @@
             const icon = weaponIcons[weapon] || '📦';
             
             container.innerHTML = skills.map(skill => `
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #152035; border: 1px solid #263956; border-radius: 6px; margin-bottom: 8px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span style="font-size: 1rem;">${icon}</span>
-                        <span style="color: #e2e8f0; font-size: 0.9rem;">${escapeHtml(skill)}</span>
+                        <span style="color: #F0EBE0; font-size: 0.9rem;">${escapeHtml(skill)}</span>
                     </div>
                     <button onclick="unassignSkillFromModal('${escapeHtml(skill)}')" style="padding: 4px 10px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 600;">Unassign</button>
                 </div>
@@ -1536,7 +1536,7 @@
             const setStatus = (msg, color) => {
                 if (statusEl) {
                     statusEl.textContent = msg;
-                    statusEl.style.color = color || '#94a3b8';
+                    statusEl.style.color = color || '#7A8CB8';
                 }
             };
 

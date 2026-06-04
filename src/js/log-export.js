@@ -77,13 +77,13 @@
                             const dpsLabel  = isBTSave ? '1-Min DPS' : 'DPS';
                             const cat       = enc.category || (isBTSave ? 'training' : '');
                             const catLabel  = cat.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
-                            const catColor  = cat.includes('arch') ? '#ef4444' : cat.includes('field') ? '#fbbf24' : cat.includes('raid') ? '#f472b6' : '#64748b';
+                            const catColor  = cat.includes('arch') ? '#ef4444' : cat.includes('field') ? '#fbbf24' : cat.includes('raid') ? '#f472b6' : '#7A8CB8';
                             // Parse contribution info out of notes
                             const { contribPct, bossHp, cleanNotes } = parseContribNotes(enc.notes);
                             const contribHtml = contribPct
                                 ? `<div class="encounter-stat" style="color:#5B92D4;">
                                        <strong>${contribPct.toFixed(1)}%</strong> contribution
-                                       ${bossHp ? `<span style="color:#64748b;font-size:0.72rem;"> · Boss HP ≈ ${formatNumber(bossHp)}</span>` : ''}
+                                       ${bossHp ? `<span style="color:#7A8CB8;font-size:0.72rem;"> · Boss HP ≈ ${formatNumber(bossHp)}</span>` : ''}
                                    </div>` : '';
                             return `
                             <div class="encounter-item" data-id="${enc.id}">
@@ -92,7 +92,7 @@
                                     ${catLabel ? `<span style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:2px 6px;border-radius:3px;background:${catColor}22;color:${catColor};border:1px solid ${catColor}44;margin-left:6px;">${catLabel}</span>` : ''}
                                     <span class="encounter-date" style="margin-left: auto;">${formatDate(enc.timestamp)}</span>
                                 </div>
-                                ${cleanNotes ? `<div style="font-size: 0.8rem; color: #94a3b8; margin: 4px 0 8px 0; font-style: italic; padding-left: 8px; border-left: 2px solid #334155;">${cleanNotes}</div>` : ''}
+                                ${cleanNotes ? `<div style="font-size: 0.8rem; color: #7A8CB8; margin: 4px 0 8px 0; font-style: italic; padding-left: 8px; border-left: 2px solid #263956;">${cleanNotes}</div>` : ''}
                                 <div class="encounter-stats">
                                     <div class="encounter-stat highlight">
                                         <strong>${formatNumber(Math.round(dps))}</strong> ${dpsLabel}
@@ -195,8 +195,8 @@
             
             const dialog = document.createElement('div');
             dialog.style.cssText = `
-                background: #1e293b;
-                border: 1px solid #334155;
+                background: #1D2F50;
+                border: 1px solid #263956;
                 border-radius: 12px;
                 padding: 24px;
                 max-width: 600px;
@@ -239,21 +239,21 @@
                         </div>
                         ${classEncounters.map(enc => `
                             <div class="encounter-select-item" data-id="${enc.id}" style="
-                                background: rgba(30, 41, 59, 0.5);
-                                border: 1px solid #334155;
+                                background: rgba(29, 47, 80, 0.5);
+                                border: 1px solid #263956;
                                 border-radius: 8px;
                                 padding: 12px;
                                 margin-bottom: 8px;
                                 cursor: pointer;
                                 transition: all 0.2s;
                             ">
-                                <div style="font-weight: 600; color: #e2e8f0; margin-bottom: 4px;">${enc.build_tag}</div>
+                                <div style="font-weight: 600; color: #F0EBE0; margin-bottom: 4px;">${enc.build_tag}</div>
                                 <div style="display: flex; gap: 16px; font-size: 0.85rem;">
                                     <span style="color: #D96444; font-weight: 600;">${formatNumber(Math.round(enc.first_60s.dps))} DPS</span>
-                                    <span style="color: #94a3b8;">${formatNumber(enc.first_60s.total_damage)} dmg</span>
-                                    <span style="color: #64748b;">${formatDate(enc.timestamp)}</span>
+                                    <span style="color: #7A8CB8;">${formatNumber(enc.first_60s.total_damage)} dmg</span>
+                                    <span style="color: #7A8CB8;">${formatDate(enc.timestamp)}</span>
                                 </div>
-                                ${enc.notes ? `<div style="font-size: 0.8rem; color: #94a3b8; margin-top: 6px; font-style: italic; padding-left: 8px; border-left: 2px solid #334155;">${enc.notes}</div>` : ''}
+                                ${enc.notes ? `<div style="font-size: 0.8rem; color: #7A8CB8; margin-top: 6px; font-style: italic; padding-left: 8px; border-left: 2px solid #263956;">${enc.notes}</div>` : ''}
                             </div>
                         `).join('')}
                     </div>
@@ -284,8 +284,8 @@
                     item.style.background = 'rgba(217, 100, 68, 0.1)';
                 });
                 item.addEventListener('mouseleave', () => {
-                    item.style.borderColor = '#334155';
-                    item.style.background = 'rgba(30, 41, 59, 0.5)';
+                    item.style.borderColor = '#263956';
+                    item.style.background = 'rgba(29, 47, 80, 0.5)';
                 });
                 item.addEventListener('click', () => {
                     const encId = item.getAttribute('data-id');
@@ -700,7 +700,7 @@
                         <div class="compare-rotation-chart-label">
                             <span class="build-name">${label}: ${enc.build_tag}</span>
                         </div>
-                        <div style="text-align: center; color: #64748b; padding: 20px;">No rotation data saved</div>
+                        <div style="text-align: center; color: #7A8CB8; padding: 20px;">No rotation data saved</div>
                     </div>`;
                 }
                 
@@ -740,7 +740,7 @@
                             <div class="compare-piano-label">
                                 <span class="build-name">${label}: ${enc.build_tag}</span>
                             </div>
-                            <div style="text-align: center; color: #64748b; padding: 20px; font-size: 0.8rem;">
+                            <div style="text-align: center; color: #7A8CB8; padding: 20px; font-size: 0.8rem;">
                                 No rotation data saved
                             </div>
                         </div>
@@ -857,7 +857,7 @@
                     html += `
                         <div class="compare-activity-card">
                             <div class="label">${e.label}: Peak 5s</div>
-                            <div class="value" style="color: ${isTop ? '#22c55e' : '#64748b'}">${formatNumber(Math.round(peak))}</div>
+                            <div class="value" style="color: ${isTop ? '#22c55e' : '#7A8CB8'}">${formatNumber(Math.round(peak))}</div>
                         </div>
                     `;
                 });
@@ -914,7 +914,7 @@
                         <div class="date">${formatDate(enc.timestamp)}</div>
                         <div class="compare-dps-display">
                             <div class="compare-dps-value">${formatNumber(Math.round(stats.dps))}</div>
-                            <div style="font-size: 0.8rem; color: #64748b;">1-Min DPS</div>
+                            <div style="font-size: 0.8rem; color: #7A8CB8;">1-Min DPS</div>
                             <div class="compare-dps-bar">
                                 <div class="compare-dps-fill" style="width: ${(stats.dps / maxDps * 100)}%"></div>
                             </div>
@@ -1057,13 +1057,13 @@
             if (!compareRotationData['Build C']) compareHiddenSkillsC.clear();
 
             const rotChartHtml = buildsData.map(b => `
-                <div data-compare-build="${b.label}" style="margin-bottom:20px;background:rgba(15,23,42,0.4);border:1px solid #1e293b;border-radius:10px;padding:14px 16px;">
-                    <div style="font-size:0.77rem;font-weight:700;color:#94a3b8;margin-bottom:10px;">${b.label}: ${b.enc?.build_tag||''} ${winnerLabels.includes(b.label)?'👑':''}</div>
+                <div data-compare-build="${b.label}" style="margin-bottom:20px;background:rgba(21,32,53,0.4);border:1px solid #1D2F50;border-radius:10px;padding:14px 16px;">
+                    <div style="font-size:0.77rem;font-weight:700;color:#7A8CB8;margin-bottom:10px;">${b.label}: ${b.enc?.build_tag||''} ${winnerLabels.includes(b.label)?'👑':''}</div>
                     <div style="display:flex;gap:4px;margin-bottom:2px;">
                         <div id="compareRotYAxis_${b.label}" style="position:relative;width:36px;flex-shrink:0;"></div>
                         <div id="compareRotChart_${b.label}" class="rotation-dps-chart" style="flex:1;height:100px;display:flex;align-items:flex-end;gap:1px;background:rgba(0,0,0,0.2);border-radius:4px;padding:4px 4px 0;position:relative;overflow:hidden;"></div>
                     </div>
-                    <div style="font-size:0.65rem;color:#475569;display:flex;justify-content:space-between;padding:0 0 6px 40px;">
+                    <div style="font-size:0.65rem;color:#405A85;display:flex;justify-content:space-between;padding:0 0 6px 40px;">
                         <span>0s</span><span>15s</span><span>30s</span><span>45s</span><span>60s</span>
                     </div>
                     <div id="compareRotToggles_${b.label}" class="rotation-skill-toggles" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;"></div>

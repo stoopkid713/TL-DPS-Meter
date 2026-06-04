@@ -141,13 +141,13 @@
             function rateBlock(item) {
                 return `<div style="display:flex; gap:10px; margin-top:6px; flex-wrap:wrap;">
                     <span style="font-size:0.68rem;" title="Crit only (max damage roll)">
-                        <span style="color:#64748b;">Crit </span><span style="color:#fbbf24; font-weight:600;">${item.critRate}%</span>
+                        <span style="color:#7A8CB8;">Crit </span><span style="color:#fbbf24; font-weight:600;">${item.critRate}%</span>
                     </span>
                     <span style="font-size:0.68rem;" title="Heavy only (2× damage)">
-                        <span style="color:#64748b;">Heavy </span><span style="color:#fb923c; font-weight:600;">${item.heavyRate}%</span>
+                        <span style="color:#7A8CB8;">Heavy </span><span style="color:#fb923c; font-weight:600;">${item.heavyRate}%</span>
                     </span>
                     <span style="font-size:0.68rem;" title="Crit+Heavy — max roll AND 2× damage">
-                        <span style="color:#64748b;">C+H </span><span style="color:#f472b6; font-weight:700;">${item.critHeavyRate || 0}%</span>
+                        <span style="color:#7A8CB8;">C+H </span><span style="color:#f472b6; font-weight:700;">${item.critHeavyRate || 0}%</span>
                     </span>
                 </div>`;
             }
@@ -208,17 +208,17 @@
 
                 if (castDiff > 0 && castImpact > 50000) {
                     findings.push({ type: 'cast', skill: row.skill, castDiff, impact: castImpact, avgW,
-                        text: `<strong style="color:#e2e8f0">${row.skill}</strong>: Run ${slotW} landed <span style="color:#22c55e;font-weight:700;">+${castDiff} cast${castDiff>1?'s':''}</span> — approx <span style="color:#5B92D4;font-weight:700;">+${formatNumber(Math.round(castImpact))}</span> extra damage` });
+                        text: `<strong style="color:#F0EBE0">${row.skill}</strong>: Run ${slotW} landed <span style="color:#22c55e;font-weight:700;">+${castDiff} cast${castDiff>1?'s':''}</span> — approx <span style="color:#5B92D4;font-weight:700;">+${formatNumber(Math.round(castImpact))}</span> extra damage` });
                 }
                 if (Math.abs(avgDiffPct) > 10 && avgImpact > 50000 && castsL > 0) {
                     const dir = avgDiff > 0 ? 'higher' : 'lower';
                     const col = avgDiff > 0 ? '#22c55e' : '#ef4444';
                     findings.push({ type: 'avg', skill: row.skill, impact: avgImpact, avgDiffPct,
-                        text: `<strong style="color:#e2e8f0">${row.skill}</strong>: avg/cast was <span style="color:${col};font-weight:700;">${Math.abs(avgDiffPct).toFixed(0)}% ${dir}</span> in Run ${slotW} — <span style="color:#5B92D4;font-weight:700;">~${formatNumber(Math.round(avgImpact))}</span> damage swing` });
+                        text: `<strong style="color:#F0EBE0">${row.skill}</strong>: avg/cast was <span style="color:${col};font-weight:700;">${Math.abs(avgDiffPct).toFixed(0)}% ${dir}</span> in Run ${slotW} — <span style="color:#5B92D4;font-weight:700;">~${formatNumber(Math.round(avgImpact))}</span> damage swing` });
                 }
                 if (chW - chL > 6 && castsW >= 3) {
                     findings.push({ type: 'ch', skill: row.skill, impact: (chW-chL)*avgW/100*castsW,
-                        text: `<strong style="color:#e2e8f0">${row.skill}</strong>: C+H rate <span style="color:#f472b6;font-weight:700;">${chW.toFixed(0)}%</span> vs ${chL.toFixed(0)}% — more big-boy hits in Run ${slotW}` });
+                        text: `<strong style="color:#F0EBE0">${row.skill}</strong>: C+H rate <span style="color:#f472b6;font-weight:700;">${chW.toFixed(0)}%</span> vs ${chL.toFixed(0)}% — more big-boy hits in Run ${slotW}` });
                 }
             });
 
@@ -237,25 +237,25 @@
             if (Math.abs(heavyDelta) >= 2) rateLines.push(`Heavy <span style="color:#fb923c;font-weight:700;">${winner.heavyRate}%</span> vs ${loser.heavyRate}%`);
 
             el.innerHTML = `
-                <div style="background:rgba(15,23,42,0.5); border:1px solid #334155; border-radius:10px; padding:14px 16px; margin-bottom:16px;">
+                <div style="background:rgba(21,32,53,0.5); border:1px solid #263956; border-radius:10px; padding:14px 16px; margin-bottom:16px;">
                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-                        <div style="font-size:0.72rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px;">🔍 Key Findings</div>
-                        <div style="font-size:0.72rem; color:#64748b;">Run ${slotW} wins by <span style="color:${slotW==='A'?'#D96444':'#5B92D4'};font-weight:700;">${formatNumber(Math.round(dpsDelta))} DPS</span> (${dpsDeltaPct.toFixed(1)}%)</div>
+                        <div style="font-size:0.72rem; font-weight:700; color:#7A8CB8; text-transform:uppercase; letter-spacing:0.5px;">🔍 Key Findings</div>
+                        <div style="font-size:0.72rem; color:#7A8CB8;">Run ${slotW} wins by <span style="color:${slotW==='A'?'#D96444':'#5B92D4'};font-weight:700;">${formatNumber(Math.round(dpsDelta))} DPS</span> (${dpsDeltaPct.toFixed(1)}%)</div>
                     </div>
                     ${top.length > 0
                         ? `<div style="display:flex; flex-direction:column; gap:6px; margin-bottom:${rateLines.length?'12px':'0'};">
-                               ${top.map(f => `<div style="font-size:0.77rem; color:#94a3b8; padding:5px 8px; background:rgba(15,23,42,0.4); border-radius:5px;">${f.text}</div>`).join('')}
+                               ${top.map(f => `<div style="font-size:0.77rem; color:#7A8CB8; padding:5px 8px; background:rgba(21,32,53,0.4); border-radius:5px;">${f.text}</div>`).join('')}
                            </div>`
-                        : `<div style="font-size:0.77rem; color:#64748b; padding:6px 0;">Runs are very close — no single dominant factor. Check the skill matrix for fine details.</div>`
+                        : `<div style="font-size:0.77rem; color:#7A8CB8; padding:6px 0;">Runs are very close — no single dominant factor. Check the skill matrix for fine details.</div>`
                     }
-                    ${rateLines.length ? `<div style="font-size:0.72rem; color:#64748b; padding-top:8px; border-top:1px solid #1e293b;">
+                    ${rateLines.length ? `<div style="font-size:0.72rem; color:#7A8CB8; padding-top:8px; border-top:1px solid #1D2F50;">
                         Hit rates (Run ${slotW} vs ${slotL}): ${rateLines.join(' &nbsp;·&nbsp; ')}
                     </div>` : ''}
                 </div>`;
         }
 
         function renderRunLabMatrix(runA, runB) {
-            if (!runLabMatrix.length) { document.getElementById('runLabMatrix').innerHTML = '<div style="color:#64748b;padding:20px;text-align:center;">No skill data</div>'; return; }
+            if (!runLabMatrix.length) { document.getElementById('runLabMatrix').innerHTML = '<div style="color:#7A8CB8;padding:20px;text-align:center;">No skill data</div>'; return; }
 
             function dc(a, b) { const d = a - b; return d > 0.5 ? 'pos' : d < -0.5 ? 'neg' : 'zero'; }
             function sign(v) { return v > 0 ? '+' : ''; }
@@ -278,7 +278,7 @@
                     <span class="rl-skill-name" title="${escapeHtml(row.skill)}">${escapeHtml(row.skill)}</span>
                     <span style="text-align:right; display:flex; align-items:center; justify-content:flex-end; gap:3px;">
                         <span class="rl-cell-a">${row.castsA.length}</span>
-                        <span style="color:#475569;font-size:0.68rem;">/</span>
+                        <span style="color:#405A85;font-size:0.68rem;">/</span>
                         <span class="rl-cell-b">${row.castsB.length}</span>
                         <span class="rl-delta-cell ${dc(row.castsA.length,row.castsB.length)}">${sign(castDelta)}${castDelta}</span>
                     </span>
@@ -300,15 +300,15 @@
                     `<button class="rl-skill-toggle ${runLabVisibleSkills.has(row.skill)?'on':''}"
                              onclick="toggleRunLabSkill('${escapeHtml(row.skill)}')">${escapeHtml(row.skill)}</button>`
                 ).join('') +
-                `<span style="display:inline-block;width:1px;height:14px;background:#334155;margin:0 4px;vertical-align:middle;"></span>` +
+                `<span style="display:inline-block;width:1px;height:14px;background:#263956;margin:0 4px;vertical-align:middle;"></span>` +
                 `<button class="rl-skill-toggle" onclick="runLabShowAll()" style="border-color:#22c55e;color:#22c55e;">All</button>
                  <button class="rl-skill-toggle" onclick="runLabShowNone()" style="border-color:#ef4444;color:#ef4444;">None</button>` +
-                (weaponGroups ? `<span style="display:inline-block;width:1px;height:14px;background:#334155;margin:0 4px;vertical-align:middle;"></span>${weaponGroups}` : '');
+                (weaponGroups ? `<span style="display:inline-block;width:1px;height:14px;background:#263956;margin:0 4px;vertical-align:middle;"></span>${weaponGroups}` : '');
         }
 
         function renderRunLabPiano(runA, runB) {
             const visible = runLabMatrix.filter(r => runLabVisibleSkills.has(r.skill));
-            if (!visible.length) { document.getElementById('runLabPiano').innerHTML = '<div style="color:#64748b;font-size:0.8rem;padding:12px 0;">No skills selected — use toggles above.</div>'; return; }
+            if (!visible.length) { document.getElementById('runLabPiano').innerHTML = '<div style="color:#7A8CB8;font-size:0.8rem;padding:12px 0;">No skills selected — use toggles above.</div>'; return; }
 
             function castType(cast) {
                 if (cast.anyCrit && cast.anyHeavy) return 'crit-heavy';
@@ -334,7 +334,7 @@
                 `<div class="rl-piano-skill-block">
                     <div style="display:flex; align-items:center; margin-bottom:1px;">
                         <div style="width:106px;"></div>
-                        <div style="font-size:0.63rem;color:#64748b;font-weight:600;">${escapeHtml(row.skill)}</div>
+                        <div style="font-size:0.63rem;color:#7A8CB8;font-weight:600;">${escapeHtml(row.skill)}</div>
                     </div>
                     ${lane(row.castsA,'A')}${lane(row.castsB,'B')}
                     <div class="rl-piano-sep"></div>
@@ -360,7 +360,7 @@
             if (!row) return;
 
             function castList(casts, colorClass) {
-                if (!casts.length) return '<div style="color:#64748b;font-size:0.75rem;padding:8px;">No casts in this run</div>';
+                if (!casts.length) return '<div style="color:#7A8CB8;font-size:0.75rem;padding:8px;">No casts in this run</div>';
                 return casts.map(c => {
                     const isCritHeavy = c.anyCrit && c.anyHeavy;
                     const isCritOnly  = c.anyCrit && !c.anyHeavy;
@@ -380,11 +380,11 @@
             }
 
             function intervalSection(intervals, casts, colorClass) {
-                if (casts.length < 2) return '<div style="color:#64748b;font-size:0.72rem;padding:4px 0;">Only one cast — no interval data</div>';
+                if (casts.length < 2) return '<div style="color:#7A8CB8;font-size:0.72rem;padding:4px 0;">Only one cast — no interval data</div>';
                 const maxGap = Math.max(...intervals.all);
                 return `
-                    <div style="font-size:0.7rem;color:#64748b;margin-bottom:8px;">
-                        Avg <strong style="color:#e2e8f0;">${intervals.avg.toFixed(2)}s</strong>
+                    <div style="font-size:0.7rem;color:#7A8CB8;margin-bottom:8px;">
+                        Avg <strong style="color:#F0EBE0;">${intervals.avg.toFixed(2)}s</strong>
                         &nbsp;·&nbsp; Min <strong style="color:#22c55e;">${intervals.min.toFixed(2)}s</strong>
                         &nbsp;·&nbsp; Max <strong style="color:#ef4444;">${intervals.max.toFixed(2)}s</strong>
                     </div>
@@ -392,7 +392,7 @@
                         const pct = maxGap > 0 ? (g / maxGap * 100) : 0;
                         const color = g > intervals.avg * 1.2 ? '#ef4444' : g < intervals.avg * 0.8 ? '#22c55e' : colorClass;
                         return `<div class="rl-interval-row">
-                            <span style="width:28px;color:#64748b;font-variant-numeric:tabular-nums;">${i+1}</span>
+                            <span style="width:28px;color:#7A8CB8;font-variant-numeric:tabular-nums;">${i+1}</span>
                             <div class="rl-interval-fill" style="width:${Math.max(pct,2)}%; background:${color};"></div>
                             <span style="color:${color}; font-weight:600;">${g.toFixed(2)}s</span>
                         </div>`;
@@ -410,7 +410,7 @@
                             Run A — ${row.castsA.length} casts · avg ${formatNumber(Math.round(row.avgA))}/cast
                         </div>
                         <div class="rl-cast-list">${castList(row.castsA,'rl-cell-a')}</div>
-                        <div style="margin-top:12px; font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Cast Intervals (A)</div>
+                        <div style="margin-top:12px; font-size:0.68rem;font-weight:700;color:#7A8CB8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Cast Intervals (A)</div>
                         ${intervalSection(row.intervalsA, row.castsA, '#D96444')}
                     </div>
                     <div>
@@ -418,7 +418,7 @@
                             Run B — ${row.castsB.length} casts · avg ${formatNumber(Math.round(row.avgB))}/cast
                         </div>
                         <div class="rl-cast-list">${castList(row.castsB,'rl-cell-b')}</div>
-                        <div style="margin-top:12px; font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Cast Intervals (B)</div>
+                        <div style="margin-top:12px; font-size:0.68rem;font-weight:700;color:#7A8CB8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Cast Intervals (B)</div>
                         ${intervalSection(row.intervalsB, row.castsB, '#5B92D4')}
                     </div>
                 </div>`;
@@ -520,10 +520,10 @@
                         <div style="width: 24px; text-align: center; font-size: 0.8rem; font-weight: 700; color: ${colors[i]};">#${i + 1}</div>
                         <div style="flex: 1;">
                             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                <span style="font-size: 0.85rem; color: #e2e8f0;">${skill.name}</span>
+                                <span style="font-size: 0.85rem; color: #F0EBE0;">${skill.name}</span>
                                 <span style="font-size: 0.85rem; font-weight: 600; color: ${colors[i]};">${formatNumber(skill.damage)}</span>
                             </div>
-                            <div style="height: 6px; background: rgba(15, 23, 42, 0.6); border-radius: 3px; overflow: hidden;">
+                            <div style="height: 6px; background: rgba(21, 32, 53, 0.6); border-radius: 3px; overflow: hidden;">
                                 <div style="height: 100%; width: ${pct}%; background: ${colors[i]}; border-radius: 3px;"></div>
                             </div>
                         </div>
@@ -531,7 +531,7 @@
                 `;
             }).join('');
             
-            document.getElementById('summaryTopSkills').innerHTML = topSkillsHtml || '<div style="color: #64748b; text-align: center; padding: 20px;">No skills recorded</div>';
+            document.getElementById('summaryTopSkills').innerHTML = topSkillsHtml || '<div style="color: #7A8CB8; text-align: center; padding: 20px;">No skills recorded</div>';
             
             // Piano Roll (reuse existing function but target summaryPianoRoll)
             updateSummaryPianoRoll(data.rotation_60s || []);
@@ -581,7 +581,7 @@
                         <span>45s</span>
                         <span>60s</span>
                     </div>
-                    <div style="width: 80px; text-align: right; font-size: 0.7rem; color: #64748b;">DAMAGE</div>
+                    <div style="width: 80px; text-align: right; font-size: 0.7rem; color: #7A8CB8;">DAMAGE</div>
                 </div>
             `;
             
@@ -694,7 +694,7 @@
             'Raid': { color: '#ec4899', icon: '⚔️' },
             'Field Boss': { color: '#5B92D4', icon: '🐉' },
             'Archboss': { color: '#fbbf24', icon: '👹' },
-            'Custom': { color: '#64748b', icon: '📦' }
+            'Custom': { color: '#7A8CB8', icon: '📦' }
         };
         
         // Track expanded states
@@ -839,7 +839,7 @@
             'Raid': { icon: '⚔️', color: '#ec4899' },
             'Field Boss': { icon: '🐉', color: '#5B92D4' },
             'Archboss': { icon: '👹', color: '#fbbf24' },
-            'Custom': { icon: '📦', color: '#64748b' }
+            'Custom': { icon: '📦', color: '#7A8CB8' }
         };
         
         function filterRunSummary() {
@@ -853,7 +853,7 @@
             
             if (runSummaryData.length === 0) {
                 navContainer.innerHTML = `
-                    <div style="color: #64748b; text-align: center; padding: 40px 16px;">
+                    <div style="color: #7A8CB8; text-align: center; padding: 40px 16px;">
                         <div style="font-size: 2.5rem; margin-bottom: 12px; opacity: 0.4;">📁</div>
                         <div style="font-size: 0.85rem; margin-bottom: 4px;">No saved runs yet</div>
                         <div style="font-size: 0.75rem; opacity: 0.7;">Use Run Builder to save runs</div>
@@ -907,14 +907,14 @@
                                 ${style.icon}
                             </div>
                             <div style="flex: 1;">
-                                <div style="color: #e2e8f0; font-size: 1rem; font-weight: 700; margin-bottom: 2px;">
+                                <div style="color: #F0EBE0; font-size: 1rem; font-weight: 700; margin-bottom: 2px;">
                                     ${type === 'Co-op Dungeon' ? 'Co-op Dungeons' : type}
                                 </div>
                                 <div style="color: ${style.color}; font-size: 0.75rem;">
                                     ${typeRunCount} run${typeRunCount !== 1 ? 's' : ''} saved
                                 </div>
                             </div>
-                            <span style="color: ${isTypeExpanded ? style.color : '#64748b'}; font-size: 1rem; 
+                            <span style="color: ${isTypeExpanded ? style.color : '#7A8CB8'}; font-size: 1rem; 
                                          transition: transform 0.2s; ${isTypeExpanded ? 'transform: rotate(90deg);' : ''}">▸</span>
                         </div>
                 `;
@@ -934,7 +934,7 @@
             const isLootSelected = selectedNavPath[0] === 'LootSummary';
             
             html += `
-                <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #334155;">
+                <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #263956;">
                     <div onclick="selectNavItem('LootSummary')" 
                          style="display: flex; align-items: center; gap: 12px; padding: 14px 16px; 
                                 background: linear-gradient(135deg, ${isLootSelected ? '#22c55e30' : '#22c55e15'} 0%, ${isLootSelected ? '#22c55e20' : '#22c55e08'} 100%);
@@ -948,7 +948,7 @@
                             🎁
                         </div>
                         <div style="flex: 1;">
-                            <div style="color: #e2e8f0; font-size: 1rem; font-weight: 700; margin-bottom: 2px;">
+                            <div style="color: #F0EBE0; font-size: 1rem; font-weight: 700; margin-bottom: 2px;">
                                 Loot Summary
                             </div>
                             <div style="color: #22c55e; font-size: 0.75rem;">
@@ -1007,23 +1007,23 @@
                     <div style="margin-bottom: 6px;">
                         <div onclick="${isLeaf ? `selectNavItem('${typeEsc}', '${level2Esc}')` : `toggleNavItem('${navKeyEsc}')`}" 
                              style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; 
-                                    background: ${isExpanded || isSelected ? 'rgba(217, 100, 68, 0.12)' : 'rgba(30, 41, 59, 0.4)'}; 
+                                    background: ${isExpanded || isSelected ? 'rgba(217, 100, 68, 0.12)' : 'rgba(29, 47, 80, 0.4)'}; 
                                     border-radius: 8px; cursor: pointer; 
                                     border: 1px solid ${isExpanded || isSelected ? 'rgba(217, 100, 68, 0.3)' : 'transparent'};
                                     transition: all 0.15s ease;">
-                            <div style="width: 28px; height: 28px; background: ${isExpanded || isSelected ? 'rgba(217, 100, 68, 0.2)' : 'rgba(51, 65, 85, 0.6)'}; 
+                            <div style="width: 28px; height: 28px; background: ${isExpanded || isSelected ? 'rgba(217, 100, 68, 0.2)' : 'rgba(38, 57, 86, 0.6)'}; 
                                         border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
                                 ${level2Icon}
                             </div>
                             <div style="flex: 1;">
-                                <div style="color: ${isExpanded || isSelected ? '#D96444' : '#e2e8f0'}; font-size: 0.9rem; font-weight: ${isExpanded || isSelected ? '600' : '500'};">
+                                <div style="color: ${isExpanded || isSelected ? '#D96444' : '#F0EBE0'}; font-size: 0.9rem; font-weight: ${isExpanded || isSelected ? '600' : '500'};">
                                     ${escapeHtml(level2Key)}
                                 </div>
                             </div>
-                            <span style="font-size: 0.7rem; color: #64748b; background: rgba(100, 116, 139, 0.2); padding: 2px 8px; border-radius: 10px;">
+                            <span style="font-size: 0.7rem; color: #7A8CB8; background: rgba(122, 140, 184, 0.2); padding: 2px 8px; border-radius: 10px;">
                                 ${runCount}
                             </span>
-                            ${!isLeaf ? `<span style="color: ${isExpanded ? '#D96444' : '#475569'}; font-size: 0.8rem; transition: transform 0.2s; ${isExpanded ? 'transform: rotate(90deg);' : ''}">▸</span>` : ''}
+                            ${!isLeaf ? `<span style="color: ${isExpanded ? '#D96444' : '#405A85'}; font-size: 0.8rem; transition: transform 0.2s; ${isExpanded ? 'transform: rotate(90deg);' : ''}">▸</span>` : ''}
                         </div>
                 `;
                 
@@ -1052,10 +1052,10 @@
                                         border: 1px solid ${isLevel3Selected ? 'rgba(168, 85, 247, 0.3)' : 'transparent'};
                                         transition: all 0.15s ease;">
                                 <span style="font-size: 0.85rem;">${level3Icon}</span>
-                                <span style="flex: 1; color: ${isLevel3Selected ? '#5B92D4' : '#cbd5e1'}; font-size: 0.85rem; font-weight: ${isLevel3Selected ? '600' : '400'};">
+                                <span style="flex: 1; color: ${isLevel3Selected ? '#5B92D4' : '#F0EBE0'}; font-size: 0.85rem; font-weight: ${isLevel3Selected ? '600' : '400'};">
                                     ${escapeHtml(level3Key)}
                                 </span>
-                                <span style="font-size: 0.65rem; color: #64748b; background: rgba(100, 116, 139, 0.15); padding: 1px 6px; border-radius: 8px;">
+                                <span style="font-size: 0.65rem; color: #7A8CB8; background: rgba(122, 140, 184, 0.15); padding: 1px 6px; border-radius: 8px;">
                                     ${level3RunCount}
                                 </span>
                             </div>
@@ -1112,7 +1112,7 @@
             
             if (selectedNavPath.length === 0) {
                 detailContainer.innerHTML = `
-                    <div style="color: #64748b; text-align: center; padding: 60px 20px;">
+                    <div style="color: #7A8CB8; text-align: center; padding: 60px 20px;">
                         <div style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;">👈</div>
                         <div style="font-size: 0.9rem;">Select a category to view runs</div>
                     </div>
@@ -1141,7 +1141,7 @@
             
             if (!tree[type]) {
                 detailContainer.innerHTML = `
-                    <div style="color: #64748b; text-align: center; padding: 60px 20px;">
+                    <div style="color: #7A8CB8; text-align: center; padding: 60px 20px;">
                         <div style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;">📭</div>
                         <div style="font-size: 0.9rem;">No runs found</div>
                     </div>
@@ -1220,7 +1220,7 @@
             
             if (runs.length === 0) {
                 detailContainer.innerHTML = `
-                    <div style="color: #64748b; text-align: center; padding: 60px 20px;">
+                    <div style="color: #7A8CB8; text-align: center; padding: 60px 20px;">
                         <div style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;">📭</div>
                         <div style="font-size: 0.9rem;">No runs found</div>
                     </div>
@@ -1235,7 +1235,7 @@
             const avgDps = totalDuration > 0 ? Math.round((totalBoss + totalAdds) / totalDuration) : 0;
             
             let html = `
-                <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #334155;">
+                <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #263956;">
                     <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
                         <div style="width: 52px; height: 52px; background: ${style.color}20; border-radius: 12px; 
                                     display: flex; align-items: center; justify-content: center; font-size: 1.8rem;
@@ -1243,16 +1243,16 @@
                             ${icon}
                         </div>
                         <div>
-                            <h3 style="margin: 0; color: #e2e8f0; font-size: 1.3rem; font-weight: 700;">${escapeHtml(title)}</h3>
+                            <h3 style="margin: 0; color: #F0EBE0; font-size: 1.3rem; font-weight: 700;">${escapeHtml(title)}</h3>
                             <div style="color: ${style.color}; font-size: 0.85rem;">${escapeHtml(subtitle)}</div>
                         </div>
                     </div>
                     
                     <!-- Stats Cards -->
                     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
-                        <div style="background: rgba(30, 41, 59, 0.5); padding: 12px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Runs</div>
-                            <div style="font-size: 1.4rem; font-weight: 700; color: #e2e8f0;">${runs.length}</div>
+                        <div style="background: rgba(29, 47, 80, 0.5); padding: 12px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 0.7rem; color: #7A8CB8; text-transform: uppercase; margin-bottom: 4px;">Runs</div>
+                            <div style="font-size: 1.4rem; font-weight: 700; color: #F0EBE0;">${runs.length}</div>
                         </div>
                         <div style="background: rgba(59, 130, 246, 0.1); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid rgba(59, 130, 246, 0.2);">
                             <div style="font-size: 0.7rem; color: #3b82f6; text-transform: uppercase; margin-bottom: 4px;">⚔️ Boss Damage</div>
@@ -1274,7 +1274,7 @@
             if (!isLeafLevel && childBreakdown.length > 0) {
                 html += `
                     <div style="margin-bottom: 16px;">
-                        <div style="font-size: 0.8rem; color: #64748b; text-transform: uppercase; margin-bottom: 12px;">Breakdown</div>
+                        <div style="font-size: 0.8rem; color: #7A8CB8; text-transform: uppercase; margin-bottom: 12px;">Breakdown</div>
                         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;">
                 `;
                 
@@ -1284,11 +1284,11 @@
                 childBreakdown.forEach(child => {
                     const childTotal = child.bossDamage + child.addsDamage;
                     html += `
-                        <div style="background: rgba(30, 41, 59, 0.5); padding: 12px 14px; border-radius: 8px; border: 1px solid #334155;">
+                        <div style="background: rgba(29, 47, 80, 0.5); padding: 12px 14px; border-radius: 8px; border: 1px solid #263956;">
                             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
                                 <span style="font-size: 1.1rem;">${child.icon}</span>
-                                <span style="flex: 1; color: #e2e8f0; font-size: 0.9rem; font-weight: 600;">${escapeHtml(child.name)}</span>
-                                <span style="font-size: 0.7rem; color: #64748b; background: rgba(100, 116, 139, 0.2); padding: 2px 6px; border-radius: 8px;">${child.runCount}</span>
+                                <span style="flex: 1; color: #F0EBE0; font-size: 0.9rem; font-weight: 600;">${escapeHtml(child.name)}</span>
+                                <span style="font-size: 0.7rem; color: #7A8CB8; background: rgba(122, 140, 184, 0.2); padding: 2px 6px; border-radius: 8px;">${child.runCount}</span>
                             </div>
                             <div style="display: flex; gap: 12px; font-size: 0.75rem;">
                                 <span style="color: #3b82f6;">⚔️ ${formatCompactNumber(child.bossDamage)}</span>
@@ -1303,13 +1303,13 @@
                 // Also show recent runs preview
                 html += `
                     <div style="margin-top: 16px;">
-                        <div style="font-size: 0.8rem; color: #64748b; text-transform: uppercase; margin-bottom: 12px;">Recent Runs</div>
+                        <div style="font-size: 0.8rem; color: #7A8CB8; text-transform: uppercase; margin-bottom: 12px;">Recent Runs</div>
                 `;
                 // Show last 5 runs with context (tier/difficulty)
                 const recentRuns = [...runs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
                 html += renderRunsList(recentRuns, true);
                 if (runs.length > 5) {
-                    html += `<div style="color: #64748b; font-size: 0.8rem; text-align: center; margin-top: 8px;">+ ${runs.length - 5} more runs</div>`;
+                    html += `<div style="color: #7A8CB8; font-size: 0.8rem; text-align: center; margin-top: 8px;">+ ${runs.length - 5} more runs</div>`;
                 }
                 html += `</div>`;
             } else if (hasTiers) {
@@ -1336,16 +1336,16 @@
                     
                     html += `
                         <div style="margin-bottom: 8px;">
-                            <div onclick="toggleDetailTier('${tierExpandKey}')" style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: ${isTierExpanded ? 'rgba(217, 100, 68, 0.1)' : 'rgba(30, 41, 59, 0.5)'}; border-radius: 6px; cursor: pointer; border: 1px solid ${isTierExpanded ? 'rgba(217, 100, 68, 0.2)' : 'transparent'};">
-                                <span style="color: ${isTierExpanded ? '#D96444' : '#64748b'}; font-size: 0.75rem;">${isTierExpanded ? '▾' : '▸'}</span>
-                                <span style="font-weight: 600; color: #e2e8f0; font-size: 0.9rem; flex: 1;">Tier ${tierKey} <span style="color: #64748b; font-weight: 400;">(${tierRuns.length})</span></span>
+                            <div onclick="toggleDetailTier('${tierExpandKey}')" style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: ${isTierExpanded ? 'rgba(217, 100, 68, 0.1)' : 'rgba(29, 47, 80, 0.5)'}; border-radius: 6px; cursor: pointer; border: 1px solid ${isTierExpanded ? 'rgba(217, 100, 68, 0.2)' : 'transparent'};">
+                                <span style="color: ${isTierExpanded ? '#D96444' : '#7A8CB8'}; font-size: 0.75rem;">${isTierExpanded ? '▾' : '▸'}</span>
+                                <span style="font-weight: 600; color: #F0EBE0; font-size: 0.9rem; flex: 1;">Tier ${tierKey} <span style="color: #7A8CB8; font-weight: 400;">(${tierRuns.length})</span></span>
                                 <span style="font-size: 0.7rem; color: #3b82f6;">⚔️ ${formatCompactNumber(tierBoss)}</span>
                                 <span style="font-size: 0.7rem; color: #ef4444; margin-left: 8px;">💀 ${formatCompactNumber(tierAdds)}</span>
                             </div>
                     `;
                     
                     if (isTierExpanded) {
-                        html += `<div style="margin-left: 16px; margin-top: 8px; border-left: 2px solid #334155; padding-left: 12px;">`;
+                        html += `<div style="margin-left: 16px; margin-top: 8px; border-left: 2px solid #263956; padding-left: 12px;">`;
                         html += renderRunsList(tierRuns);
                         html += `</div>`;
                     }
@@ -1448,21 +1448,21 @@
                 
                 html += `
                     <div style="margin-bottom: 6px;">
-                        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: ${isRunExpanded ? 'rgba(168, 85, 247, 0.1)' : 'rgba(30, 41, 59, 0.3)'}; border-radius: 6px; border: 1px solid ${isRunExpanded ? 'rgba(168, 85, 247, 0.2)' : 'transparent'};">
-                            <span onclick="toggleRunTimeline('${runExpandKey}')" style="color: ${isRunExpanded ? '#5B92D4' : '#475569'}; font-size: 0.8rem; cursor: pointer; padding: 4px;">${isRunExpanded ? '▾' : '▸'}</span>
-                            <span onclick="toggleRunTimeline('${runExpandKey}')" style="color: #94a3b8; font-size: 0.9rem; width: 65px; cursor: pointer;">${dateStr}</span>
-                            <span onclick="toggleRunTimeline('${runExpandKey}')" style="flex: 1; color: #e2e8f0; font-size: 0.95rem; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: ${isRunExpanded ? 'rgba(168, 85, 247, 0.1)' : 'rgba(29, 47, 80, 0.3)'}; border-radius: 6px; border: 1px solid ${isRunExpanded ? 'rgba(168, 85, 247, 0.2)' : 'transparent'};">
+                            <span onclick="toggleRunTimeline('${runExpandKey}')" style="color: ${isRunExpanded ? '#5B92D4' : '#405A85'}; font-size: 0.8rem; cursor: pointer; padding: 4px;">${isRunExpanded ? '▾' : '▸'}</span>
+                            <span onclick="toggleRunTimeline('${runExpandKey}')" style="color: #7A8CB8; font-size: 0.9rem; width: 65px; cursor: pointer;">${dateStr}</span>
+                            <span onclick="toggleRunTimeline('${runExpandKey}')" style="flex: 1; color: #F0EBE0; font-size: 0.95rem; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                                 ${escapeHtml(run.run_name || 'Untitled')}
                                 ${contextBadge}
                                 ${contributionBadge}
                                 ${lootBadge}
                                 ${classDisplay ? `<span style="font-size: 0.7rem; color: #5B92D4; background: rgba(168, 85, 247, 0.15); padding: 2px 6px; border-radius: 3px;">${escapeHtml(classDisplay)}</span>` : ''}
-                                ${buildTag ? `<span style="font-size: 0.7rem; color: #64748b;">${escapeHtml(buildTag)}</span>` : ''}
+                                ${buildTag ? `<span style="font-size: 0.7rem; color: #7A8CB8;">${escapeHtml(buildTag)}</span>` : ''}
                             </span>
                             <span style="font-size: 0.8rem; color: #3b82f6;" title="Boss damage">⚔️${formatCompactNumber(bossDamage)}</span>
                             <span style="font-size: 0.8rem; color: #ef4444;" title="Adds damage">💀${formatCompactNumber(addsDamage)}</span>
-                            <span style="font-size: 0.8rem; color: #64748b;">${formatDuration(stats.duration || 0)}</span>
-                            <button onclick="event.stopPropagation(); openEditRunModal('${run.run_id}')" style="padding: 4px 10px; background: #334155; border: none; color: #94a3b8; border-radius: 4px; cursor: pointer; font-size: 0.7rem;" title="Edit run metadata">✏️</button>
+                            <span style="font-size: 0.8rem; color: #7A8CB8;">${formatDuration(stats.duration || 0)}</span>
+                            <button onclick="event.stopPropagation(); openEditRunModal('${run.run_id}')" style="padding: 4px 10px; background: #263956; border: none; color: #7A8CB8; border-radius: 4px; cursor: pointer; font-size: 0.7rem;" title="Edit run metadata">✏️</button>
                         </div>
                 `;
                 
@@ -1517,7 +1517,7 @@
             });
             
             let html = `
-                <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #334155;">
+                <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #263956;">
                     <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
                         <div style="width: 52px; height: 52px; background: rgba(34, 197, 94, 0.2); border-radius: 12px; 
                                     display: flex; align-items: center; justify-content: center; font-size: 1.8rem;
@@ -1525,7 +1525,7 @@
                             🎁
                         </div>
                         <div>
-                            <h3 style="margin: 0; color: #e2e8f0; font-size: 1.3rem; font-weight: 700;">Loot Summary</h3>
+                            <h3 style="margin: 0; color: #F0EBE0; font-size: 1.3rem; font-weight: 700;">Loot Summary</h3>
                             <div style="color: #22c55e; font-size: 0.85rem;">All recorded drops</div>
                         </div>
                     </div>
@@ -1536,9 +1536,9 @@
                             <div style="font-size: 0.7rem; color: #22c55e; text-transform: uppercase; margin-bottom: 4px;">🎁 Total Drops</div>
                             <div style="font-size: 1.4rem; font-weight: 700; color: #22c55e;">${lootDropCount}</div>
                         </div>
-                        <div style="background: rgba(30, 41, 59, 0.5); padding: 12px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Total Runs</div>
-                            <div style="font-size: 1.4rem; font-weight: 700; color: #e2e8f0;">${totalRuns}</div>
+                        <div style="background: rgba(29, 47, 80, 0.5); padding: 12px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 0.7rem; color: #7A8CB8; text-transform: uppercase; margin-bottom: 4px;">Total Runs</div>
+                            <div style="font-size: 1.4rem; font-weight: 700; color: #F0EBE0;">${totalRuns}</div>
                         </div>
                         <div style="background: rgba(168, 85, 247, 0.1); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid rgba(168, 85, 247, 0.2);">
                             <div style="font-size: 0.7rem; color: #5B92D4; text-transform: uppercase; margin-bottom: 4px;">📊 Drop Rate</div>
@@ -1550,7 +1550,7 @@
             
             if (lootDropCount === 0) {
                 html += `
-                    <div style="color: #64748b; text-align: center; padding: 40px 20px;">
+                    <div style="color: #7A8CB8; text-align: center; padding: 40px 20px;">
                         <div style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;">📭</div>
                         <div style="font-size: 0.9rem;">No loot recorded yet</div>
                         <div style="font-size: 0.8rem; margin-top: 4px; opacity: 0.7;">Mark "Got Loot" when saving runs to track drops</div>
@@ -1578,9 +1578,9 @@
                 
                 html += `
                     <div style="margin-bottom: 20px;">
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #334155;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #263956;">
                             <span style="font-size: 1.2rem;">${style.icon}</span>
-                            <span style="flex: 1; font-size: 1rem; font-weight: 700; color: #e2e8f0;">${type === 'Co-op Dungeon' ? 'CO-OP DUNGEON' : type.toUpperCase()}</span>
+                            <span style="flex: 1; font-size: 1rem; font-weight: 700; color: #F0EBE0;">${type === 'Co-op Dungeon' ? 'CO-OP DUNGEON' : type.toUpperCase()}</span>
                             <span style="font-size: 0.8rem; color: #22c55e; background: rgba(34, 197, 94, 0.15); padding: 3px 10px; border-radius: 12px;">${typeDropCount} drop${typeDropCount !== 1 ? 's' : ''}</span>
                         </div>
                 `;
@@ -1596,10 +1596,10 @@
                         <div style="margin-bottom: 12px; margin-left: 8px;">
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
                                 <span style="font-size: 0.9rem;">${type === 'Field Boss' || type === 'Archboss' ? '💀' : '🏛️'}</span>
-                                <span style="font-weight: 600; color: #e2e8f0; font-size: 0.9rem;">${escapeHtml(dungeon)}</span>
-                                <span style="font-size: 0.7rem; color: #64748b;">(${dungeonDropCount})</span>
+                                <span style="font-weight: 600; color: #F0EBE0; font-size: 0.9rem;">${escapeHtml(dungeon)}</span>
+                                <span style="font-size: 0.7rem; color: #7A8CB8;">(${dungeonDropCount})</span>
                             </div>
-                            <div style="margin-left: 24px; border-left: 2px solid #334155; padding-left: 12px;">
+                            <div style="margin-left: 24px; border-left: 2px solid #263956; padding-left: 12px;">
                     `;
                     
                     // Sort drops by date descending
@@ -1619,7 +1619,7 @@
                             modeBadge = `<span style="font-size: 0.65rem; color: #D96444; background: rgba(217, 100, 68, 0.15); padding: 2px 6px; border-radius: 3px;">T${tier}</span>`;
                         } else if (mode) {
                             const modeIcon = mode === 'Nightmare' ? '🔴' : mode === 'Difficult' ? '🟡' : mode === 'Ascended' ? '⭐' : '⚪';
-                            modeBadge = `<span style="font-size: 0.65rem; color: #94a3b8; background: rgba(100, 116, 139, 0.15); padding: 2px 6px; border-radius: 3px;">${modeIcon} ${mode}</span>`;
+                            modeBadge = `<span style="font-size: 0.65rem; color: #7A8CB8; background: rgba(122, 140, 184, 0.15); padding: 2px 6px; border-radius: 3px;">${modeIcon} ${mode}</span>`;
                         }
                         
                         // Contribution badge (only for Field Boss/Archboss)
@@ -1630,11 +1630,11 @@
                         
                         html += `
                             <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(34, 197, 94, 0.08); border-radius: 6px; margin-bottom: 4px; border: 1px solid rgba(34, 197, 94, 0.15);">
-                                <span style="color: #94a3b8; font-size: 0.75rem; width: 55px;">${dateStr}</span>
+                                <span style="color: #7A8CB8; font-size: 0.75rem; width: 55px;">${dateStr}</span>
                                 ${modeBadge}
                                 ${contributionBadge}
                                 <span style="flex: 1; color: #22c55e; font-size: 0.85rem; font-weight: 500;">🎁 ${escapeHtml(lootItem)}</span>
-                                <button onclick="openEditRunModal('${run.run_id}')" style="padding: 2px 6px; background: #334155; border: none; color: #94a3b8; border-radius: 3px; cursor: pointer; font-size: 0.6rem;" title="Edit run">✏️</button>
+                                <button onclick="openEditRunModal('${run.run_id}')" style="padding: 2px 6px; background: #263956; border: none; color: #7A8CB8; border-radius: 3px; cursor: pointer; font-size: 0.6rem;" title="Edit run">✏️</button>
                             </div>
                         `;
                     });

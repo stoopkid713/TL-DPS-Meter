@@ -45,7 +45,7 @@
 
             if (yAxis) yAxis.innerHTML = yTicks.map(t => {
                 const pct=(t/chartMax)*100;
-                return `<div style="position:absolute;bottom:${pct}%;right:5px;transform:translateY(50%);font-size:0.58rem;color:#64748b;white-space:nowrap;">${formatNumber(t)}</div>`;
+                return `<div style="position:absolute;bottom:${pct}%;right:5px;transform:translateY(50%);font-size:0.58rem;color:#7A8CB8;white-space:nowrap;">${formatNumber(t)}</div>`;
             }).join('');
 
             let html = yTicks.map(t => {
@@ -81,16 +81,16 @@
                 toggles.innerHTML =
                     `<span class="rl-toggle-label">Skills:</span>` +
                     sortedSkills.map(sk=>`<button class="rl-skill-toggle ${!hiddenSkills.has(sk)?'on':''}" onclick="${toggleFn}('${escapeHtml(sk)}')">${escapeHtml(sk)}</button>`).join('') +
-                    `<span style="display:inline-block;width:1px;height:14px;background:#334155;margin:0 4px;vertical-align:middle;"></span>` +
+                    `<span style="display:inline-block;width:1px;height:14px;background:#263956;margin:0 4px;vertical-align:middle;"></span>` +
                     `<button class="rl-skill-toggle" onclick="${showAllFn}()" style="border-color:#22c55e;color:#22c55e;">All</button>` +
                     `<button class="rl-skill-toggle" onclick="stackedChartHideAll('${toggleFn}',${JSON.stringify(sortedSkills)})" style="border-color:#ef4444;color:#ef4444;">None</button>` +
-                    (weaponGroups ? `<span style="display:inline-block;width:1px;height:14px;background:#334155;margin:0 4px;vertical-align:middle;"></span>${weaponGroups}` : '');
+                    (weaponGroups ? `<span style="display:inline-block;width:1px;height:14px;background:#263956;margin:0 4px;vertical-align:middle;"></span>${weaponGroups}` : '');
             }
 
             if (legend) legend.innerHTML = sortedSkills.map(sk=>
                 `<div style="display:flex;align-items:center;gap:5px;padding:2px 0;opacity:${hiddenSkills.has(sk)?'0.35':'1'}">
                      <div style="width:10px;height:10px;border-radius:2px;background:${skillColor(sk)};flex-shrink:0;"></div>
-                     <span style="font-size:0.68rem;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${sk}</span>
+                     <span style="font-size:0.68rem;color:#7A8CB8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${sk}</span>
                  </div>`
             ).join('');
         }
@@ -118,7 +118,7 @@
                 return `<button class="rl-skill-toggle ${allVisible?'on':''}"
                     onclick="toggleWeaponGroupByName('${toggleFn}','${showAllFn}','${wt}',this)"
                     data-weapon-skills="${skJson}"
-                    style="border-color:${allVisible?'#f472b6':'#334155'};color:${allVisible?'#f472b6':'#64748b'};"
+                    style="border-color:${allVisible?'#f472b6':'#263956'};color:${allVisible?'#f472b6':'#7A8CB8'};"
                     title="Toggle all ${label} skills">${label}</button>`;
             }).join('');
         }
@@ -201,13 +201,13 @@
                 const castImpact = castDiff>0 ? castDiff*avgW : 0;
                 const avgImpact = Math.abs(avgDiffPct)>8 && castsL>0 ? Math.abs(avgDiff)*Math.min(castsW,castsL) : 0;
                 if (castDiff>0 && castImpact>50000)
-                    findings.push({impact:castImpact, text:`<strong style="color:#e2e8f0">${sk}</strong>: ${slotW} landed <span style="color:#22c55e;font-weight:700">+${castDiff} cast${castDiff>1?'s':''}</span> — ~<span style="color:#5B92D4;font-weight:700">+${formatNumber(Math.round(castImpact))}</span> extra damage`});
+                    findings.push({impact:castImpact, text:`<strong style="color:#F0EBE0">${sk}</strong>: ${slotW} landed <span style="color:#22c55e;font-weight:700">+${castDiff} cast${castDiff>1?'s':''}</span> — ~<span style="color:#5B92D4;font-weight:700">+${formatNumber(Math.round(castImpact))}</span> extra damage`});
                 if (Math.abs(avgDiffPct)>10 && avgImpact>50000 && castsL>0) {
                     const dir=avgDiff>0?'higher':'lower', col=avgDiff>0?'#22c55e':'#ef4444';
-                    findings.push({impact:avgImpact, text:`<strong style="color:#e2e8f0">${sk}</strong>: avg/cast <span style="color:${col};font-weight:700">${Math.abs(avgDiffPct).toFixed(0)}% ${dir}</span> in ${slotW} — ~<span style="color:#5B92D4;font-weight:700">${formatNumber(Math.round(avgImpact))}</span> swing`});
+                    findings.push({impact:avgImpact, text:`<strong style="color:#F0EBE0">${sk}</strong>: avg/cast <span style="color:${col};font-weight:700">${Math.abs(avgDiffPct).toFixed(0)}% ${dir}</span> in ${slotW} — ~<span style="color:#5B92D4;font-weight:700">${formatNumber(Math.round(avgImpact))}</span> swing`});
                 }
                 if (chW-chL>6 && castsW>=3)
-                    findings.push({impact:(chW-chL)*avgW/100*castsW, text:`<strong style="color:#e2e8f0">${sk}</strong>: C+H rate <span style="color:#f472b6;font-weight:700">${chW.toFixed(0)}%</span> vs ${chL.toFixed(0)}% — more big hits in ${slotW}`});
+                    findings.push({impact:(chW-chL)*avgW/100*castsW, text:`<strong style="color:#F0EBE0">${sk}</strong>: C+H rate <span style="color:#f472b6;font-weight:700">${chW.toFixed(0)}%</span> vs ${chL.toFixed(0)}% — more big hits in ${slotW}`});
             });
             return findings.sort((a,b)=>b.impact-a.impact).slice(0,4);
         }
@@ -227,15 +227,15 @@
                 const diff = winner.stats.dps - other.stats.dps;
                 const pct = other.stats.dps>0 ? (diff/other.stats.dps*100).toFixed(1) : 0;
                 return `<div style="margin-bottom:10px;">
-                    <div style="font-size:0.7rem;color:#64748b;margin-bottom:5px;">${winner.label} vs ${other.label} — <span style="color:#D96444;font-weight:700">+${formatNumber(Math.round(diff))} DPS (${pct}%)</span></div>
+                    <div style="font-size:0.7rem;color:#7A8CB8;margin-bottom:5px;">${winner.label} vs ${other.label} — <span style="color:#D96444;font-weight:700">+${formatNumber(Math.round(diff))} DPS (${pct}%)</span></div>
                     ${findings.length
-                        ? findings.map(f=>`<div style="font-size:0.77rem;color:#94a3b8;padding:5px 8px;background:rgba(15,23,42,0.4);border-radius:5px;margin-bottom:3px;">${f.text}</div>`).join('')
-                        : `<div style="font-size:0.77rem;color:#64748b;padding:5px 0;">Runs are very close — check the skill matrix for fine details.</div>`}
+                        ? findings.map(f=>`<div style="font-size:0.77rem;color:#7A8CB8;padding:5px 8px;background:rgba(21,32,53,0.4);border-radius:5px;margin-bottom:3px;">${f.text}</div>`).join('')
+                        : `<div style="font-size:0.77rem;color:#7A8CB8;padding:5px 0;">Runs are very close — check the skill matrix for fine details.</div>`}
                 </div>`;
             }).join('');
 
-            return `<div style="background:rgba(15,23,42,0.5);border:1px solid #334155;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
-                <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">🔍 Key Findings — ${winner.label} wins (${winner.enc?.build_tag||''})</div>
+            return `<div style="background:rgba(21,32,53,0.5);border:1px solid #263956;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+                <div style="font-size:0.72rem;font-weight:700;color:#7A8CB8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">🔍 Key Findings — ${winner.label} wins (${winner.enc?.build_tag||''})</div>
                 ${pairHtml}
             </div>`;
         }
@@ -277,20 +277,20 @@
                 });
                 const maxDmg = Math.max(...vals.map(v=>v.dmg));
                 const dmgCells = vals.map(v=>
-                    `<td style="text-align:right;font-size:0.77rem;padding:5px 6px;color:${v.dmg===maxDmg&&maxDmg>0?'#22c55e':'#94a3b8'};font-variant-numeric:tabular-nums;">${v.dmg>0?formatNumber(v.dmg):'—'}</td>`
+                    `<td style="text-align:right;font-size:0.77rem;padding:5px 6px;color:${v.dmg===maxDmg&&maxDmg>0?'#22c55e':'#7A8CB8'};font-variant-numeric:tabular-nums;">${v.dmg>0?formatNumber(v.dmg):'—'}</td>`
                 ).join('');
                 const castCells = vals.map(v=>
-                    `<td style="text-align:right;font-size:0.77rem;padding:5px 6px;color:#64748b;font-variant-numeric:tabular-nums;">${v.c||'—'}</td>`
+                    `<td style="text-align:right;font-size:0.77rem;padding:5px 6px;color:#7A8CB8;font-variant-numeric:tabular-nums;">${v.c||'—'}</td>`
                 ).join('');
                 const avgCells = vals.map(v=>
-                    `<td style="text-align:right;font-size:0.77rem;padding:5px 6px;color:#64748b;font-variant-numeric:tabular-nums;">${v.avg>0?formatNumber(Math.round(v.avg)):'—'}</td>`
+                    `<td style="text-align:right;font-size:0.77rem;padding:5px 6px;color:#7A8CB8;font-variant-numeric:tabular-nums;">${v.avg>0?formatNumber(Math.round(v.avg)):'—'}</td>`
                 ).join('');
                 const chCells = vals.map(v=>
                     `<td style="text-align:right;font-size:0.72rem;padding:5px 6px;color:#f472b6;font-variant-numeric:tabular-nums;">${v.ch>0?v.ch.toFixed(0)+'%':'—'}</td>`
                 ).join('');
 
                 return `<tr style="border-top:1px solid rgba(255,255,255,0.05);">
-                    <td style="font-size:0.77rem;color:#e2e8f0;padding:5px 8px;display:flex;align-items:center;gap:5px;">
+                    <td style="font-size:0.77rem;color:#F0EBE0;padding:5px 8px;display:flex;align-items:center;gap:5px;">
                         <div style="width:6px;height:6px;border-radius:50%;background:${skillColor(sk)};flex-shrink:0;"></div>${sk}
                     </td>
                     ${dmgCells}${castCells}${avgCells}${chCells}
@@ -298,13 +298,13 @@
             }).join('');
 
             const subHeaderCols = ['DAMAGE','CASTS','AVG/CAST','C+H%'].map(h=>
-                letters.map(()=>`<th style="font-size:0.65rem;color:#475569;font-weight:400;padding:0 6px 5px;text-align:right;">${h}</th>`).join('')
+                letters.map(()=>`<th style="font-size:0.65rem;color:#405A85;font-weight:400;padding:0 6px 5px;text-align:right;">${h}</th>`).join('')
             ).join('');
 
             return `<div style="overflow-x:auto;">
                 <table style="width:100%;border-collapse:collapse;">
                     <thead>
-                        <tr><th style="font-size:0.7rem;color:#64748b;padding:0 8px 7px;text-align:left;">SKILL</th>${headerCols.repeat(4)}</tr>
+                        <tr><th style="font-size:0.7rem;color:#7A8CB8;padding:0 8px 7px;text-align:left;">SKILL</th>${headerCols.repeat(4)}</tr>
                         <tr><th></th>${subHeaderCols}</tr>
                     </thead>
                     <tbody>${rows}</tbody>
@@ -369,7 +369,7 @@
         function renderEncInsightsRich(data, rotation, duration) {
             const container = document.getElementById('encRotationInsights');
             if (!container || !rotation || !rotation.length) {
-                if (container) container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">No rotation data to analyze</div>';
+                if (container) container.innerHTML = '<div style="color:#7A8CB8;text-align:center;padding:20px;">No rotation data to analyze</div>';
                 return;
             }
             const insights = [];
@@ -420,7 +420,7 @@
 
             container.innerHTML = insights.map(i=>
                 `<div class="rotation-insight ${i.type}"><span class="rotation-insight-icon">${i.icon}</span><span class="rotation-insight-text">${i.text}</span></div>`
-            ).join('') || '<div style="color:#64748b;text-align:center;padding:20px;">No significant issues detected</div>';
+            ).join('') || '<div style="color:#7A8CB8;text-align:center;padding:20px;">No significant issues detected</div>';
         }
 
         // ============================================================
@@ -506,7 +506,7 @@
             const dot  = document.getElementById('statusDot');
             const text = document.getElementById('statusText');
             if (dot)  { dot.style.background = '#f59e0b'; dot.classList.remove('connected'); }
-            if (text) text.innerHTML = 'Demo Mode <span style="font-size:0.65rem;color:#64748b;">— no backend</span>';
+            if (text) text.innerHTML = 'Demo Mode <span style="font-size:0.65rem;color:#7A8CB8;">— no backend</span>';
 
             // License / version (already static, just ensure it renders)
             updateLicenseInfo({});
@@ -568,9 +568,9 @@
                 card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;">
                     <div>
                         <div style="font-size:0.75rem;color:#22c55e;font-weight:600;">✓ Test Complete</div>
-                        <div style="font-size:1rem;color:#e2e8f0;font-weight:500;margin-top:4px;">Practice Dummy</div>
+                        <div style="font-size:1rem;color:#F0EBE0;font-weight:500;margin-top:4px;">Practice Dummy</div>
                     </div>
-                    <div style="text-align:right;"><div style="font-size:0.7rem;color:#64748b;">60 seconds</div></div>
+                    <div style="text-align:right;"><div style="font-size:0.7rem;color:#7A8CB8;">60 seconds</div></div>
                 </div>`;
             }
 

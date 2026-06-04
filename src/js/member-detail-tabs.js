@@ -402,9 +402,9 @@
                 const live = (e.encounter_id === activeId && !e.ended) ? ' <span style="color:#22c55e;font-weight:700;">● LIVE</span>' : '';
                 return `<div class="party-result-row party-result-clickable" onclick="onPartyHistorySelect('${escapeHtml(e.encounter_id)}')" style="cursor:pointer;padding:8px 10px;display:flex;gap:10px;align-items:center;">
                     <span style="font-size:1.1rem;">${icon}</span>
-                    <span style="flex:1;color:#e2e8f0;font-weight:600;">${escapeHtml(e.boss || 'Recording…')}${live}</span>
-                    <span style="color:#64748b;font-size:0.78rem;">${escapeHtml(t)}</span>
-                    <span style="color:#94a3b8;font-size:0.8rem;">${e.entries_n || 0} · ${formatNumber(e.total_damage || 0)}</span>
+                    <span style="flex:1;color:#F0EBE0;font-weight:600;">${escapeHtml(e.boss || 'Recording…')}${live}</span>
+                    <span style="color:#7A8CB8;font-size:0.78rem;">${escapeHtml(t)}</span>
+                    <span style="color:#7A8CB8;font-size:0.8rem;">${e.entries_n || 0} · ${formatNumber(e.total_damage || 0)}</span>
                 </div>`;
             }).join('');
             container.innerHTML = `<div class="party-detail-body" style="gap:6px;">${rows}</div>`;
@@ -812,9 +812,9 @@
                     card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;">
                         <div>
                             <div style="font-size:0.75rem;color:#22c55e;font-weight:600;">✓ Test Complete</div>
-                            <div style="font-size:1rem;color:#e2e8f0;font-weight:500;margin-top:4px;">Practice Dummy</div>
+                            <div style="font-size:1rem;color:#F0EBE0;font-weight:500;margin-top:4px;">Practice Dummy</div>
                         </div>
-                        <div style="text-align:right;"><div style="font-size:0.7rem;color:#64748b;">60 seconds</div></div>
+                        <div style="text-align:right;"><div style="font-size:0.7rem;color:#7A8CB8;">60 seconds</div></div>
                     </div>`;
                 }
                 tourDemoInjected = true;
@@ -878,7 +878,7 @@
             // Progress dots
             document.getElementById('tourDots').innerHTML = TOUR_STEPS.map((_, i) =>
                 `<div style="width:${i===index?'20px':'7px'}; height:7px; border-radius:4px;
-                     background:${i===index?'#a78bfa':'rgba(100,116,139,0.4)'};
+                     background:${i===index?'#a78bfa':'rgba(122,140,184,0.4)'};
                      transition:all 0.3s;"></div>`
             ).join('');
 

@@ -250,32 +250,32 @@
                 title.innerHTML = '🎯 Unassigned Targets<button onclick="closeDataHealthInfo()">×</button>';
                 content.innerHTML = `
                     <p><strong>What are target assignments?</strong></p>
-                    <p style="margin: 12px 0; color: #94a3b8;">Each enemy you fight can be assigned to a category: Archboss, Raid Boss, Field Boss, Dungeon Boss, Adds, or Other.</p>
+                    <p style="margin: 12px 0; color: #7A8CB8;">Each enemy you fight can be assigned to a category: Archboss, Raid Boss, Field Boss, Dungeon Boss, Adds, or Other.</p>
                     
                     <p style="margin-top: 16px;"><strong>Why does this matter?</strong></p>
-                    <ul style="margin: 12px 0; padding-left: 20px; color: #94a3b8;">
+                    <ul style="margin: 12px 0; padding-left: 20px; color: #7A8CB8;">
                         <li style="margin-bottom: 8px;"><strong style="color: #D96444;">Run Builder</strong> — Encounters display with proper boss/adds styling and icons</li>
                         <li style="margin-bottom: 8px;"><strong style="color: #D96444;">Merge Detection</strong> — Boss wipes can be merged (only works for boss categories)</li>
                         <li style="margin-bottom: 8px;"><strong style="color: #D96444;">Run Summary</strong> — Accurate Boss DPS vs Trash DPS breakdowns</li>
                         <li style="margin-bottom: 8px;"><strong style="color: #D96444;">Encounter Detection</strong> — 30s gap rule only applies to bosses</li>
                     </ul>
                     
-                    <p style="margin-top: 16px; color: #64748b; font-size: 0.85rem;">Click this card to open Target Assignment settings.</p>
+                    <p style="margin-top: 16px; color: #7A8CB8; font-size: 0.85rem;">Click this card to open Target Assignment settings.</p>
                 `;
             } else if (type === 'skills') {
                 title.innerHTML = '⚔️ Unassigned Skills<button onclick="closeDataHealthInfo()">×</button>';
                 content.innerHTML = `
                     <p><strong>What are skill weapon assignments?</strong></p>
-                    <p style="margin: 12px 0; color: #94a3b8;">Each skill can be assigned to a weapon category (Greatsword, Staff, Longbow, etc.) for analysis.</p>
+                    <p style="margin: 12px 0; color: #7A8CB8;">Each skill can be assigned to a weapon category (Greatsword, Staff, Longbow, etc.) for analysis.</p>
                     
                     <p style="margin-top: 16px;"><strong>Why does this matter?</strong></p>
-                    <ul style="margin: 12px 0; padding-left: 20px; color: #94a3b8;">
+                    <ul style="margin: 12px 0; padding-left: 20px; color: #7A8CB8;">
                         <li style="margin-bottom: 8px;"><strong style="color: #5B92D4;">Weapon Breakdown</strong> — See damage distribution by weapon type</li>
                         <li style="margin-bottom: 8px;"><strong style="color: #5B92D4;">Build Comparison</strong> — Compare weapon performance across builds</li>
                         <li style="margin-bottom: 8px;"><strong style="color: #5B92D4;">Rotation Analysis</strong> — Understand weapon swap patterns</li>
                     </ul>
                     
-                    <p style="margin-top: 16px; color: #64748b; font-size: 0.85rem;">Click this card to open Skill Settings.</p>
+                    <p style="margin-top: 16px; color: #7A8CB8; font-size: 0.85rem;">Click this card to open Skill Settings.</p>
                 `;
             }
             

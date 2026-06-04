@@ -120,7 +120,7 @@
             
             if (!targets || targets.length === 0) {
                 const isLoaded = isViewingLoadedEncounter;
-                container.innerHTML = `<div style="padding: 20px; font-size: 0.85rem; color: #64748b;">${isLoaded ? 'Not saved in this encounter' : 'No targets yet'}</div>`;
+                container.innerHTML = `<div style="padding: 20px; font-size: 0.85rem; color: #7A8CB8;">${isLoaded ? 'Not saved in this encounter' : 'No targets yet'}</div>`;
                 return;
             }
             
@@ -190,11 +190,11 @@
             // Handle empty state
             if (!rotation || rotation.length === 0) {
                 const emptyMsg = isViewingLoadedEncounter 
-                    ? '<div class="no-data" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; flex-direction: column; gap: 8px;"><div>No rotation data available</div><div style="font-size: 0.75rem; color: #64748b;">This encounter may have been saved before rotation tracking was added</div></div>'
+                    ? '<div class="no-data" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; flex-direction: column; gap: 8px;"><div>No rotation data available</div><div style="font-size: 0.75rem; color: #7A8CB8;">This encounter may have been saved before rotation tracking was added</div></div>'
                     : '<div class="no-data" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;">No rotation data yet</div>';
                 document.getElementById('rotationDpsChart').innerHTML = emptyMsg;
                 document.getElementById('rotationSegments').innerHTML = '';
-                document.getElementById('rotationInsights').innerHTML = '<div style="color: #64748b; text-align: center; padding: 20px;">Start combat to see rotation analysis</div>';
+                document.getElementById('rotationInsights').innerHTML = '<div style="color: #7A8CB8; text-align: center; padding: 20px;">Start combat to see rotation analysis</div>';
                 document.getElementById('rotationGapsSection').style.display = 'none';
                 document.getElementById('rotationHitList').innerHTML = '<div class="no-data"><div class="no-data-icon">🔄</div><div>No rotation data yet</div></div>';
                 return;
@@ -443,7 +443,7 @@
                     <span class="rotation-insight-icon">${i.icon}</span>
                     <span class="rotation-insight-text">${i.text}</span>
                 </div>
-            `).join('') : '<div style="color: #64748b; text-align: center; padding: 20px;">No significant issues detected</div>';
+            `).join('') : '<div style="color: #7A8CB8; text-align: center; padding: 20px;">No significant issues detected</div>';
 
             // === Gap Details ===
             const gapsSection = document.getElementById('rotationGapsSection');
@@ -579,7 +579,7 @@
                             <span>45s</span>
                             <span>60s</span>
                         </div>
-                        <div style="width: 80px; text-align: right; font-size: 0.7rem; color: #64748b;">DAMAGE</div>
+                        <div style="width: 80px; text-align: right; font-size: 0.7rem; color: #7A8CB8;">DAMAGE</div>
                     </div>
                 `;
                 
@@ -851,7 +851,7 @@
             
             // Add message if entries were hidden
             if (hiddenCount > 0) {
-                html += `<tr><td colspan="6" style="text-align: center; padding: 16px; color: #64748b; font-size: 0.85rem;">
+                html += `<tr><td colspan="6" style="text-align: center; padding: 16px; color: #7A8CB8; font-size: 0.85rem;">
                     ... and ${hiddenCount.toLocaleString()} more entries. Use filters to narrow down or export full data.
                 </td></tr>`;
             }

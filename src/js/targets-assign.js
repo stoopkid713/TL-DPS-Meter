@@ -80,7 +80,7 @@
             if (!container) return; // Element doesn't exist, skip
             
             if (!defaults || Object.keys(defaults).length === 0) {
-                container.innerHTML = '<div style="color: #64748b; text-align: center; padding: 20px;">No defaults loaded</div>';
+                container.innerHTML = '<div style="color: #7A8CB8; text-align: center; padding: 20px;">No defaults loaded</div>';
                 if (countEl) countEl.textContent = '0';
                 return;
             }
@@ -107,7 +107,7 @@
                 'field_boss': { icon: '🐉', name: 'Field Bosses', color: '#5B92D4' },
                 'dungeon_boss': { icon: '⚔️', name: 'Dungeon Bosses', color: '#3b82f6' },
                 'adds': { icon: '💀', name: 'Adds/Trash', color: '#ef4444' },
-                'other': { icon: '📦', name: 'Other', color: '#94a3b8' }
+                'other': { icon: '📦', name: 'Other', color: '#7A8CB8' }
             };
             
             let html = '';
@@ -115,18 +115,18 @@
                 const targets = defaults[category];
                 if (targets.length === 0) return;
                 
-                const info = categoryInfo[category] || { icon: '❓', name: category, color: '#94a3b8' };
+                const info = categoryInfo[category] || { icon: '❓', name: category, color: '#7A8CB8' };
                 
                 html += `
-                    <div style="margin-bottom: 16px; background: rgba(15, 23, 42, 0.5); border-radius: 8px; padding: 12px;">
-                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #334155;">
+                    <div style="margin-bottom: 16px; background: rgba(21, 32, 53, 0.5); border-radius: 8px; padding: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #263956;">
                             <span style="font-size: 1.2rem;">${info.icon}</span>
                             <span style="font-weight: 600; color: ${info.color};">${info.name}</span>
-                            <span style="margin-left: auto; background: rgba(100, 116, 139, 0.3); color: #94a3b8; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px;">${targets.length}</span>
+                            <span style="margin-left: auto; background: rgba(122, 140, 184, 0.3); color: #7A8CB8; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px;">${targets.length}</span>
                         </div>
                         <div style="display: flex; flex-wrap: wrap; gap: 6px;">
                             ${targets.map(target => `
-                                <span style="background: rgba(30, 41, 59, 0.5); border: 1px solid #475569; border-radius: 4px; padding: 3px 8px; font-size: 0.75rem; color: #e2e8f0;">${target}</span>
+                                <span style="background: rgba(29, 47, 80, 0.5); border: 1px solid #405A85; border-radius: 4px; padding: 3px 8px; font-size: 0.75rem; color: #F0EBE0;">${target}</span>
                             `).join('')}
                         </div>
                     </div>
@@ -182,20 +182,20 @@
                 const gapWarning = enc.gap_before >= 60 && enc.gap_before <= 90 ? `<span style="color: #fbbf24; font-size: 0.75rem;">⚠️ ${Math.round(enc.gap_before)}s gap</span>` : '';
                 
                 return `
-                    <div class="encounter-item" style="background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 12px; margin-bottom: 8px;">
+                    <div class="encounter-item" style="background: #1D2F50; border: 1px solid #263956; border-radius: 6px; padding: 12px; margin-bottom: 8px;">
                         <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                             <div>
-                                <div style="font-weight: 600; color: #e2e8f0; font-size: 0.95rem;">${enc.target_name}</div>
-                                <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">${categoryIcon} ${categoryLabel}</div>
+                                <div style="font-weight: 600; color: #F0EBE0; font-size: 0.95rem;">${enc.target_name}</div>
+                                <div style="font-size: 0.75rem; color: #7A8CB8; margin-top: 2px;">${categoryIcon} ${categoryLabel}</div>
                             </div>
                             <div style="text-align: right;">
-                                <div style="font-size: 0.8rem; color: #94a3b8;">${enc.date_label || enc.time_label}</div>
-                                <div style="font-size: 0.75rem; color: #64748b;">${durationLabel} <span class="duration-${durationClass}">${enc.duration >= 60 ? '✓' : '⚠️'}</span></div>
+                                <div style="font-size: 0.8rem; color: #7A8CB8;">${enc.date_label || enc.time_label}</div>
+                                <div style="font-size: 0.75rem; color: #7A8CB8;">${durationLabel} <span class="duration-${durationClass}">${enc.duration >= 60 ? '✓' : '⚠️'}</span></div>
                             </div>
                         </div>
                         <div style="display: flex; gap: 16px; margin-bottom: 8px; font-size: 0.8rem;">
-                            <div><span style="color: #D96444; font-weight: 600;">${Math.round(enc.dps).toLocaleString()}</span> <span style="color: #64748b;">DPS</span></div>
-                            <div><span style="color: #e2e8f0; font-weight: 600;">${(enc.total_damage / 1000).toFixed(0)}K</span> <span style="color: #64748b;">dmg</span></div>
+                            <div><span style="color: #D96444; font-weight: 600;">${Math.round(enc.dps).toLocaleString()}</span> <span style="color: #7A8CB8;">DPS</span></div>
+                            <div><span style="color: #F0EBE0; font-weight: 600;">${(enc.total_damage / 1000).toFixed(0)}K</span> <span style="color: #7A8CB8;">dmg</span></div>
                         </div>
                         ${gapWarning}
                         <button onclick="loadEncounterFromHistory('${enc.target_name}', '${enc.start_time}')" style="width: 100%; padding: 8px; background: #0ea5e9; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; margin-top: 8px;">
@@ -279,7 +279,7 @@
             if (!container) return;
             
             if (timelineEncounters.length === 0) {
-                container.innerHTML = '<div style="color: #64748b; text-align: center; padding: 40px 20px; font-size: 0.85rem;">No encounters in current session</div>';
+                container.innerHTML = '<div style="color: #7A8CB8; text-align: center; padding: 40px 20px; font-size: 0.85rem;">No encounters in current session</div>';
                 // Hide selection bar
                 const selectionBar = document.getElementById('timelineSelectionBar');
                 if (selectionBar) selectionBar.style.display = 'none';
@@ -298,7 +298,7 @@
                 'field_boss': '#5B92D4',
                 'dungeon_boss': '#3b82f6',
                 'adds': '#ef4444',
-                'other': '#64748b'
+                'other': '#7A8CB8'
             };
             
             // Category labels
@@ -321,7 +321,7 @@
             html += '<div style="position: absolute; left: 10px; top: 30px; bottom: 30px; width: 3px; background: linear-gradient(to bottom, #D96444, #5B92D4, #ef4444); border-radius: 2px; box-shadow: 0 0 8px rgba(217, 100, 68, 0.3);"></div>';
             
             // Start time marker
-            html += `<div style="margin-bottom: 12px; padding-left: 8px; color: #64748b; font-size: 0.75rem; font-weight: 600;">▶ START: ${firstTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>`;
+            html += `<div style="margin-bottom: 12px; padding-left: 8px; color: #7A8CB8; font-size: 0.75rem; font-weight: 600;">▶ START: ${firstTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>`;
             
             timelineEncounters.forEach((enc, idx) => {
                 // Skip adds if toggle is off
@@ -330,7 +330,7 @@
                 }
                 
                 const categoryIcon = getCategoryIcon(enc.category);
-                const color = categoryColors[enc.category] || '#64748b';
+                const color = categoryColors[enc.category] || '#7A8CB8';
                 const categoryLabel = categoryLabels[enc.category] || 'Other';
                 const startTime = new Date(enc.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
                 const durationLabel = enc.duration < 60 ? `${Math.round(enc.duration)}s` : `${Math.floor(enc.duration / 60)}m ${Math.round(enc.duration % 60)}s`;
@@ -397,9 +397,9 @@
                     } else if (gap > 3) { // Show regular gaps > 3 seconds
                         html += `
                             <div style="margin: 8px 0; padding-left: 8px; display: flex; align-items: center; gap: 8px;">
-                                <div style="flex: 1; height: 1px; background: repeating-linear-gradient(to right, #64748b 0px, #64748b 4px, transparent 4px, transparent 8px);"></div>
-                                <span style="color: #64748b; font-size: 0.7rem; white-space: nowrap;">⏱️ ${Math.round(gap)}s gap</span>
-                                <div style="flex: 1; height: 1px; background: repeating-linear-gradient(to right, #64748b 0px, #64748b 4px, transparent 4px, transparent 8px);"></div>
+                                <div style="flex: 1; height: 1px; background: repeating-linear-gradient(to right, #7A8CB8 0px, #7A8CB8 4px, transparent 4px, transparent 8px);"></div>
+                                <span style="color: #7A8CB8; font-size: 0.7rem; white-space: nowrap;">⏱️ ${Math.round(gap)}s gap</span>
+                                <div style="flex: 1; height: 1px; background: repeating-linear-gradient(to right, #7A8CB8 0px, #7A8CB8 4px, transparent 4px, transparent 8px);"></div>
                             </div>
                         `;
                     }
@@ -411,7 +411,7 @@
                     '#5B92D4': '168, 85, 247',
                     '#3b82f6': '59, 130, 246',
                     '#ef4444': '239, 68, 68',
-                    '#64748b': '100, 116, 139'
+                    '#7A8CB8': '100, 116, 139'
                 };
                 const rgb = rgbMap[color] || '100, 116, 139';
                 
@@ -424,18 +424,18 @@
                 `;
                 
                 const cardUsedStyles = isUsed ? `
-                    background: linear-gradient(135deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.5) 100%);
-                    border-color: #334155;
+                    background: linear-gradient(135deg, rgba(29, 47, 80, 0.5) 0%, rgba(21, 32, 53, 0.5) 100%);
+                    border-color: #263956;
                 ` : `
-                    background: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.9) 100%);
+                    background: linear-gradient(135deg, rgba(29, 47, 80, 0.9) 0%, rgba(21, 32, 53, 0.9) 100%);
                     border: 1px solid ${color};
                 `;
                 
                 const nameStyles = isUsed ? `
                     text-decoration: line-through;
-                    color: #64748b;
+                    color: #7A8CB8;
                 ` : `
-                    color: #e2e8f0;
+                    color: #F0EBE0;
                 `;
                 
                 const isSelected = selectedTimelineIndices.has(idx);
@@ -449,7 +449,7 @@
                 const isBoss = isBossCategory(enc.category);
                 
                 // Determine border color
-                const borderColor = isUsed ? '#334155' : (isAttempt ? '#ef4444' : (isMerged ? '#fbbf24' : (isSelected ? '#D96444' : color)));
+                const borderColor = isUsed ? '#263956' : (isAttempt ? '#ef4444' : (isMerged ? '#fbbf24' : (isSelected ? '#D96444' : color)));
                 
                 // Check if this is the start of a consecutive adds group (for bulk select)
                 let addsGroupSize = 0;
@@ -494,12 +494,12 @@
                     // BOSS: Full-size card with all stats
                     const mergedStyles = isMerged && !isUsed ? `
                         border-color: #fbbf24 !important;
-                        background: linear-gradient(135deg, rgba(251, 191, 36, 0.12) 0%, rgba(15, 23, 42, 0.9) 100%) !important;
+                        background: linear-gradient(135deg, rgba(251, 191, 36, 0.12) 0%, rgba(21, 32, 53, 0.9) 100%) !important;
                     ` : '';
                     
                     const attemptStyles = isAttempt && !isUsed ? `
                         border-color: #ef4444 !important;
-                        background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(15, 23, 42, 0.9) 100%) !important;
+                        background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(21, 32, 53, 0.9) 100%) !important;
                     ` : '';
                     
                     html += `
@@ -507,13 +507,13 @@
                              onclick="${!isUsed ? `toggleTimelineSelection(${idx}, event)` : ''}"
                              style="position: relative; margin-bottom: 16px; ${usedStyles}">
                             <!-- Timeline dot -->
-                            <div style="position: absolute; left: -17px; top: 8px; width: 10px; height: 10px; background: ${isUsed ? '#334155' : (isMerged ? '#fbbf24' : (isAttempt ? '#ef4444' : color))}; border: 2px solid #0f172a; border-radius: 50%; ${!isUsed ? `box-shadow: 0 0 0 3px rgba(${rgb}, 0.3);` : ''} z-index: 10;"></div>
+                            <div style="position: absolute; left: -17px; top: 8px; width: 10px; height: 10px; background: ${isUsed ? '#263956' : (isMerged ? '#fbbf24' : (isAttempt ? '#ef4444' : color))}; border: 2px solid #152035; border-radius: 50%; ${!isUsed ? `box-shadow: 0 0 0 3px rgba(${rgb}, 0.3);` : ''} z-index: 10;"></div>
                             
                             <!-- Full card -->
                             <div style="${cardUsedStyles} ${selectedStyles} ${mergedStyles} ${attemptStyles} border-left: 3px solid ${borderColor}; border-radius: 6px; padding: 8px; transition: all 0.2s; position: relative;">
                                 ${isUsed ? '<div style="position: absolute; top: 4px; right: 6px; font-size: 0.6rem; color: #D96444; font-weight: 600;">✓ IN RUN</div>' : 
-                                  `<div onclick="event.stopPropagation(); toggleTimelineSelection(${idx}, event)" style="position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; background: ${isSelected ? '#D96444' : 'rgba(30, 41, 59, 0.8)'}; border: 2px solid ${isSelected ? '#D96444' : '#475569'}; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
-                                      ${isSelected ? '<span style="color: #0f172a; font-size: 0.7rem; font-weight: 700;">✓</span>' : ''}
+                                  `<div onclick="event.stopPropagation(); toggleTimelineSelection(${idx}, event)" style="position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; background: ${isSelected ? '#D96444' : 'rgba(29, 47, 80, 0.8)'}; border: 2px solid ${isSelected ? '#D96444' : '#405A85'}; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                                      ${isSelected ? '<span style="color: #152035; font-size: 0.7rem; font-weight: 700;">✓</span>' : ''}
                                   </div>`}
                                 <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; ${!isUsed ? 'padding-right: 24px;' : ''}">
                                     <span style="font-size: 1rem; ${isUsed ? 'opacity: 0.5;' : ''}">${categoryIcon}</span>
@@ -523,15 +523,15 @@
                                             ${isMerged ? '<span style="margin-left: 4px; font-size: 0.6rem; color: #fbbf24;">🔗</span>' : ''}
                                             ${isAttempt ? '<span class="attempt-badge" style="margin-left: 4px;">ATTEMPT</span>' : ''}
                                         </div>
-                                        <div style="font-size: 0.65rem; color: ${isUsed ? '#475569' : color}; font-weight: 600; opacity: 0.8;">${categoryLabel}</div>
+                                        <div style="font-size: 0.65rem; color: ${isUsed ? '#405A85' : color}; font-weight: 600; opacity: 0.8;">${categoryLabel}</div>
                                     </div>
                                 </div>
-                                <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: ${isUsed ? '#475569' : '#94a3b8'}; margin-bottom: 3px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: ${isUsed ? '#405A85' : '#7A8CB8'}; margin-bottom: 3px;">
                                     <span>⏱️ ${startTime}</span>
-                                    <span style="color: ${isUsed ? '#475569' : '#e2e8f0'}; font-weight: 600;">${durationLabel}</span>
+                                    <span style="color: ${isUsed ? '#405A85' : '#F0EBE0'}; font-weight: 600;">${durationLabel}</span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <div style="font-size: 0.7rem; color: ${isUsed ? '#475569' : color}; font-weight: 600;">
+                                    <div style="font-size: 0.7rem; color: ${isUsed ? '#405A85' : color}; font-weight: 600;">
                                         💥 ${(enc.dps / 1000).toFixed(1)}K DPS
                                     </div>
                                     ${!isUsed ? `
@@ -559,14 +559,14 @@
                              onclick="${!isUsed ? `toggleTimelineSelection(${idx}, event)` : ''}"
                              style="position: relative; margin-bottom: 4px; ${usedStyles}">
                             <!-- Timeline dot -->
-                            <div style="position: absolute; left: -17px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; background: ${isUsed ? '#334155' : color}; border: 1.5px solid #0f172a; border-radius: 50%; z-index: 10;"></div>
+                            <div style="position: absolute; left: -17px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; background: ${isUsed ? '#263956' : color}; border: 1.5px solid #152035; border-radius: 50%; z-index: 10;"></div>
                             
                             <!-- Compact single-line card -->
-                            <div style="background: ${isUsed ? 'rgba(30, 41, 59, 0.3)' : 'rgba(30, 41, 59, 0.6)'}; ${isSelected && !isUsed ? 'box-shadow: 0 0 0 1px #D96444;' : ''} border-left: 2px solid ${isUsed ? '#334155' : (isSelected ? '#D96444' : color)}; border-radius: 3px; padding: 4px 6px; display: flex; align-items: center; gap: 5px; transition: all 0.15s;">
+                            <div style="background: ${isUsed ? 'rgba(29, 47, 80, 0.3)' : 'rgba(29, 47, 80, 0.6)'}; ${isSelected && !isUsed ? 'box-shadow: 0 0 0 1px #D96444;' : ''} border-left: 2px solid ${isUsed ? '#263956' : (isSelected ? '#D96444' : color)}; border-radius: 3px; padding: 4px 6px; display: flex; align-items: center; gap: 5px; transition: all 0.15s;">
                                 <!-- Checkbox -->
                                 ${isUsed ? '' : `
-                                    <div onclick="event.stopPropagation(); toggleTimelineSelection(${idx}, event)" style="width: 12px; height: 12px; min-width: 12px; background: ${isSelected ? '#D96444' : 'transparent'}; border: 1.5px solid ${isSelected ? '#D96444' : '#475569'}; border-radius: 2px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
-                                        ${isSelected ? '<span style="color: #0f172a; font-size: 0.5rem; font-weight: 700;">✓</span>' : ''}
+                                    <div onclick="event.stopPropagation(); toggleTimelineSelection(${idx}, event)" style="width: 12px; height: 12px; min-width: 12px; background: ${isSelected ? '#D96444' : 'transparent'}; border: 1.5px solid ${isSelected ? '#D96444' : '#405A85'}; border-radius: 2px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                                        ${isSelected ? '<span style="color: #152035; font-size: 0.5rem; font-weight: 700;">✓</span>' : ''}
                                     </div>
                                 `}
                                 
@@ -574,10 +574,10 @@
                                 <span style="font-size: 0.7rem; ${isUsed ? 'opacity: 0.4;' : ''}">${categoryIcon}</span>
                                 
                                 <!-- Target name (truncated) -->
-                                <span style="flex: 1; min-width: 0; font-weight: 500; font-size: 0.7rem; color: ${isUsed ? '#64748b' : '#cbd5e1'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; ${isUsed ? 'text-decoration: line-through;' : ''}">${enc.target_name}</span>
+                                <span style="flex: 1; min-width: 0; font-weight: 500; font-size: 0.7rem; color: ${isUsed ? '#7A8CB8' : '#F0EBE0'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; ${isUsed ? 'text-decoration: line-through;' : ''}">${enc.target_name}</span>
                                 
                                 <!-- Time only -->
-                                <span style="font-size: 0.6rem; color: ${isUsed ? '#475569' : '#64748b'}; white-space: nowrap;">${startTime}</span>
+                                <span style="font-size: 0.6rem; color: ${isUsed ? '#405A85' : '#7A8CB8'}; white-space: nowrap;">${startTime}</span>
                                 
                                 ${isUsed ? '<span style="font-size: 0.5rem; color: #D96444;">✓</span>' : ''}
                                 
@@ -592,7 +592,7 @@
             });
             
             // End time marker
-            html += `<div style="margin-top: 12px; padding-left: 8px; color: #64748b; font-size: 0.75rem; font-weight: 600;">■ END: ${lastTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>`;
+            html += `<div style="margin-top: 12px; padding-left: 8px; color: #7A8CB8; font-size: 0.75rem; font-weight: 600;">■ END: ${lastTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>`;
             
             html += '</div>';
             
@@ -828,7 +828,7 @@
                 'field_boss': '#5B92D4',
                 'dungeon_boss': '#3b82f6',
                 'adds': '#ef4444',
-                'other': '#64748b'
+                'other': '#7A8CB8'
             };
             
             // Boss categories (shown on left, full size)
@@ -892,24 +892,24 @@
                             <div style="width: calc(50% - 30px); padding-right: 20px;"></div>
                             
                             <!-- Center: Timeline dot -->
-                            <div style="position: absolute; left: 50%; top: 12px; transform: translateX(-50%); width: 14px; height: 14px; background: ${color}; border: 2px solid #0f172a; border-radius: 50%; box-shadow: 0 0 0 3px rgba(${rgb}, 0.3); z-index: 10;"></div>
+                            <div style="position: absolute; left: 50%; top: 12px; transform: translateX(-50%); width: 14px; height: 14px; background: ${color}; border: 2px solid #152035; border-radius: 50%; box-shadow: 0 0 0 3px rgba(${rgb}, 0.3); z-index: 10;"></div>
                             
                             <!-- Right: Adds Group Card -->
                             <div style="width: calc(50% - 30px); padding-left: 20px;">
-                                <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%); border: 1px solid ${color}; border-left: 4px solid ${color}; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 15px rgba(0, 0, 0, 0.3);">
+                                <div style="background: linear-gradient(135deg, rgba(29, 47, 80, 0.95) 0%, rgba(21, 32, 53, 0.95) 100%); border: 1px solid ${color}; border-left: 4px solid ${color}; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 15px rgba(0, 0, 0, 0.3);">
                                     <!-- Header (clickable to expand/collapse) -->
                                     <div onclick="toggleAddsGroup('${groupId}')" style="padding: 10px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(239, 68, 68, 0.1); transition: background 0.2s;" onmouseover="this.style.background='rgba(239, 68, 68, 0.2)'" onmouseout="this.style.background='rgba(239, 68, 68, 0.1)'">
                                         <div style="display: flex; align-items: center; gap: 8px;">
                                             <span style="font-size: 1.1rem; transition: transform 0.2s; transform: rotate(${isExpanded ? '90deg' : '0deg'});">▶</span>
                                             <span style="font-size: 1rem;">💀</span>
                                             <div>
-                                                <div style="font-weight: 700; color: #e2e8f0; font-size: 0.9rem;">Adds <span style="color: ${color}; font-weight: 400;">(${addsCount})</span></div>
-                                                <div style="font-size: 0.65rem; color: #94a3b8;">${Math.round(totalDuration)}s total</div>
+                                                <div style="font-weight: 700; color: #F0EBE0; font-size: 0.9rem;">Adds <span style="color: ${color}; font-weight: 400;">(${addsCount})</span></div>
+                                                <div style="font-size: 0.65rem; color: #7A8CB8;">${Math.round(totalDuration)}s total</div>
                                             </div>
                                         </div>
                                         <div style="text-align: right;">
                                             <div style="color: ${color}; font-size: 1.1rem; font-weight: 700;">${(totalDamage / 1000000).toFixed(2)}M</div>
-                                            <div style="color: #64748b; font-size: 0.6rem; text-transform: uppercase;">Total Damage</div>
+                                            <div style="color: #7A8CB8; font-size: 0.6rem; text-transform: uppercase;">Total Damage</div>
                                         </div>
                                     </div>
                                     
@@ -921,13 +921,13 @@
                     item.encounters.forEach(({ enc, originalIdx }) => {
                         const startTime = new Date(enc.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
                         html += `
-                                        <div style="padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(51, 65, 85, 0.5); background: rgba(15, 23, 42, 0.4);">
+                                        <div style="padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(38, 57, 86, 0.5); background: rgba(21, 32, 53, 0.4);">
                                             <div style="display: flex; align-items: center; gap: 8px;">
-                                                <span style="color: #475569; font-size: 0.75rem;">└</span>
+                                                <span style="color: #405A85; font-size: 0.75rem;">└</span>
                                                 <span style="font-size: 0.85rem;">💀</span>
                                                 <div>
-                                                    <div style="font-weight: 600; color: #e2e8f0; font-size: 0.8rem;">${enc.target_name}</div>
-                                                    <div style="font-size: 0.6rem; color: #64748b;">⏱️ ${startTime}</div>
+                                                    <div style="font-weight: 600; color: #F0EBE0; font-size: 0.8rem;">${enc.target_name}</div>
+                                                    <div style="font-size: 0.6rem; color: #7A8CB8;">⏱️ ${startTime}</div>
                                                 </div>
                                             </div>
                                             <div style="display: flex; align-items: center; gap: 8px;">
@@ -952,7 +952,7 @@
                     // Render single encounter (boss, other)
                     const enc = item.enc;
                     const idx = item.originalIdx;
-                    const color = categoryColors[enc.category] || '#64748b';
+                    const color = categoryColors[enc.category] || '#7A8CB8';
                     const isBoss = bossCategories.has(enc.category);
                     const categoryIcon = getCategoryIcon(enc.category);
                     const startTime = new Date(enc.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -965,7 +965,7 @@
                         '#5B92D4': '168, 85, 247',
                         '#3b82f6': '59, 130, 246',
                         '#ef4444': '239, 68, 68',
-                        '#64748b': '100, 116, 139'
+                        '#7A8CB8': '100, 116, 139'
                     };
                     const rgb = rgbMap[color] || '100, 116, 139';
                     
@@ -986,7 +986,7 @@
                             <div class="run-timeline-item" style="display: flex; align-items: flex-start; margin-bottom: 24px; position: relative;">
                                 <!-- Left: Boss Card -->
                                 <div style="width: calc(50% - 30px); padding-right: 20px;">
-                                    <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%); border: 2px solid ${cardColor}; border-radius: 12px; padding: 16px; box-shadow: 0 4px 25px rgba(0, 0, 0, 0.4), 0 0 30px rgba(${cardRgb}, 0.15); position: relative;">
+                                    <div style="background: linear-gradient(135deg, rgba(29, 47, 80, 0.95) 0%, rgba(21, 32, 53, 0.95) 100%); border: 2px solid ${cardColor}; border-radius: 12px; padding: 16px; box-shadow: 0 4px 25px rgba(0, 0, 0, 0.4), 0 0 30px rgba(${cardRgb}, 0.15); position: relative;">
                                         <!-- Remove button -->
                                         <button onclick="removeFromRun(${idx})" style="position: absolute; top: 8px; right: 8px; padding: 4px 8px; background: rgba(239, 68, 68, 0.8); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.65rem; font-weight: 700;">✕</button>
                                         
@@ -994,7 +994,7 @@
                                         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
                                             <span style="font-size: 2rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));">${categoryIcon}</span>
                                             <div>
-                                                <div style="font-weight: 700; color: #e2e8f0; font-size: 1.1rem; text-shadow: 0 1px 3px rgba(0,0,0,0.5);">
+                                                <div style="font-weight: 700; color: #F0EBE0; font-size: 1.1rem; text-shadow: 0 1px 3px rgba(0,0,0,0.5);">
                                                     ${enc.target_name}
                                                     ${isMerged ? '<span style="margin-left: 6px; font-size: 0.7rem; color: #fbbf24;">🔗 Merged</span>' : ''}
                                                     ${isAttempt ? '<span class="attempt-badge" style="margin-left: 6px;">ATTEMPT</span>' : ''}
@@ -1007,17 +1007,17 @@
                                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                                             <div style="background: rgba(0,0,0,0.2); border-radius: 8px; padding: 10px; text-align: center;">
                                                 <div style="color: ${cardColor}; font-size: 1.4rem; font-weight: 700; text-shadow: 0 0 15px rgba(${cardRgb}, 0.6);">${Math.round(enc.dps).toLocaleString()}</div>
-                                                <div style="color: #64748b; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">DPS</div>
+                                                <div style="color: #7A8CB8; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">DPS</div>
                                             </div>
                                             <div style="background: rgba(0,0,0,0.2); border-radius: 8px; padding: 10px; text-align: center;">
-                                                <div style="color: #e2e8f0; font-size: 1.4rem; font-weight: 700;">${(enc.total_damage / 1000000).toFixed(2)}M</div>
-                                                <div style="color: #64748b; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">Damage</div>
+                                                <div style="color: #F0EBE0; font-size: 1.4rem; font-weight: 700;">${(enc.total_damage / 1000000).toFixed(2)}M</div>
+                                                <div style="color: #7A8CB8; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">Damage</div>
                                             </div>
                                         </div>
                                         
                                         <!-- Duration bar -->
                                         <div style="background: rgba(${cardRgb}, 0.1); border: 1px solid rgba(${cardRgb}, 0.3); border-radius: 6px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                            <span style="color: #94a3b8; font-size: 0.75rem;">⏱️ ${startTime}</span>
+                                            <span style="color: #7A8CB8; font-size: 0.75rem;">⏱️ ${startTime}</span>
                                             <span style="color: ${cardColor}; font-size: 0.85rem; font-weight: 600;">⏳ ${durationLabel}</span>
                                         </div>
                                         
@@ -1029,21 +1029,21 @@
                                         <!-- Loot/Contribution Section (for boss encounters) -->
                                         <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(${cardRgb}, 0.3);">
                                             <div style="font-size: 0.65rem; color: #fbbf24; text-transform: uppercase; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
-                                                🎁 Loot Tracking <span style="color: #64748b; font-weight: 400;">(optional)</span>
+                                                🎁 Loot Tracking <span style="color: #7A8CB8; font-weight: 400;">(optional)</span>
                                             </div>
                                             ${(enc.category === 'archboss' || enc.category === 'field_boss') ? `
                                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                                                <span style="font-size: 0.7rem; color: #94a3b8;">📊</span>
+                                                <span style="font-size: 0.7rem; color: #7A8CB8;">📊</span>
                                                 <input type="number" id="runCardContribution_${idx}" min="0" max="100" step="0.1" placeholder="Contrib %" 
                                                        value="${runLootData.contribution_percent != null ? runLootData.contribution_percent : ''}"
                                                        onchange="updateRunLootFromCard('contribution', this.value)"
-                                                       style="flex: 1; padding: 6px 8px; background: rgba(0,0,0,0.3); border: 1px solid #334155; border-radius: 4px; color: #e2e8f0; font-size: 0.75rem; max-width: 80px;">
-                                                <span style="font-size: 0.7rem; color: #64748b;">%</span>
+                                                       style="flex: 1; padding: 6px 8px; background: rgba(0,0,0,0.3); border: 1px solid #263956; border-radius: 4px; color: #F0EBE0; font-size: 0.75rem; max-width: 80px;">
+                                                <span style="font-size: 0.7rem; color: #7A8CB8;">%</span>
                                             </div>
                                             ` : ''}
                                             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 0.7rem; color: #94a3b8;">
-                                                    <input type="radio" name="runCardLoot_${idx}" value="no" ${!runLootData.got_loot ? 'checked' : ''} onchange="updateRunLootFromCard('got_loot', false)" style="accent-color: #64748b;">
+                                                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 0.7rem; color: #7A8CB8;">
+                                                    <input type="radio" name="runCardLoot_${idx}" value="no" ${!runLootData.got_loot ? 'checked' : ''} onchange="updateRunLootFromCard('got_loot', false)" style="accent-color: #7A8CB8;">
                                                     No
                                                 </label>
                                                 <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 0.7rem; color: #22c55e;">
@@ -1053,14 +1053,14 @@
                                                 <input type="text" id="runCardLootItem_${idx}" placeholder="Item name" 
                                                        value="${escapeHtml(runLootData.loot_item || '')}"
                                                        onchange="updateRunLootFromCard('loot_item', this.value)"
-                                                       style="flex: 1; min-width: 100px; padding: 6px 8px; background: rgba(0,0,0,0.3); border: 1px solid #334155; border-radius: 4px; color: #e2e8f0; font-size: 0.75rem; ${runLootData.got_loot ? '' : 'opacity: 0.5;'}">
+                                                       style="flex: 1; min-width: 100px; padding: 6px 8px; background: rgba(0,0,0,0.3); border: 1px solid #263956; border-radius: 4px; color: #F0EBE0; font-size: 0.75rem; ${runLootData.got_loot ? '' : 'opacity: 0.5;'}">
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                                 
                                 <!-- Center: Timeline dot -->
-                                <div style="position: absolute; left: 50%; top: 20px; transform: translateX(-50%); width: 20px; height: 20px; background: ${cardColor}; border: 3px solid #0f172a; border-radius: 50%; box-shadow: 0 0 0 4px rgba(${cardRgb}, 0.3), 0 0 20px rgba(${cardRgb}, 0.6); z-index: 10;"></div>
+                                <div style="position: absolute; left: 50%; top: 20px; transform: translateX(-50%); width: 20px; height: 20px; background: ${cardColor}; border: 3px solid #152035; border-radius: 50%; box-shadow: 0 0 0 4px rgba(${cardRgb}, 0.3), 0 0 20px rgba(${cardRgb}, 0.6); z-index: 10;"></div>
                                 
                                 <!-- Right: Empty space for bosses -->
                                 <div style="width: calc(50% - 30px); padding-left: 20px;"></div>
@@ -1074,15 +1074,15 @@
                                 <div style="width: calc(50% - 30px); padding-right: 20px;"></div>
                                 
                                 <!-- Center: Timeline dot (tiny) -->
-                                <div style="position: absolute; left: 50%; top: 8px; transform: translateX(-50%); width: 8px; height: 8px; background: ${color}; border: 2px solid #0f172a; border-radius: 50%; z-index: 10;"></div>
+                                <div style="position: absolute; left: 50%; top: 8px; transform: translateX(-50%); width: 8px; height: 8px; background: ${color}; border: 2px solid #152035; border-radius: 50%; z-index: 10;"></div>
                                 
                                 <!-- Right: Single line -->
                                 <div style="width: calc(50% - 30px); padding-left: 20px;">
-                                    <div style="background: rgba(30, 41, 59, 0.6); border-left: 2px solid ${color}; border-radius: 4px; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center;">
+                                    <div style="background: rgba(29, 47, 80, 0.6); border-left: 2px solid ${color}; border-radius: 4px; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center;">
                                         <div style="display: flex; align-items: center; gap: 6px;">
                                             <span style="font-size: 0.8rem;">${categoryIcon}</span>
-                                            <span style="color: #94a3b8; font-size: 0.75rem;">${enc.target_name}</span>
-                                            <span style="color: #64748b; font-size: 0.65rem;">⏱️ ${startTime}</span>
+                                            <span style="color: #7A8CB8; font-size: 0.75rem;">${enc.target_name}</span>
+                                            <span style="color: #7A8CB8; font-size: 0.65rem;">⏱️ ${startTime}</span>
                                         </div>
                                         <div style="display: flex; align-items: center; gap: 8px;">
                                             <span style="color: ${color}; font-size: 0.8rem; font-weight: 600;">${(enc.total_damage / 1000).toFixed(0)}K</span>
@@ -1365,7 +1365,7 @@
                 'field_boss': '#5B92D4',
                 'dungeon_boss': '#3b82f6',
                 'adds': '#ef4444',
-                'other': '#64748b'
+                'other': '#7A8CB8'
             };
             
             const categoryIcons = {
@@ -1414,22 +1414,22 @@
                 const label = categoryLabels[cat];
                 
                 breakdownHtml += `
-                    <div style="margin-bottom: 10px; padding: 10px; background: rgba(15, 23, 42, 0.5); border: 1px solid ${color}; border-left: 3px solid ${color}; border-radius: 6px;">
+                    <div style="margin-bottom: 10px; padding: 10px; background: rgba(21, 32, 53, 0.5); border: 1px solid ${color}; border-left: 3px solid ${color}; border-radius: 6px;">
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
                             <span style="font-size: 1.1rem;">${icon}</span>
                             <div style="flex: 1;">
                                 <div style="font-weight: 700; color: ${color}; font-size: 0.8rem;">${label}</div>
-                                <div style="font-size: 0.6rem; color: #64748b;">${encounters.length} encounter${encounters.length > 1 ? 's' : ''} · ${formatDuration(catActiveTime)}</div>
+                                <div style="font-size: 0.6rem; color: #7A8CB8;">${encounters.length} encounter${encounters.length > 1 ? 's' : ''} · ${formatDuration(catActiveTime)}</div>
                             </div>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
                             <div style="text-align: center; padding: 6px; background: rgba(0,0,0,0.2); border-radius: 4px;">
                                 <div style="color: ${color}; font-size: 0.95rem; font-weight: 700;">${Math.round(catDps).toLocaleString()}</div>
-                                <div style="color: #64748b; font-size: 0.55rem; text-transform: uppercase;">DPS</div>
+                                <div style="color: #7A8CB8; font-size: 0.55rem; text-transform: uppercase;">DPS</div>
                             </div>
                             <div style="text-align: center; padding: 6px; background: rgba(0,0,0,0.2); border-radius: 4px;">
-                                <div style="color: #e2e8f0; font-size: 0.95rem; font-weight: 700;">${(catDamage / 1000000).toFixed(2)}M</div>
-                                <div style="color: #64748b; font-size: 0.55rem; text-transform: uppercase;">Damage</div>
+                                <div style="color: #F0EBE0; font-size: 0.95rem; font-weight: 700;">${(catDamage / 1000000).toFixed(2)}M</div>
+                                <div style="color: #7A8CB8; font-size: 0.55rem; text-transform: uppercase;">Damage</div>
                             </div>
                         </div>
                     </div>
@@ -1443,13 +1443,13 @@
                 const color = categoryColors['adds'];
                 
                 breakdownHtml += `
-                    <div style="margin-bottom: 8px; padding: 8px 10px; background: rgba(15, 23, 42, 0.4); border-left: 3px solid ${color}; border-radius: 4px;">
+                    <div style="margin-bottom: 8px; padding: 8px 10px; background: rgba(21, 32, 53, 0.4); border-left: 3px solid ${color}; border-radius: 4px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div style="display: flex; align-items: center; gap: 6px;">
                                 <span style="font-size: 0.9rem;">💀</span>
                                 <div>
                                     <div style="font-weight: 600; color: ${color}; font-size: 0.75rem;">Adds/Trash</div>
-                                    <div style="font-size: 0.55rem; color: #64748b;">${encounters.length} pack${encounters.length > 1 ? 's' : ''}</div>
+                                    <div style="font-size: 0.55rem; color: #7A8CB8;">${encounters.length} pack${encounters.length > 1 ? 's' : ''}</div>
                                 </div>
                             </div>
                             <div style="color: ${color}; font-size: 0.95rem; font-weight: 700;">${(catDamage / 1000000).toFixed(2)}M</div>
@@ -1465,11 +1465,11 @@
                 const color = categoryColors['other'];
                 
                 breakdownHtml += `
-                    <div style="padding: 6px 10px; background: rgba(15, 23, 42, 0.3); border-left: 2px solid ${color}; border-radius: 4px;">
+                    <div style="padding: 6px 10px; background: rgba(21, 32, 53, 0.3); border-left: 2px solid ${color}; border-radius: 4px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div style="display: flex; align-items: center; gap: 4px;">
                                 <span style="font-size: 0.8rem;">📦</span>
-                                <span style="color: #94a3b8; font-size: 0.7rem;">Other (${encounters.length})</span>
+                                <span style="color: #7A8CB8; font-size: 0.7rem;">Other (${encounters.length})</span>
                             </div>
                             <span style="color: ${color}; font-size: 0.85rem; font-weight: 600;">${(catDamage / 1000000).toFixed(2)}M</span>
                         </div>

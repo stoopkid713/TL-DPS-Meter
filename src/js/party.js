@@ -13,10 +13,10 @@
 
                 const box = document.createElement('div');
                 box.style.cssText = [
-                    'background:#1e293b', 'border:1px solid rgba(100,116,139,0.5)',
+                    'background:#1D2F50', 'border:1px solid rgba(122,140,184,0.5)',
                     'border-radius:10px', 'padding:24px 28px', 'max-width:360px',
                     'width:90%', 'box-shadow:0 8px 32px rgba(0,0,0,0.6)',
-                    'color:#e2e8f0', 'font-family:inherit', 'font-size:0.95rem',
+                    'color:#F0EBE0', 'font-family:inherit', 'font-size:0.95rem',
                     'line-height:1.5', 'text-align:center'
                 ].join(';');
 
@@ -30,8 +30,8 @@
                 const cancelBtn = document.createElement('button');
                 cancelBtn.textContent = 'Cancel';
                 cancelBtn.style.cssText = [
-                    'padding:7px 20px', 'border-radius:6px', 'border:1px solid rgba(100,116,139,0.5)',
-                    'background:rgba(100,116,139,0.15)', 'color:#94a3b8',
+                    'padding:7px 20px', 'border-radius:6px', 'border:1px solid rgba(122,140,184,0.5)',
+                    'background:rgba(122,140,184,0.15)', 'color:#7A8CB8',
                     'cursor:pointer', 'font-size:0.9rem', 'font-family:inherit'
                 ].join(';');
 
@@ -73,10 +73,10 @@
 
                 const box = document.createElement('div');
                 box.style.cssText = [
-                    'background:#1e293b', 'border:1px solid rgba(100,116,139,0.5)',
+                    'background:#1D2F50', 'border:1px solid rgba(122,140,184,0.5)',
                     'border-radius:10px', 'padding:24px 28px', 'max-width:360px',
                     'width:90%', 'box-shadow:0 8px 32px rgba(0,0,0,0.6)',
-                    'color:#e2e8f0', 'font-family:inherit', 'font-size:0.95rem',
+                    'color:#F0EBE0', 'font-family:inherit', 'font-size:0.95rem',
                     'line-height:1.5', 'text-align:center'
                 ].join(';');
 
@@ -545,7 +545,7 @@
             btn.className = 'party-detect-names-btn';
             btn.textContent = '↺ Detect';
             btn.title = 'Re-scan combat log for name suggestions';
-            btn.style.cssText = 'margin:2px 0 2px 8px;padding:3px 9px;font-size:11px;border-radius:11px;border:1px solid rgba(100,116,139,0.5);background:rgba(100,116,139,0.15);color:#94a3b8;cursor:pointer;';
+            btn.style.cssText = 'margin:2px 0 2px 8px;padding:3px 9px;font-size:11px;border-radius:11px;border:1px solid rgba(122,140,184,0.5);background:rgba(122,140,184,0.15);color:#7A8CB8;cursor:pointer;';
             btn.addEventListener('click', requestDetectNames);
             wrap.appendChild(btn);
         }
@@ -1044,8 +1044,8 @@
                 banner.style.cssText = [
                     'display:flex', 'align-items:center', 'gap:8px',
                     'margin:0 0 10px 0', 'padding:7px 12px',
-                    'background:rgba(100,116,139,0.15)', 'border:1px solid rgba(100,116,139,0.35)',
-                    'border-radius:8px', 'color:#94a3b8', 'font-size:0.83rem',
+                    'background:rgba(122,140,184,0.15)', 'border:1px solid rgba(122,140,184,0.35)',
+                    'border-radius:8px', 'color:#7A8CB8', 'font-size:0.83rem',
                 ].join(';');
                 banner.innerHTML = '<span style="font-size:1.1rem;">🟢</span>'
                     + '<span>Logging on — waiting for combat…</span>';
@@ -1670,8 +1670,8 @@
                         // Still within grace — just joined, waiting for first combat flush.
                         transmitBadge = '<span title="Waiting for first combat data from this player" '
                             + 'style="margin-left:4px;padding:1px 6px;font-size:0.68rem;'
-                            + 'background:rgba(100,116,139,0.15);border:1px solid rgba(100,116,139,0.4);'
-                            + 'color:#94a3b8;border-radius:4px;white-space:nowrap;">joining…</span>';
+                            + 'background:rgba(122,140,184,0.15);border:1px solid rgba(122,140,184,0.4);'
+                            + 'color:#7A8CB8;border-radius:4px;white-space:nowrap;">joining…</span>';
                     }
                 }
 
@@ -1708,7 +1708,7 @@
             if (partyState.is_leader) {
                 container.innerHTML += `<div style="margin-top:8px;text-align:right;">
                     <button onclick="resetPartyRoster()" title="Remove offline / disconnected members (online members are kept)" `
-                    + `style="padding:3px 10px;font-size:0.72rem;background:rgba(100,116,139,0.2);border:1px solid rgba(100,116,139,0.4);color:#94a3b8;border-radius:4px;cursor:pointer;">🔄 Clear Offline</button>
+                    + `style="padding:3px 10px;font-size:0.72rem;background:rgba(122,140,184,0.2);border:1px solid rgba(122,140,184,0.4);color:#7A8CB8;border-radius:4px;cursor:pointer;">🔄 Clear Offline</button>
                 </div>`;
             }
         }

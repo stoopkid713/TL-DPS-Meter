@@ -47,13 +47,13 @@
         function updateTagManagerList() {
             const container = document.getElementById('tagManagerList');
             if (visibleBuildTags().length === 0) {
-                container.innerHTML = '<div style="color: #64748b; text-align: center; padding: 20px;">No tags yet. Add one below or save an encounter with a new tag.</div>';
+                container.innerHTML = '<div style="color: #7A8CB8; text-align: center; padding: 20px;">No tags yet. Add one below or save an encounter with a new tag.</div>';
                 return;
             }
             
             container.innerHTML = visibleBuildTags().map(tag => `
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(30, 41, 59, 0.6); border: 1px solid #334155; border-radius: 8px;">
-                    <span style="color: #e2e8f0; font-weight: 500;">🏷️ ${tag}</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(29, 47, 80, 0.6); border: 1px solid #263956; border-radius: 8px;">
+                    <span style="color: #F0EBE0; font-weight: 500;">🏷️ ${tag}</span>
                     <button onclick="deleteTag('${tag.replace(/'/g, "\\'")}')" style="padding: 4px 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 4px; color: #ef4444; cursor: pointer; font-size: 0.8rem;" onmouseover="this.style.background='rgba(239, 68, 68, 0.3)'" onmouseout="this.style.background='rgba(239, 68, 68, 0.2)'">✕</button>
                 </div>
             `).join('');
@@ -500,7 +500,7 @@
         function renderEncTop5Skills(skills) {
             const container = document.getElementById('encSummaryTopSkills');
             if (!skills || skills.length === 0) {
-                container.innerHTML = '<div style="color: #64748b; padding: 12px; text-align: center;">No skills recorded</div>';
+                container.innerHTML = '<div style="color: #7A8CB8; padding: 12px; text-align: center;">No skills recorded</div>';
                 return;
             }
             
@@ -514,19 +514,19 @@
                 const colors = ['#5B92D4', '#D96444', '#f472b6', '#34d399', '#fbbf24'];
                 
                 return `
-                    <div style="display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: rgba(15, 23, 42, 0.4); border-radius: 8px;">
-                        <div style="width: 24px; height: 24px; background: ${colors[i]}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: #0f172a;">${i + 1}</div>
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: rgba(21, 32, 53, 0.4); border-radius: 8px;">
+                        <div style="width: 24px; height: 24px; background: ${colors[i]}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: #152035;">${i + 1}</div>
                         <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                <span style="font-size: 0.85rem; font-weight: 600; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${skill.name}</span>
+                                <span style="font-size: 0.85rem; font-weight: 600; color: #F0EBE0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${skill.name}</span>
                                 <span style="font-size: 0.85rem; font-weight: 600; color: ${colors[i]};">${pct}%</span>
                             </div>
-                            <div style="height: 4px; background: rgba(100, 116, 139, 0.3); border-radius: 2px; overflow: hidden;">
+                            <div style="height: 4px; background: rgba(122, 140, 184, 0.3); border-radius: 2px; overflow: hidden;">
                                 <div style="height: 100%; width: ${barWidth}%; background: ${colors[i]}; border-radius: 2px;"></div>
                             </div>
                         </div>
                         <div style="text-align: right; min-width: 70px;">
-                            <div style="font-size: 0.8rem; font-weight: 600; color: #e2e8f0;">${formatNumber(skill.damage)}</div>
+                            <div style="font-size: 0.8rem; font-weight: 600; color: #F0EBE0;">${formatNumber(skill.damage)}</div>
                         </div>
                     </div>
                 `;
@@ -583,7 +583,7 @@
                     <div class="piano-roll-time-markers">
                         ${timeMarkers.map(t => `<span>${t}s</span>`).join('')}
                     </div>
-                    <div style="width: 80px; text-align: right; font-size: 0.7rem; color: #64748b;">DAMAGE</div>
+                    <div style="width: 80px; text-align: right; font-size: 0.7rem; color: #7A8CB8;">DAMAGE</div>
                 </div>
             `;
             
@@ -658,7 +658,7 @@
             if (!tbody) return;
             
             if (!skills || skills.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #64748b; padding: 20px;">No skills recorded</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #7A8CB8; padding: 20px;">No skills recorded</td></tr>';
                 return;
             }
             
@@ -677,7 +677,7 @@
                         <td>${skill.name}</td>
                         <td class="num">${formatNumber(skill.damage)}</td>
                         <td style="width: 100px;">
-                            <div style="height: 8px; background: rgba(100, 116, 139, 0.3); border-radius: 4px; overflow: hidden;">
+                            <div style="height: 8px; background: rgba(122, 140, 184, 0.3); border-radius: 4px; overflow: hidden;">
                                 <div style="height: 100%; width: ${barWidth}%; background: linear-gradient(90deg, #D96444, #5B92D4); border-radius: 4px;"></div>
                             </div>
                         </td>
@@ -746,8 +746,8 @@
                 wand: '#D96444',
                 orb: '#8b5cf6',
                 mastery: '#fbbf24',
-                other: '#94a3b8',
-                unassigned: '#475569'
+                other: '#7A8CB8',
+                unassigned: '#405A85'
             };
             
             // Get skill assignments
@@ -895,10 +895,10 @@
                     // Draw empty state
                     ctx.beginPath();
                     ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-                    ctx.fillStyle = '#334155';
+                    ctx.fillStyle = '#263956';
                     ctx.fill();
                     
-                    ctx.fillStyle = '#64748b';
+                    ctx.fillStyle = '#7A8CB8';
                     ctx.font = '14px system-ui';
                     ctx.textAlign = 'center';
                     ctx.fillText('No data', centerX, centerY);
@@ -919,7 +919,7 @@
                     ctx.fillStyle = item.color;
                     ctx.fill();
                     
-                    ctx.strokeStyle = '#1e293b';
+                    ctx.strokeStyle = '#1D2F50';
                     ctx.lineWidth = 2;
                     ctx.stroke();
                     
@@ -929,17 +929,17 @@
                 // Draw center hole (donut effect)
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, radius * 0.5, 0, 2 * Math.PI);
-                ctx.fillStyle = '#1e293b';
+                ctx.fillStyle = '#1D2F50';
                 ctx.fill();
                 
                 // Draw total damage in center
-                ctx.fillStyle = '#e2e8f0';
+                ctx.fillStyle = '#F0EBE0';
                 ctx.font = 'bold 18px system-ui';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(formatNumber(totalDamage), centerX, centerY - 8);
                 
-                ctx.fillStyle = '#64748b';
+                ctx.fillStyle = '#7A8CB8';
                 ctx.font = '11px system-ui';
                 ctx.fillText('Total Damage', centerX, centerY + 12);
                 
@@ -969,10 +969,10 @@
                 const insightsContainer = document.getElementById('encRotationInsights');
                 const hitListContainer = document.getElementById('encRotationHitList');
                 
-                if (chartContainer) chartContainer.innerHTML = '<div style="color: #64748b; padding: 20px; text-align: center;">No DPS data available</div>';
-                if (segmentsContainer) segmentsContainer.innerHTML = '<div style="color: #64748b; padding: 20px; text-align: center;">No segment data available</div>';
+                if (chartContainer) chartContainer.innerHTML = '<div style="color: #7A8CB8; padding: 20px; text-align: center;">No DPS data available</div>';
+                if (segmentsContainer) segmentsContainer.innerHTML = '<div style="color: #7A8CB8; padding: 20px; text-align: center;">No segment data available</div>';
                 if (insightsContainer) insightsContainer.innerHTML = '<div class="rotation-insight info"><span class="rotation-insight-icon">ℹ️</span><span class="rotation-insight-text">No rotation data to analyze</span></div>';
-                if (hitListContainer) hitListContainer.innerHTML = '<div style="color: #64748b; padding: 12px; text-align: center;">No hits recorded</div>';
+                if (hitListContainer) hitListContainer.innerHTML = '<div style="color: #7A8CB8; padding: 12px; text-align: center;">No hits recorded</div>';
                 
                 const gapsSection = document.getElementById('encRotationGapsSection');
                 if (gapsSection) gapsSection.style.display = 'none';
@@ -1037,7 +1037,7 @@
             }
             
             if (!rotation || rotation.length === 0) {
-                container.innerHTML = '<div style="color: #64748b; padding: 20px; text-align: center;">No segment data available</div>';
+                container.innerHTML = '<div style="color: #7A8CB8; padding: 20px; text-align: center;">No segment data available</div>';
                 return;
             }
             
@@ -1212,7 +1212,7 @@
             if (countEl) countEl.textContent = `${rotation.length} hits`;
             
             if (!rotation || rotation.length === 0) {
-                container.innerHTML = '<div style="color: #64748b; padding: 12px; text-align: center;">No hits recorded</div>';
+                container.innerHTML = '<div style="color: #7A8CB8; padding: 12px; text-align: center;">No hits recorded</div>';
                 return;
             }
             
@@ -1260,7 +1260,7 @@
             container.innerHTML = hitHtml;
             
             if (rotation.length > 100) {
-                container.innerHTML += `<div style="color: #64748b; padding: 8px; text-align: center; font-size: 0.8rem;">Showing first 100 of ${rotation.length} hits</div>`;
+                container.innerHTML += `<div style="color: #7A8CB8; padding: 8px; text-align: center; font-size: 0.8rem;">Showing first 100 of ${rotation.length} hits</div>`;
             }
         }
         
@@ -1386,7 +1386,7 @@
                                 <span class="build-tag">${enc.build_tag}</span>
                                 <span class="date">${dateStr}</span>
                             </div>
-                            ${enc.notes ? `<div style="font-size: 0.8rem; color: #94a3b8; margin: 4px 0; font-style: italic;">${enc.notes}</div>` : ''}
+                            ${enc.notes ? `<div style="font-size: 0.8rem; color: #7A8CB8; margin: 4px 0; font-style: italic;">${enc.notes}</div>` : ''}
                             <div class="stats">
                                 <span><strong>${formatNumber(Math.round(enc.first_60s?.dps || 0))}</strong> DPS (60s)</span>
                                 <span><strong>${formatNumber(enc.overall?.total_damage || 0)}</strong> damage</span>
@@ -1554,7 +1554,7 @@
                 const statusEl = document.getElementById('buildTestStatus');
                 if (statusEl) {
                     statusEl.textContent = 'Ready';
-                    statusEl.style.color = '#94a3b8';
+                    statusEl.style.color = '#7A8CB8';
                 }
             }
             

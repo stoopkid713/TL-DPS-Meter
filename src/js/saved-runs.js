@@ -247,7 +247,7 @@
             savedRunsData = runs || []; // Store for loading
             
             if (!runs || runs.length === 0) {
-                container.innerHTML = '<div style="color: #64748b; text-align: center; padding: 20px; font-size: 0.8rem;">No saved runs yet</div>';
+                container.innerHTML = '<div style="color: #7A8CB8; text-align: center; padding: 20px; font-size: 0.8rem;">No saved runs yet</div>';
                 return;
             }
             
@@ -267,17 +267,17 @@
                 const attemptBadge = attemptCount > 0 ? `<span class="attempt-badge" style="margin-left: 6px;">${attemptCount} attempt${attemptCount > 1 ? 's' : ''}</span>` : '';
                 
                 html += `
-                    <div style="background: rgba(15, 23, 42, 0.5); border: 1px solid #334155; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+                    <div style="background: rgba(21, 32, 53, 0.5); border: 1px solid #263956; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
                         <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                             <div style="flex: 1;">
-                                <div style="font-weight: 600; color: #e2e8f0; font-size: 0.85rem;">${run.run_name}${attemptBadge}</div>
-                                <div style="font-size: 0.65rem; color: #64748b;">${dungeonDisplay}${createdDate} ${createdTime} · ${stats.encounter_count || 0} encounters</div>
+                                <div style="font-weight: 600; color: #F0EBE0; font-size: 0.85rem;">${run.run_name}${attemptBadge}</div>
+                                <div style="font-size: 0.65rem; color: #7A8CB8;">${dungeonDisplay}${createdDate} ${createdTime} · ${stats.encounter_count || 0} encounters</div>
                             </div>
                             <button onclick="deleteSavedRun('${run.run_id}')" style="padding: 2px 6px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; border-radius: 4px; cursor: pointer; font-size: 0.65rem;" title="Delete run">🗑️</button>
                         </div>
                         <div style="display: flex; gap: 12px; font-size: 0.75rem; margin-bottom: 8px;">
                             <span style="color: #D96444;"><strong>${dpsFormatted}</strong> DPS</span>
-                            <span style="color: #94a3b8;">${damageFormatted}</span>
+                            <span style="color: #7A8CB8;">${damageFormatted}</span>
                             <span style="color: #5B92D4;">${durationFormatted}</span>
                         </div>
                         <button onclick="viewSavedRunStats(${index})" style="width: 100%; padding: 6px 10px; background: rgba(217, 100, 68, 0.1); border: 1px solid rgba(217, 100, 68, 0.3); color: #D96444; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 600;">📊 View Stats</button>
@@ -439,11 +439,11 @@ ${attemptLine}
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                         <div>
                             <div style="font-size: 0.75rem; color: #fbbf24; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">⏱️ Active Test</div>
-                            <div style="font-size: 1rem; color: #e2e8f0; font-weight: 500; margin-top: 4px;">${targetName}</div>
+                            <div style="font-size: 1rem; color: #F0EBE0; font-weight: 500; margin-top: 4px;">${targetName}</div>
                         </div>
                         <div style="text-align: right;">
-                            <div style="font-size: 1.3rem; color: #e2e8f0; font-weight: 700;">${Math.floor(elapsed)}s</div>
-                            <div style="font-size: 0.7rem; color: #64748b;">/ 60s</div>
+                            <div style="font-size: 1.3rem; color: #F0EBE0; font-weight: 700;">${Math.floor(elapsed)}s</div>
+                            <div style="font-size: 0.7rem; color: #7A8CB8;">/ 60s</div>
                         </div>
                     </div>
                     <div style="height: 6px; background: rgba(251, 191, 36, 0.2); border-radius: 3px; overflow: hidden;">
@@ -458,10 +458,10 @@ ${attemptLine}
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
                             <div style="font-size: 0.75rem; color: #22c55e; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">✓ Test Complete</div>
-                            <div style="font-size: 1rem; color: #e2e8f0; font-weight: 500; margin-top: 4px;">${lastTestData.target}</div>
+                            <div style="font-size: 1rem; color: #F0EBE0; font-weight: 500; margin-top: 4px;">${lastTestData.target}</div>
                         </div>
                         <div style="text-align: right;">
-                            <div style="font-size: 0.7rem; color: #64748b;">60 seconds</div>
+                            <div style="font-size: 0.7rem; color: #7A8CB8;">60 seconds</div>
                         </div>
                     </div>
                 `;
@@ -546,7 +546,7 @@ ${attemptLine}
                 const statusEl = document.getElementById('buildTestStatus');
                 if (statusEl && !buildTestComplete) {
                     statusEl.textContent = 'Ready';
-                    statusEl.style.color = '#94a3b8';
+                    statusEl.style.color = '#7A8CB8';
                 }
                 return;
             }
@@ -760,36 +760,36 @@ ${attemptLine}
                        <span style="font-size:0.72rem; color:#D96444; font-weight:600;">🔬 Run A &amp; B selected</span>
                        <button onclick="openRunLab()" style="padding:4px 10px; background:rgba(217,100,68,0.2); border:1px solid rgba(217,100,68,0.5); border-radius:5px; color:#D96444; font-size:0.72rem; font-weight:700; cursor:pointer;">Open Run Lab →</button>
                    </div>`
-                : (total >= 2 ? `<div style="font-size:0.65rem; color:#64748b; text-align:center; margin-bottom:6px;">Assign A and B to compare runs</div>` : '');
+                : (total >= 2 ? `<div style="font-size:0.65rem; color:#7A8CB8; text-align:center; margin-bottom:6px;">Assign A and B to compare runs</div>` : '');
 
             list.innerHTML = rlPrompt + sessionQueue.map((item, i) => {
                 const borderColor = item.saved
                     ? 'rgba(34,197,94,0.4)'
-                    : (!item.id ? '#334155' : item.runLabSlot === 'A' ? 'rgba(217,100,68,0.5)' : item.runLabSlot === 'B' ? 'rgba(167,139,250,0.5)' : 'rgba(167,139,250,0.3)');
+                    : (!item.id ? '#263956' : item.runLabSlot === 'A' ? 'rgba(217,100,68,0.5)' : item.runLabSlot === 'B' ? 'rgba(167,139,250,0.5)' : 'rgba(167,139,250,0.3)');
                 const statusBadge = item.saved
                     ? `<span style="font-size:0.62rem; color:#22c55e; background:rgba(34,197,94,0.15); padding:2px 5px; border-radius:4px; font-weight:700;">✓</span>`
                     : (!item.id
-                        ? `<span style="font-size:0.62rem; color:#64748b; font-style:italic;">queuing...</span>`
+                        ? `<span style="font-size:0.62rem; color:#7A8CB8; font-style:italic;">queuing...</span>`
                         : ``);
 
                 const slotBtnA = `<button onclick="setRunLabSlot('A',${i})" title="Assign as Run A"
                     style="padding:2px 7px; font-size:0.62rem; font-weight:700; border-radius:4px; cursor:pointer; transition:all 0.15s;
-                    background:${item.runLabSlot==='A' ? 'rgba(217,100,68,0.3)' : 'rgba(15,23,42,0.6)'};
-                    border:1px solid ${item.runLabSlot==='A' ? '#D96444' : '#334155'};
-                    color:${item.runLabSlot==='A' ? '#D96444' : '#64748b'};">A</button>`;
+                    background:${item.runLabSlot==='A' ? 'rgba(217,100,68,0.3)' : 'rgba(21,32,53,0.6)'};
+                    border:1px solid ${item.runLabSlot==='A' ? '#D96444' : '#263956'};
+                    color:${item.runLabSlot==='A' ? '#D96444' : '#7A8CB8'};">A</button>`;
                 const slotBtnB = `<button onclick="setRunLabSlot('B',${i})" title="Assign as Run B"
                     style="padding:2px 7px; font-size:0.62rem; font-weight:700; border-radius:4px; cursor:pointer; transition:all 0.15s;
-                    background:${item.runLabSlot==='B' ? 'rgba(167,139,250,0.3)' : 'rgba(15,23,42,0.6)'};
-                    border:1px solid ${item.runLabSlot==='B' ? '#5B92D4' : '#334155'};
-                    color:${item.runLabSlot==='B' ? '#5B92D4' : '#64748b'};">B</button>`;
+                    background:${item.runLabSlot==='B' ? 'rgba(167,139,250,0.3)' : 'rgba(21,32,53,0.6)'};
+                    border:1px solid ${item.runLabSlot==='B' ? '#5B92D4' : '#263956'};
+                    color:${item.runLabSlot==='B' ? '#5B92D4' : '#7A8CB8'};">B</button>`;
 
                 return `
-                <div style="padding:9px 10px; background:rgba(15,23,42,0.6); border:1px solid ${borderColor}; border-radius:8px; margin-bottom:7px; transition:border-color 0.3s; box-sizing:border-box;">
+                <div style="padding:9px 10px; background:rgba(21,32,53,0.6); border:1px solid ${borderColor}; border-radius:8px; margin-bottom:7px; transition:border-color 0.3s; box-sizing:border-box;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                        <span style="font-size:0.68rem; color:#64748b; font-weight:700; text-transform:uppercase;">Run #${item.runNumber}</span>
+                        <span style="font-size:0.68rem; color:#7A8CB8; font-weight:700; text-transform:uppercase;">Run #${item.runNumber}</span>
                         <div style="display:flex; align-items:center; gap:5px;">
                             <span style="font-size:0.82rem; font-weight:700; color:#5B92D4;">${formatNumber(item.dps)} DPS</span>
-                            <span style="font-size:0.72rem; color:#64748b;" title="60s total damage">${formatNumber(item.totalDamage || 0)}</span>
+                            <span style="font-size:0.72rem; color:#7A8CB8;" title="60s total damage">${formatNumber(item.totalDamage || 0)}</span>
                         </div>
                     </div>
                     <div style="display:flex; justify-content:flex-end; align-items:center; gap:5px; margin-bottom:7px;">
@@ -805,10 +805,10 @@ ${attemptLine}
                            value="${escapeHtml(item.finalTag)}"
                            placeholder="Build tag..."
                            oninput="updateQueueItem(${i},'finalTag',this.value)"
-                           style="width:100%; padding:6px 9px; background:rgba(15,23,42,0.8); border:1px solid ${item.saved?'rgba(34,197,94,0.3)':'#475569'}; border-radius:5px; color:#e2e8f0; font-size:0.77rem; margin-bottom:5px; box-sizing:border-box; outline:none;"
+                           style="width:100%; padding:6px 9px; background:rgba(21,32,53,0.8); border:1px solid ${item.saved?'rgba(34,197,94,0.3)':'#405A85'}; border-radius:5px; color:#F0EBE0; font-size:0.77rem; margin-bottom:5px; box-sizing:border-box; outline:none;"
                            ${item.saved ? 'disabled' : ''}>
                     <select onchange="updateQueueItem(${i},'playerClass',this.value)"
-                            style="width:100%; padding:6px 9px; background:rgba(15,23,42,0.8); border:1px solid ${item.saved?'rgba(34,197,94,0.3)':'#475569'}; border-radius:5px; color:${item.playerClass?'#e2e8f0':'#64748b'}; font-size:0.75rem;"
+                            style="width:100%; padding:6px 9px; background:rgba(21,32,53,0.8); border:1px solid ${item.saved?'rgba(34,197,94,0.3)':'#405A85'}; border-radius:5px; color:${item.playerClass?'#F0EBE0':'#7A8CB8'}; font-size:0.75rem;"
                             ${item.saved ? 'disabled' : ''}>
                         <option value="">-- Class (optional) --</option>
                         ${TL_CLASSES.map(c => `<option value="${c.name}" ${item.playerClass===c.name?'selected':''}>${c.name}: ${c.weapons}</option>`).join('')}

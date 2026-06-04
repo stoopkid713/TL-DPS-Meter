@@ -71,7 +71,7 @@
             '#D96444','#5B92D4','#fb923c','#34d399','#f472b6',
             '#fbbf24','#60a5fa','#f87171','#4ade80','#c084fc',
             '#38bdf8','#fb7185','#a3e635','#e879f9','#2dd4bf',
-            '#fdba74','#818cf8','#86efac','#fcd34d','#94a3b8'
+            '#fdba74','#818cf8','#86efac','#fcd34d','#7A8CB8'
         ];
         function skillColor(name) {
             let h = 0;
