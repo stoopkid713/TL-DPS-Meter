@@ -187,14 +187,32 @@ the same party. Make sure Combat Logging is enabled in-game, or you won't show u
 **Why don't I see damage during combat?** T&L writes logs when you leave combat, not
 during. Stats (solo and party) appear after each fight ends.
 
-**Can I get banned?** The tool only reads log files the game generates. It does not
-inject into, modify, or interact with the game process.
+**Can I get banned?** Short version: **low technical risk, some residual policy risk, no
+guarantees.**
 
-**Is it safe?**
+STOOP only parses the **Detailed Combat Log** that Throne & Liberty writes to disk when
+*you* enable the game's official Combat Logging feature. It does **not** inject code, read or
+write game memory, hook the renderer, capture network traffic, or send any input to the game —
+the overlay is a separate window in its own process. That design sits outside what
+EasyAntiCheat is documented to act on (code injection, memory tampering, renderer hooks,
+known-cheat signatures). The tools people usually blame for EAC bans — FiveM, Overwolf —
+*inject DLLs and hook DirectX*; STOOP does none of that.
 
-Yes. STOOP only reads the log files Throne & Liberty writes to disk — it does not inject
-into, hook, or interact with the game process in any way. The full source is in this repo
-and can be audited line by line.
+That said, no one can promise you won't be penalized: EAC is proprietary and changes without
+notice, and Amazon Games' Code of Conduct lets them act against any unauthorized third-party
+tool at their discretion. Amazon hasn't published a position specifically permitting
+third-party log parsers for T&L. **Use STOOP at your own risk** — keep it to your own stats and
+never use it to pressure or harass other players.
+
+*Want the full reasoning?* See the evidence-based writeup in
+**[docs/BAN-RISK.md](docs/BAN-RISK.md)** — how EAC actually works, the inject-vs-read
+distinction, and a point-by-point look at the common ban claims.
+
+**Is it safe (malware / antivirus)?**
+
+The full source is in this repo and can be audited line by line, and STOOP only reads the log
+files Throne & Liberty writes to disk — it does not inject into, hook, or interact with the
+game process in any way.
 
 *SmartScreen "unknown publisher":* this notice appears because the exe isn't code-signed
 yet (on the roadmap). It's the same warning any unsigned Windows app gets, regardless of
