@@ -44,6 +44,15 @@ id = "a61e7c1245a14bcc9c96b3cec7da6318"
 binding = "ROOMS_KV"
 id = "c28515495a524a2bbe2e7fc7c02d78f5"
 
+# Cross-room encounter analytics D1 (global — survives room expiry).
+# The PartyRoom DO writes one row per completed encounter (on final:true) to this shared
+# database so encounter shape (boss, gap, submission counts) can be queried across all rooms.
+# Used to tune segmentation thresholds and validate encounter-combine logic with real data.
+[[d1_databases]]
+binding = "ANALYTICS_DB"
+database_name = "stoop-analytics"
+database_id = "e6e6ba37-0a1f-422f-be4a-740a70f3da75"
+
 # Observability #4 debug auth key (gates BOTH /party/<code>/debug and /rooms).
 # Deliberately NOT a [vars] entry: a plaintext var of the same name shadows the secret on
 # every deploy and resets it to "" (the original footgun). Use a secret instead — secrets

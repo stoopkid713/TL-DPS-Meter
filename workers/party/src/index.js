@@ -1002,6 +1002,8 @@ export class PartyRoom {
     // forward to a new one instead of merging into this (now-finished) board.
     if (payload.final) {
       this.ctx.storage.sql.exec("UPDATE encounters SET ended = 1 WHERE id = ?", id);
+      // Analytics: fire-and-forget — never blocks the scoreboard broadcast.
+      this.ctx.waitUntil(this._logEncounterAnalytics(id));
     }
 
     logEvent("post_fight", {
@@ -1638,6 +1640,147 @@ export class PartyRoom {
       if (att.user_id !== user_id) {
         try { ws.send(s); } catch (_) {}
       }
+    }
+  }
+
+  // --- Cross-room encounter analytics (stoop-analytics D1) ---
+  // Writes one row per completed encounter (on final:true) to the global ANALYTICS_DB so
+  // encounter shape can be analysed across all rooms. Fire-and-forget — failure never affects
+  // the party session. No personal data: party code is hashed, no user_ids stored.
+
+  _ensureAnalyticsTable() {
+    if (!this.env.ANALYTICS_DB) return false;
+    try {
+      this.env.ANALYTICS_DB.exec(
+        `CREATE TABLE IF NOT EXISTS encounter_analytics (
+          encounter_id          TEXT PRIMARY KEY,
+          boss_name             TEXT,
+          fight_start           INTEGER NOT NULL,
+          fight_end             INTEGER NOT NULL,
+          duration_s            INTEGER NOT NULL,
+          gap_before_s          INTEGER,
+          total_damage          INTEGER NOT NULL,
+          submission_count      INTEGER NOT NULL,
+          party_size            INTEGER NOT NULL,
+          consecutive_same_boss INTEGER NOT NULL DEFAULT 0,
+          party_code_hash       TEXT NOT NULL,
+          created_at            INTEGER NOT NULL
+        )`
+      );
+      this.env.ANALYTICS_DB.exec(
+        `CREATE INDEX IF NOT EXISTS idx_analytics_boss    ON encounter_analytics(boss_name)`
+      );
+      this.env.ANALYTICS_DB.exec(
+        `CREATE INDEX IF NOT EXISTS idx_analytics_party   ON encounter_analytics(party_code_hash)`
+      );
+      this.env.ANALYTICS_DB.exec(
+        `CREATE INDEX IF NOT EXISTS idx_analytics_created ON encounter_analytics(created_at)`
+      );
+    } catch (_) {}
+    return true;
+  }
+
+  async _logEncounterAnalytics(encounter_id) {
+    if (!this.env.ANALYTICS_DB) return; // binding absent → skip silently
+    try {
+      this._ensureTables(); // ensure per-room tables exist before reading
+
+      // --- gather submissions for this encounter ---
+      const subRows = [...this.ctx.storage.sql.exec(
+        "SELECT fight_ts, targets FROM submissions WHERE encounter_id = ?",
+        encounter_id
+      )];
+      if (!subRows.length) return; // nothing to log
+
+      const submission_count = subRows.length;
+      const submissions = subRows.map((r) => ({
+        fight_ts: r.fight_ts,
+        targets: (() => { try { return JSON.parse(r.targets); } catch (_) { return []; } })(),
+      }));
+
+      // fight_start = earliest fight_ts across submissions
+      // fight_end   = latest fight_ts (best proxy for when the last member's combat ended)
+      const fight_start = Math.min(...submissions.map((s) => s.fight_ts));
+      const fight_end   = Math.max(...submissions.map((s) => s.fight_ts));
+      const duration_s  = Math.max(0, Math.round((fight_end - fight_start) / 1000));
+
+      // total_damage = sum of per-submission total_damage across all targets
+      const total_damage = submissions.reduce((acc, s) =>
+        acc + s.targets.reduce((a, t) => a + (Number(t.total_damage) || 0), 0), 0
+      );
+
+      // boss detection (reuses existing logic)
+      const boss = this.detectBoss(submissions);
+      const boss_name = boss ? boss.name : null;
+
+      // party_size = current online member count (snapshot at fight time)
+      const members = (await this.ctx.storage.get("members")) || {};
+      const party_size = Object.keys(members).length || submission_count;
+
+      // gap_before_s = time between previous encounter's latest fight_ts and this one's start
+      const prevRows = [...this.ctx.storage.sql.exec(
+        `SELECT s.fight_ts FROM encounters e
+         JOIN submissions s ON s.encounter_id = e.id
+         WHERE e.id != ? AND e.started_at < ?
+         ORDER BY e.started_at DESC, s.fight_ts DESC
+         LIMIT 1`,
+        encounter_id, fight_start
+      )];
+      const gap_before_s = prevRows.length
+        ? Math.max(0, Math.round((fight_start - prevRows[0].fight_ts) / 1000))
+        : null;
+
+      // consecutive_same_boss = 1 when immediately prior encounter had same boss name
+      let consecutive_same_boss = 0;
+      if (boss_name) {
+        const prevEncRows = [...this.ctx.storage.sql.exec(
+          `SELECT s.targets FROM encounters e
+           JOIN submissions s ON s.encounter_id = e.id
+           WHERE e.id != ? AND e.started_at < ?
+           ORDER BY e.started_at DESC
+           LIMIT 5`,
+          encounter_id, fight_start
+        )];
+        if (prevEncRows.length) {
+          const prevSubs = prevEncRows.map((r) => ({
+            targets: (() => { try { return JSON.parse(r.targets); } catch (_) { return []; } })(),
+          }));
+          const prevBoss = this.detectBoss(prevSubs);
+          if (prevBoss && prevBoss.name.toLowerCase() === boss_name.toLowerCase()) {
+            consecutive_same_boss = 1;
+          }
+        }
+      }
+
+      // party_code_hash = first 8 hex chars of SHA-256(code) — groups same-session encounters
+      // without storing the real code
+      const code = (await this.ctx.storage.get("code")) || "unknown";
+      const hashBuf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code));
+      const party_code_hash = Array.from(new Uint8Array(hashBuf))
+        .map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 8);
+
+      // Write (INSERT OR REPLACE so a later final:true from another member updates the row
+      // with more complete submission data rather than silently failing).
+      this._ensureAnalyticsTable();
+      await this.env.ANALYTICS_DB.prepare(
+        `INSERT OR REPLACE INTO encounter_analytics
+          (encounter_id, boss_name, fight_start, fight_end, duration_s, gap_before_s,
+           total_damage, submission_count, party_size, consecutive_same_boss,
+           party_code_hash, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        encounter_id, boss_name, fight_start, fight_end, duration_s, gap_before_s,
+        total_damage, submission_count, party_size, consecutive_same_boss,
+        party_code_hash, Date.now()
+      ).run();
+
+      logEvent("analytics_logged", {
+        encounter_id, boss_name, duration_s, gap_before_s,
+        submission_count, party_size, consecutive_same_boss,
+      });
+    } catch (err) {
+      // Never surface analytics errors to the party session
+      logEvent("analytics_error", { encounter_id, error: String(err) });
     }
   }
 }
