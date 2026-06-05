@@ -22,7 +22,9 @@ import { dirname, join } from "node:path";
 
 const DB   = "stoop-analytics";
 const here = dirname(fileURLToPath(import.meta.url));
-const root = join(here, "../.."); // repo root (wrangler.toml lives in workers/party/)
+// wrangler must run where wrangler.toml lives (workers/party/) so it can resolve the project
+// + the ANALYTICS_DB binding. (here = backend/tools -> ../../workers/party.)
+const workerDir = join(here, "../../workers/party");
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -30,7 +32,7 @@ function wranglerD1(sql) {
   try {
     const out = execSync(
       `npx wrangler d1 execute ${DB} --remote --json --command "${sql.replace(/"/g, '\\"')}"`,
-      { cwd: root, stdio: ["pipe", "pipe", "pipe"] }
+      { cwd: workerDir, stdio: ["pipe", "pipe", "pipe"] }
     ).toString();
     const parsed = JSON.parse(out);
     // wrangler d1 --json returns an array of result objects; first one has the rows

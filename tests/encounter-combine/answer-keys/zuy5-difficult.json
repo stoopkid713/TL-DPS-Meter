@@ -1,0 +1,20 @@
+{
+  "run": "ZUY5 — Difficult",
+  "source_export": "zuy5-capture/export-FINAL-20260604T235710Z.json",
+  "video_verified": true,
+  "ground_truth": "video + HP-pixel reader (zuy5-capture/hpfull/, NOTES.md, WORKSTREAM-ENCOUNTER-COMBINE.md §9)",
+  "raw": { "total_pieces": 52, "named": 17, "blank": 35 },
+  "expected_groups_by_family": {
+    "Dragaryle": 1,
+    "Constructs": 1,
+    "Calanthia": 2
+  },
+  "expected_total_fights": 4,
+  "expected_union_submitters": 3,
+  "notes": [
+    "Dragaryle was 2 pulls: WIPE @19:03 + KILL @19:08. Glue-default => 1 group flagged 'possible re-pull'. (Split-default would make Dragaryle 2 and total 5.)",
+    "Constructs = one continuous fight: Vulkan/Zairos -> Radeth phase @19:23 -> kill @19:27. No wipe.",
+    "Calanthia family = 2 fights: an early pre-session attempt block (~5:46pm, leader-only, union 1) + the real boss-3 kill (Calanthia -> of Destruction @19:41, union 3). The gap ceiling keeps them apart; the primary (real-boss) group is the union-3 one.",
+    "union == 3 (the 3 active posters Stoop/Sirb/Bubz), NOT 4 — that is itself the 'did not invent the dark member andilex' check."
+  ]
+}

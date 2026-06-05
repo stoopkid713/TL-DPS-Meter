@@ -26657,12 +26657,18 @@ const PartyRender = {
             if (!(partyState.encounters || []).length && typeof loadPersistedPartyHistory === 'function') {
                 loadPersistedPartyHistory();
             }
-            const list = (partyState.encounters || []).slice().reverse(); // newest first
+            const activeId = partyState.active_encounter_id;
+            // STEP 1 (no-boss suppression): mirror the encounter-switcher filter (see
+            // renderEncounterSwitcher) — show only boss-resolved encounters + the live/active
+            // one, so the no-boss "Recording…" churn (35 of 52 in the ZUY5 run) stays out of the
+            // Encounters list, not just the switcher dropdown.
+            const list = (partyState.encounters || [])
+                .filter((e) => e.boss || (e.encounter_id === activeId && !e.ended))
+                .reverse(); // newest first
             if (!list.length) {
                 container.innerHTML = `<div class="party-empty-state"><div class="party-empty-icon">📜</div><div class="party-empty-text">No encounters recorded yet.</div></div>`;
                 return;
             }
-            const activeId = partyState.active_encounter_id;
             const rows = list.map((e) => {
                 const icon = PartyRender.catLabel(e.boss_category || 'unknown').split(' ')[0];
                 const t = e.started_at ? new Date(e.started_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';

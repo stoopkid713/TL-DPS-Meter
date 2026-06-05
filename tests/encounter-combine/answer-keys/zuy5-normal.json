@@ -1,0 +1,19 @@
+{
+  "run": "ZUY5 — Normal",
+  "source_export": "zuy5-normal-capture/export-NORMAL-20260605T003252Z.json",
+  "video_verified": false,
+  "ground_truth": "INFERRED. This export is a SUPERSET — the same room held BOTH the Difficult and the Normal run (84 encounters), so it contains ~2 clears of each boss + the early Calanthia attempts. Weak/overlapping test vs ZUY5-Difficult; AXEP is the independent one.",
+  "raw": { "total_pieces": 84, "named": 25, "blank": 59 },
+  "expected_groups_by_family": {
+    "Dragaryle": 2,
+    "Constructs": 2,
+    "Calanthia": 3
+  },
+  "expected_total_fights": 7,
+  "expected_union_submitters": 3,
+  "tolerance": { "group_count": 1, "union": "at_least" },
+  "notes": [
+    "Both runs in one room: 2 Dragaryle clears, 2 Constructs clears, 3 Calanthia (early attempts + 2 clears). Same party (union 3, andilex dark).",
+    "INFERRED key (no video). +1 group-count tolerance, union>=expected. Because it overlaps the Difficult run, treat a green here as confirmation, not independent evidence."
+  ]
+}

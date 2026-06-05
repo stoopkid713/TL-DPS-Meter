@@ -37,3 +37,10 @@ overlay/src-tauri/gen/
 _test-obs.mjs
 .obs-key
 obs.mjs
+
+# Wrangler local auth/account cache — never commit
+.wrangler/
+
+# Scratch / debug probes (underscore convention) — not shipped
+backend/tools/_bots_join.py
+tests/frontend/_cdp_*.js

@@ -86,7 +86,10 @@ async function connect(page) {
 // Make the app believe combat logging is healthy + force-hide the banner (clean footage).
 async function suppressBanner(page) {
   await page.evaluate(() => {
-    try { lastLogFile = 'C:/Games/TL/combat.log'; lastLogActivity = Date.now(); } catch (e) {}
+    // New #14 state machine: 'ok' (banner hidden) needs lastLogFile set AND recent combat
+    // (lastCombatAgeS <= COMBAT_STALE_S). lastLogActivity was removed in the rewrite.
+    try { lastLogFile = 'C:/Games/TL/combat.log'; } catch (e) {}
+    try { lastCombatAgeS = 0; } catch (e) {}
     if (typeof renderLogStatusBanner === 'function') renderLogStatusBanner();
     const b = document.getElementById('partyLogStatusBanner'); if (b) b.style.display = 'none';
   });

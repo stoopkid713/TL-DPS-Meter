@@ -1,0 +1,21 @@
+{
+  "run": "AXEP — 5-man",
+  "source_export": "axep-capture/export-FINAL-20260605T011156Z.json",
+  "video_verified": false,
+  "ground_truth": "INFERRED from boss structure + replay (WORKSTREAM-ENCOUNTER-COMBINE.md §8: combine -> union 5/5). No video pass — treat as provisional.",
+  "raw": { "total_pieces": 62, "named": 19, "blank": 43 },
+  "expected_groups_by_family": {
+    "Dragaryle": 1,
+    "Constructs": 1,
+    "Calanthia": 1
+  },
+  "expected_total_fights": 3,
+  "expected_union_submitters": 5,
+  "expected_union_by_family": { "Dragaryle": 4 },
+  "tolerance": { "group_count": 1, "union": "at_least" },
+  "notes": [
+    "5-man party — the strongest scatter test: combine reaches FULL coverage (5 posters) on Constructs and Calanthia.",
+    "Dragaryle posters = 4, not 5: across BOTH its groups only 4 distinct ids ever appear, so the 5th player never logged boss 1 (dark/absent for that boss — same pattern as andilex in the Difficult run). Verified from the data, not a recognizer miss.",
+    "INFERRED key (no video). +1 group-count tolerance, union>=expected."
+  ]
+}
