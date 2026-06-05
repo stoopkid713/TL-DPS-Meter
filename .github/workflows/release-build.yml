@@ -24,10 +24,11 @@ jobs:
     name: Build release artifacts
     runs-on: windows-latest   # GitHub-hosted = qualifies as SignPath Trusted Build System
 
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'   # remove after actions update to Node 24
+
     steps:
       - uses: actions/checkout@v4
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
       - uses: astral-sh/setup-uv@v5
         with:
