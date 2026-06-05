@@ -183,11 +183,15 @@ the same party. Make sure Combat Logging is enabled in-game, or you won't show u
 **Why don't I see damage during combat?** T&L writes logs when you leave combat, not
 during. Stats (solo and party) appear after each fight ends.
 
-**Can I get banned?** The tool only reads log files the game generates. It does not
-inject into, modify, or interact with the game process.
+**Can I get banned?** STOOP only reads log files the game generates — it does not
+inject into, modify, or interact with the game process. Technical detection risk is low,
+but third-party tools sit in a ToS gray area, so the policy risk isn't zero. Read the
+honest breakdown in [SECURITY.md](SECURITY.md#anti-cheat--ban-risk) and decide for yourself.
 
 **Why does antivirus / SmartScreen flag the exe?** False positive from unsigned
-PyInstaller packaging. The source is in this repo — build it yourself if you prefer.
+PyInstaller packaging — not from anything the app does. The source is in this repo, so
+build it yourself if you prefer. Full explanation, sandbox evidence, and how to keep the
+file: [SECURITY.md](SECURITY.md#why-antivirus-may-flag-it-false-positives).
 
 **How do I filter to only my damage?** Settings → Player Name → your character name.
 
