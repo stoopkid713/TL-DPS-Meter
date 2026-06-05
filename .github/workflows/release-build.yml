@@ -79,6 +79,7 @@ jobs:
       - name: Publish to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          draft: true   # TODO: remove draft:true once signing is wired and tested
           files: |
             backend/dist/STOOP.exe
             backend/dist/STOOP-Setup.exe
