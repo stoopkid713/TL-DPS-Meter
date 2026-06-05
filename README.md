@@ -201,7 +201,9 @@ yet (on the roadmap). It's the same warning any unsigned Windows app gets, regar
 what it does — click **More info → Run anyway** to proceed.
 
 *Antivirus flags:* a false positive from PyInstaller's packaging (it bundles a Python
-runtime into a single `.exe`, which some scanners misread as suspicious). If you want to
+runtime into a single `.exe`, which some scanners misread as suspicious). The current release
+scans **3/69** on [VirusTotal](https://www.virustotal.com/gui/file/9df5f421ee3021af55292becbc6658e19b7be71b2fd99300e1920f71fbe2c3db)
+— all three are known PyInstaller false-positive triggers; 66 vendors flag it clean. If you want to
 verify your download, each release includes a `checksums.txt` — check it against your file
 with `certutil -hashfile STOOP.exe SHA256`. Or build from source (see above).
 
