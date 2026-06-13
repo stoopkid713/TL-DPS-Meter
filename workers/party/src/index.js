@@ -1746,14 +1746,40 @@ export class PartyRoom {
       const fight_end   = Math.max(...submissions.map((s) => s.fight_ts));
       const duration_s  = Math.max(0, Math.round((fight_end - fight_start) / 1000));
 
-      // total_damage = sum of per-submission total_damage across all targets
+      // total_damage = sum of per-submission total_damage across all targets (raw, incl. trash)
       const total_damage = submissions.reduce((acc, s) =>
         acc + s.targets.reduce((a, t) => a + (Number(t.total_damage) || 0), 0), 0
       );
 
+      // Boss-only damage + crit/heavy quality in ONE pass over submissions (reuse the live
+      // scoreboard's boss filter via _aggregateBossTargets). Trash = raw total minus boss.
+      // Quality is hits-weighted across members' boss aggregates. (Accuracy-with-misses is
+      // intentionally NOT here — hit_type isn't transmitted on the party path; see
+      // WORKSTREAM-ANALYTICS-DATA-COLLECTION.md "parked".)
+      let boss_damage = 0;
+      let qHits = 0, qCrit = 0, qHeavy = 0, qCritHeavy = 0;
+      for (const s of submissions) {
+        const agg = this._aggregateBossTargets(s);
+        if (!agg) continue;
+        const h = Number(agg.hits) || 0;
+        boss_damage += Number(agg.total_damage) || 0;
+        qHits += h;
+        qCrit += (Number(agg.crit_rate) || 0) * h;
+        qHeavy += (Number(agg.heavy_rate) || 0) * h;
+        qCritHeavy += (Number(agg.crit_heavy_rate) || 0) * h;
+      }
+      const trash_damage = Math.max(0, total_damage - boss_damage);
+      const quality = qHits > 0 ? {
+        hits: qHits,
+        crit_rate: qCrit / qHits,
+        heavy_rate: qHeavy / qHits,
+        crit_heavy_rate: qCritHeavy / qHits,
+      } : null;
+
       // boss detection (reuses existing logic)
       const boss = this.detectBoss(submissions);
       const boss_name = boss ? boss.name : null;
+      const segment_kind = boss_name ? "boss" : "no_boss";
 
       // party_size = current online member count (snapshot at fight time)
       const members = (await this.ctx.storage.get("members")) || {};
@@ -1772,19 +1798,24 @@ export class PartyRoom {
         ? Math.max(0, Math.round((fight_start - prevRows[0].fight_ts) / 1000))
         : null;
 
-      // consecutive_same_boss = 1 when immediately prior encounter had same boss name
+      const gap_after_s = null; // next-encounter gap unknown at write time; reserved.
+
+      // consecutive_same_boss = 1 when the IMMEDIATELY-PRIOR encounter had the same boss.
+      // Scope to that one prior encounter's submissions (resolve its id first) — the old query
+      // pulled an un-scoped LIMIT 5 of submissions across encounters and bled boss names together.
       let consecutive_same_boss = 0;
       if (boss_name) {
-        const prevEncRows = [...this.ctx.storage.sql.exec(
-          `SELECT s.targets FROM encounters e
-           JOIN submissions s ON s.encounter_id = e.id
-           WHERE e.id != ? AND e.started_at < ?
-           ORDER BY e.started_at DESC
-           LIMIT 5`,
+        const prevEncIdRows = [...this.ctx.storage.sql.exec(
+          `SELECT id FROM encounters WHERE id != ? AND started_at < ?
+           ORDER BY started_at DESC LIMIT 1`,
           encounter_id, fight_start
         )];
-        if (prevEncRows.length) {
-          const prevSubs = prevEncRows.map((r) => ({
+        if (prevEncIdRows.length) {
+          const prevId = prevEncIdRows[0].id;
+          const prevSubRows = [...this.ctx.storage.sql.exec(
+            "SELECT targets FROM submissions WHERE encounter_id = ?", prevId
+          )];
+          const prevSubs = prevSubRows.map((r) => ({
             targets: (() => { try { return JSON.parse(r.targets); } catch (_) { return []; } })(),
           }));
           const prevBoss = this.detectBoss(prevSubs);
@@ -1793,6 +1824,8 @@ export class PartyRoom {
           }
         }
       }
+      // is_phase: this encounter continues the same boss as the prior one (a phase transition).
+      const is_phase = consecutive_same_boss;
 
       // party_code_hash = first 8 hex chars of SHA-256(code) — groups same-session encounters
       // without storing the real code
@@ -1808,17 +1841,21 @@ export class PartyRoom {
         `INSERT OR REPLACE INTO encounter_analytics
           (encounter_id, boss_name, fight_start, fight_end, duration_s, gap_before_s,
            total_damage, submission_count, party_size, consecutive_same_boss,
-           party_code_hash, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           party_code_hash, created_at,
+           boss_damage, trash_damage, is_phase, gap_after_s, segment_kind, detail)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         encounter_id, boss_name, fight_start, fight_end, duration_s, gap_before_s,
         total_damage, submission_count, party_size, consecutive_same_boss,
-        party_code_hash, Date.now()
+        party_code_hash, Date.now(),
+        boss_damage, trash_damage, is_phase, gap_after_s, segment_kind,
+        quality ? JSON.stringify({ quality }) : null
       ).run();
 
       logEvent("analytics_logged", {
         encounter_id, boss_name, duration_s, gap_before_s,
         submission_count, party_size, consecutive_same_boss,
+        boss_damage, trash_damage, is_phase, segment_kind,
       });
     } catch (err) {
       // Never surface analytics errors to the party session
