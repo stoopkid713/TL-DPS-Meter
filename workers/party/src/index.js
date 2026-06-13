@@ -538,6 +538,13 @@ export class PartyRoom {
             // Re-broadcast scoreboard so has_detail flag reaches the UI immediately.
             this.broadcast(await this.buildScoreboard());
             this.broadcast(await this.buildEncounters());
+            // Analytics: final_detail is the authoritative encounter-close signal the REAL
+            // client sends. The `final` flag on post_fight (the other trigger, ~L1003) is only
+            // ever sent by tests, so analytics never fired in production. Fire here too —
+            // fire-and-forget (never blocks), idempotent (INSERT OR REPLACE keyed on
+            // encounter_id, so multiple members' final_details just refine the row), and
+            // backwards-compatible (every shipped client already sends final_detail).
+            this.ctx.waitUntil(this._logEncounterAnalytics(eid));
           } else {
             logEvent("final_detail_no_encounter", {
               encounter_id: eid, user_id: att.user_id,
@@ -1682,6 +1689,16 @@ export class PartyRoom {
 
   async _logEncounterAnalytics(encounter_id) {
     if (!this.env.ANALYTICS_DB) return; // binding absent → skip silently
+
+    // De-storm: final_detail fires once per member -> up to ~12 concurrent writes for one
+    // encounter. Log each encounter at most once per DO instance. (INSERT OR REPLACE keeps the
+    // row idempotent on the key; this removes the redundant concurrent writes.) Trade-off: the
+    // first final_detail to arrive wins; submission_count vs party_size (the `capture` view)
+    // still records how complete that snapshot was.
+    this._analyticsLogged ??= new Set();
+    if (this._analyticsLogged.has(encounter_id)) return;
+    this._analyticsLogged.add(encounter_id);
+
     try {
       this._ensureTables(); // ensure per-room tables exist before reading
 
