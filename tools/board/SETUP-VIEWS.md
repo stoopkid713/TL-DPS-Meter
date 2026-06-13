@@ -31,9 +31,14 @@
 
 ## View 3 — "🗺️ By Area" (which subsystem)
 
+> ⚠️ **You can't Group/Slice by Labels** — GitHub Projects only groups by **single-select fields**. So there's a
+> dedicated **`Area`** single-select field (worker/backend/frontend/overlay/game-data/docs), populated from the
+> `area:` labels by [`set-area-field.mjs`](set-area-field.mjs). Group by **Area**, not Labels.
+
 1. **`+ New view`** → ▾ → Rename → `🗺️ By Area`.
-2. Layout = **Table**, **Group by = Labels** (or Slice by → Labels).
-3. Filter: `is:open`. Now you can see all open work grouped by worker / backend / frontend / overlay / etc.
+2. Layout = **Table** (or Board), **Group by = Area**.
+3. Filter: `is:open`. Now you see all open work grouped by worker / backend / frontend / overlay / etc.
+4. *(If you ever add new issues by hand, re-run `node tools/board/set-area-field.mjs` to backfill the Area field from labels.)*
 
 ## View 4 — "📊 By Priority" (table)
 
