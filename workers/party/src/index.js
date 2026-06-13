@@ -1671,10 +1671,33 @@ export class PartyRoom {
           submission_count      INTEGER NOT NULL,
           party_size            INTEGER NOT NULL,
           consecutive_same_boss INTEGER NOT NULL DEFAULT 0,
+          boss_damage           INTEGER,
+          trash_damage          INTEGER,
+          is_phase              INTEGER NOT NULL DEFAULT 0,
+          gap_after_s           INTEGER,
+          segment_kind          TEXT,
+          content_type          TEXT,
+          content_tier          TEXT,
+          detail                TEXT,
           party_code_hash       TEXT NOT NULL,
           created_at            INTEGER NOT NULL
         )`
       );
+      // Additive migrations for the already-deployed table (old rows read NULL). Each guarded in
+      // its own try so a pre-existing column (re-run) is a harmless no-op; never destructive.
+      for (const col of [
+        "boss_damage INTEGER",
+        "trash_damage INTEGER",
+        "is_phase INTEGER NOT NULL DEFAULT 0",
+        "gap_after_s INTEGER",
+        "segment_kind TEXT",
+        "content_type TEXT",
+        "content_tier TEXT",
+        "detail TEXT",
+      ]) {
+        try { this.env.ANALYTICS_DB.exec(`ALTER TABLE encounter_analytics ADD COLUMN ${col}`); }
+        catch (_) { /* column already exists */ }
+      }
       this.env.ANALYTICS_DB.exec(
         `CREATE INDEX IF NOT EXISTS idx_analytics_boss    ON encounter_analytics(boss_name)`
       );
