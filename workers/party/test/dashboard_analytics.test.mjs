@@ -66,13 +66,16 @@ test("bucketDamage on empty input returns max 0, empty buckets", () => {
 });
 
 // --- Task 5: computeHitQuality ---
-test("computeHitQuality is hits-weighted across rows", () => {
+test("computeHitQuality is hits-weighted and normalizes 0-100 source to 0-1", () => {
+  // source rates are stored 0-100 (per the data convention); output is 0-1.
   const rows = [
-    { detail: JSON.stringify({ quality: { hits: 100, crit_rate: 0.4, heavy_rate: 0.2, crit_heavy_rate: 0.1 } }) },
-    { detail: JSON.stringify({ quality: { hits: 300, crit_rate: 0.2, heavy_rate: 0.1, crit_heavy_rate: 0.05 } }) },
+    { detail: JSON.stringify({ quality: { hits: 100, crit_rate: 40, heavy_rate: 20, crit_heavy_rate: 10 } }) },
+    { detail: JSON.stringify({ quality: { hits: 300, crit_rate: 20, heavy_rate: 10, crit_heavy_rate: 5 } }) },
   ];
   const q = computeHitQuality(rows);
-  assert.ok(Math.abs(q.crit_rate - 0.25) < 1e-9); // (100*.4 + 300*.2)/400
+  // weighted crit = (100*40 + 300*20)/400 = 25 (percent) -> /100 = 0.25
+  assert.ok(Math.abs(q.crit_rate - 0.25) < 1e-9);
+  assert.ok(q.crit_rate <= 1 && q.heavy_rate <= 1 && q.crit_heavy_rate <= 1);
 });
 
 test("computeHitQuality returns null when no quality present", () => {

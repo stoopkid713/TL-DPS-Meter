@@ -73,9 +73,11 @@ export function computeHitQuality(rows) {
     const h = Number(q.hits) || 0;
     if (h <= 0) continue;
     hits += h;
-    crit += (Number(q.crit_rate) || 0) * h;
-    heavy += (Number(q.heavy_rate) || 0) * h;
-    critHeavy += (Number(q.crit_heavy_rate) || 0) * h;
+    // Source rates are stored 0-100 (per the data convention); normalize to 0-1 so the
+    // dashboard's pct() (×100) and donut math are correct.
+    crit += ((Number(q.crit_rate) || 0) / 100) * h;
+    heavy += ((Number(q.heavy_rate) || 0) / 100) * h;
+    critHeavy += ((Number(q.crit_heavy_rate) || 0) / 100) * h;
   }
   if (hits <= 0) return null;
   return { crit_rate: crit / hits, heavy_rate: heavy / hits, crit_heavy_rate: critHeavy / hits };
