@@ -13,7 +13,11 @@
  * KV bindings used (same as existing routes):
  *   env.ROOMS_KV    (id c28515495a524a2bbe2e7fc7c02d78f5)
  *   env.FEEDBACK_KV (id a61e7c1245a14bcc9c96b3cec7da6318)
+ *
+ * D1 analytics aggregation is delegated to dashboard_analytics.js (pure + unit-tested).
  */
+
+import { buildAnalyticsBlock } from "./dashboard_analytics.js";
 
 // ---------------------------------------------------------------------------
 // Auth helper — mirrors /rooms and /party/<code>/debug gates exactly.
@@ -85,7 +89,11 @@ export async function handleDashboardJson(request, env) {
     } catch (_) {}
   }
 
-  const body = JSON.stringify({ generated_at, live_rooms, history, feedback }, null, 2);
+  // --- analytics: D1 cross-encounter aggregates (additive; null if binding/queries unavailable) ---
+  let analytics = null;
+  try { analytics = await buildAnalyticsBlock(env, generated_at); } catch (_) { analytics = null; }
+
+  const body = JSON.stringify({ generated_at, live_rooms, history, feedback, analytics }, null, 2);
   return new Response(body, {
     status: 200,
     headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
