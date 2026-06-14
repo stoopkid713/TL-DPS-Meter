@@ -1,6 +1,6 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Join a Party — ツCKヤ DPS Meter</title>
+<title>Join a Party — STOOP</title>
 <style>body{font-family:Segoe UI,system-ui,sans-serif;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#e2e8f0;text-align:center;padding:56px 20px;min-height:100vh;margin:0}
 h1{font-size:2rem;margin-bottom:6px}a{color:#22d3ee;text-decoration:none}a:hover{text-decoration:underline}
 .code{font-size:2.6rem;font-weight:800;letter-spacing:.18em;color:#22d3ee;margin:14px 0;font-family:Consolas,monospace}
@@ -20,14 +20,14 @@ h1{font-size:2rem;margin-bottom:6px}a{color:#22d3ee;text-decoration:none}a:hover
   </div>
   <ol class="steps" id="steps">
     <li><strong>Get the app</strong> (below) if you don't have it.</li>
-    <li>Open <strong>ツCKヤ DPS Meter</strong> → the <strong>Party DPS</strong> tab.</li>
+    <li>Open <strong>STOOP</strong> → the <strong>Party DPS</strong> tab.</li>
     <li>Pick your name, then <strong>Join</strong> and enter the code above.</li>
   </ol>
   <p>
-    <a class="btn" href="https://github.com/stoopkid713/TL-DPS-Meter/releases/latest/download/TL-DPS-Meter-Setup.exe">⬇ Download Installer</a>
-    <a class="btn" href="https://github.com/stoopkid713/TL-DPS-Meter/releases/latest/download/TL-DPS-Meter-portable.zip">⬇ Portable (zip)</a>
+    <a class="btn" href="https://github.com/stoopkid713/STOOP/releases/latest/download/STOOP-Setup.exe">⬇ Download Installer</a>
+    <a class="btn" href="https://github.com/stoopkid713/STOOP/releases/latest/download/STOOP-portable.zip">⬇ Portable (zip)</a>
   </p>
-  <p class="dim"><a href="./">All downloads</a> · <a href="https://github.com/stoopkid713/TL-DPS-Meter">Source on GitHub</a> · MIT · Not affiliated with NCSOFT or Amazon Games · <a href="privacy.html">Privacy</a></p>
+  <p class="dim"><a href="./">All downloads</a> · <a href="https://github.com/stoopkid713/STOOP">Source on GitHub</a> · MIT · Not affiliated with NCSOFT or Amazon Games · <a href="privacy.html">Privacy</a></p>
 </div>
 <script>
   // The party code arrives as the URL hash: .../join.html#ABCD
@@ -36,13 +36,13 @@ h1{font-size:2rem;margin-bottom:6px}a{color:#22d3ee;text-decoration:none}a:hover
   var codeEl = document.getElementById('code');
   if (valid) {
     codeEl.textContent = raw;
-    document.title = 'Join party ' + raw + ' — ツCKヤ DPS Meter';
+    document.title = 'Join party ' + raw + ' — STOOP';
   } else {
     // No/!valid code: still a useful download + how-to page.
     document.getElementById('codeBlock').style.display = 'none';
     document.getElementById('steps').innerHTML =
       '<li><strong>Get the app</strong> (below) if you don\'t have it.</li>'
-      + '<li>Open <strong>ツCKヤ DPS Meter</strong> → the <strong>Party DPS</strong> tab.</li>'
+      + '<li>Open <strong>STOOP</strong> → the <strong>Party DPS</strong> tab.</li>'
       + '<li>Ask your party leader for the 4-letter <strong>code</strong>, then <strong>Join</strong>.</li>';
   }
   function copyCode() {
